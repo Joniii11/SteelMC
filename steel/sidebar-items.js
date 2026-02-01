@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["MC_VERSION"],"mod":["network"],"struct":["SteelServer"]};
+window.SIDEBAR_ITEMS = {"mod":["config","spawn_progress"],"struct":["SteelServer"]};

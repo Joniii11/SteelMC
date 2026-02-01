@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["chunk_sender","game_profile","networking"],"struct":["GameProfile","Player"]};
+window.SIDEBAR_ITEMS = {"enum":["ChatVisibility","GameProfileAction","HumanoidArm","ParticleStatus"],"fn":["strip_formatting_codes"],"mod":["abilities","block_breaking","chunk_sender","game_mode","game_profile","message_chain","message_validator","movement","networking","player_inventory","profile_key","signature_cache"],"struct":["Abilities","ClientInformation","GameProfile","LastSeen","MessageCache","Player"],"type":["PreviousMessageEntry"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DataComponentMap","DataComponentRegistry","DataComponentType"],"trait":["ComponentValue"]};
+window.SIDEBAR_ITEMS = {"enum":["EquippableSlot"],"mod":["equippable","tool"],"struct":["Equippable","Tool","ToolRule"]};

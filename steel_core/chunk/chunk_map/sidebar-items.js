@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ChunkMap"]};
+window.SIDEBAR_ITEMS = {"struct":["ChunkMap","ChunkMapTickTimings"]};

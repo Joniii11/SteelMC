@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["key_store","registry_cache"],"struct":["Server"]};
+window.SIDEBAR_ITEMS = {"constant":["TAB_LIST_UPDATE_INTERVAL"],"mod":["registry_cache","tick_rate_manager"],"struct":["Server"]};
