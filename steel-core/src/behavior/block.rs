@@ -45,7 +45,7 @@ pub trait BlockBehaviour: Send + Sync {
     /// Returns whether this block state can be replaced by another block placement.
     ///
     /// This is used for blocks like slabs that can be merged into double slabs,
-    /// or other blocks with special replacement logic matches the vanillla logik in java the canBeReplaced thingy
+    /// or other blocks with special replacement logic matches the vanilla logik in java the canBeReplaced thingy
     ///
     /// The default implementation returns `false`, meaning the block cannot be replaced
     /// unless it has the `replaceable` config flag set.

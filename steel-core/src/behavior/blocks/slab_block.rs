@@ -152,7 +152,7 @@ impl BlockBehaviour for SlabBlock {
                 SlabType::Double => false,
             }
         } else {
-            // placing adjacent to a block into an exisitng slab position
+            // placing adjacent to a block into an existing slab position
             match clicked_face {
                 Direction::Up => slab_type == SlabType::Top,
                 Direction::Down => slab_type == SlabType::Bottom,
