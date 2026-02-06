@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["register_fluid_tags"],"static":["LAVA_TAG","WATER_TAG"]};
+window.SIDEBAR_ITEMS = {"constant":["LAVA_TAG","WATER_TAG"],"fn":["register_fluid_tags"],"static":["LAVA_TAG_LIST","WATER_TAG_LIST"]};

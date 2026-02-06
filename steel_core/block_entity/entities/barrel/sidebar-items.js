@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["BARREL_SLOTS"],"fn":["item_from_borrowed_compound"],"struct":["BarrelBlockEntity"]};
+window.SIDEBAR_ITEMS = {"constant":["BARREL_SLOTS"],"struct":["BarrelBlockEntity"]};

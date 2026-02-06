@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/inventory/menu.rs`."><title>menu.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (905b92696 2026-01-31)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/inventory/</div>menu.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! A menu can be considered everything that's shown on the screen.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/inventory/menu.rs`."><title>menu.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (f889772d6 2026-02-05)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/inventory/</div>menu.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! A menu can be considered everything that's shown on the screen.
 <a href=#2 id=2 data-nosnippet>2</a>//! It consists of slots, slots consist of a view into a single inventory and position.
 <a href=#3 id=3 data-nosnippet>3</a>//! When you have a chest open for example a chest menu is shown, consisting of the chests slots and the players inventory slots.
 <a href=#4 id=4 data-nosnippet>4</a>//!
@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a><span class="kw">impl </span>RemoteSlot {
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="doccomment">/// Creates an unknown remote slot.
 <a href=#57 id=57 data-nosnippet>57</a>    </span><span class="attr">#[must_use]
-<a href=#58 id=58 data-nosnippet>58</a>    </span><span class="kw">pub fn </span>unknown() -&gt; <span class="self">Self </span>{
+<a href=#58 id=58 data-nosnippet>58</a>    </span><span class="kw">pub const fn </span>unknown() -&gt; <span class="self">Self </span>{
 <a href=#59 id=59 data-nosnippet>59</a>        <span class="self">Self</span>::Unknown
 <a href=#60 id=60 data-nosnippet>60</a>    }
 <a href=#61 id=61 data-nosnippet>61</a>
@@ -224,27 +224,27 @@
 <a href=#224 id=224 data-nosnippet>224</a><span class="doccomment">/// Extracts the quickcraft type from a button mask.
 <a href=#225 id=225 data-nosnippet>225</a>/// Type is stored in bits 2-3.
 <a href=#226 id=226 data-nosnippet>226</a></span><span class="attr">#[must_use]
-<a href=#227 id=227 data-nosnippet>227</a></span><span class="kw">pub fn </span>get_quickcraft_type(button: i32) -&gt; i32 {
+<a href=#227 id=227 data-nosnippet>227</a></span><span class="kw">pub const fn </span>get_quickcraft_type(button: i32) -&gt; i32 {
 <a href=#228 id=228 data-nosnippet>228</a>    (button &gt;&gt; <span class="number">2</span>) &amp; <span class="number">3
 <a href=#229 id=229 data-nosnippet>229</a></span>}
 <a href=#230 id=230 data-nosnippet>230</a>
 <a href=#231 id=231 data-nosnippet>231</a><span class="doccomment">/// Extracts the quickcraft header (phase) from a button mask.
 <a href=#232 id=232 data-nosnippet>232</a>/// Header is stored in bits 0-1.
 <a href=#233 id=233 data-nosnippet>233</a></span><span class="attr">#[must_use]
-<a href=#234 id=234 data-nosnippet>234</a></span><span class="kw">pub fn </span>get_quickcraft_header(button: i32) -&gt; i32 {
+<a href=#234 id=234 data-nosnippet>234</a></span><span class="kw">pub const fn </span>get_quickcraft_header(button: i32) -&gt; i32 {
 <a href=#235 id=235 data-nosnippet>235</a>    button &amp; <span class="number">3
 <a href=#236 id=236 data-nosnippet>236</a></span>}
 <a href=#237 id=237 data-nosnippet>237</a>
 <a href=#238 id=238 data-nosnippet>238</a><span class="doccomment">/// Creates a quickcraft button mask from header and type.
 <a href=#239 id=239 data-nosnippet>239</a></span><span class="attr">#[must_use]
-<a href=#240 id=240 data-nosnippet>240</a></span><span class="kw">pub fn </span>get_quickcraft_mask(header: i32, quickcraft_type: i32) -&gt; i32 {
+<a href=#240 id=240 data-nosnippet>240</a></span><span class="kw">pub const fn </span>get_quickcraft_mask(header: i32, quickcraft_type: i32) -&gt; i32 {
 <a href=#241 id=241 data-nosnippet>241</a>    (header &amp; <span class="number">3</span>) | ((quickcraft_type &amp; <span class="number">3</span>) &lt;&lt; <span class="number">2</span>)
 <a href=#242 id=242 data-nosnippet>242</a>}
 <a href=#243 id=243 data-nosnippet>243</a>
 <a href=#244 id=244 data-nosnippet>244</a><span class="doccomment">/// Checks if a quickcraft type is valid for the given player.
 <a href=#245 id=245 data-nosnippet>245</a>/// Type 2 (clone) requires creative mode (infinite materials).
 <a href=#246 id=246 data-nosnippet>246</a></span><span class="attr">#[must_use]
-<a href=#247 id=247 data-nosnippet>247</a></span><span class="kw">pub fn </span>is_valid_quickcraft_type(quickcraft_type: i32, has_infinite_materials: bool) -&gt; bool {
+<a href=#247 id=247 data-nosnippet>247</a></span><span class="kw">pub const fn </span>is_valid_quickcraft_type(quickcraft_type: i32, has_infinite_materials: bool) -&gt; bool {
 <a href=#248 id=248 data-nosnippet>248</a>    <span class="kw">match </span>quickcraft_type {
 <a href=#249 id=249 data-nosnippet>249</a>        <span class="number">0 </span>| <span class="number">1 </span>=&gt; <span class="bool-val">true</span>,
 <a href=#250 id=250 data-nosnippet>250</a>        <span class="number">2 </span>=&gt; has_infinite_materials,
@@ -406,7 +406,7 @@
 <a href=#406 id=406 data-nosnippet>406</a>    <span class="doccomment">/// Returns true if a slot can be dragged to during quickcraft.
 <a href=#407 id=407 data-nosnippet>407</a>    /// Menus can override this via the Menu trait.
 <a href=#408 id=408 data-nosnippet>408</a>    </span><span class="attr">#[must_use]
-<a href=#409 id=409 data-nosnippet>409</a>    </span><span class="kw">pub fn </span>can_drag_to(<span class="kw-2">&amp;</span><span class="self">self</span>, _slot_index: usize) -&gt; bool {
+<a href=#409 id=409 data-nosnippet>409</a>    </span><span class="kw">pub const fn </span>can_drag_to(<span class="kw-2">&amp;</span><span class="self">self</span>, _slot_index: usize) -&gt; bool {
 <a href=#410 id=410 data-nosnippet>410</a>        <span class="bool-val">true
 <a href=#411 id=411 data-nosnippet>411</a>    </span>}
 <a href=#412 id=412 data-nosnippet>412</a>
@@ -512,19 +512,19 @@
 <a href=#512 id=512 data-nosnippet>512</a>
 <a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// Returns the current state ID.
 <a href=#514 id=514 data-nosnippet>514</a>    </span><span class="attr">#[must_use]
-<a href=#515 id=515 data-nosnippet>515</a>    </span><span class="kw">pub fn </span>get_state_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+<a href=#515 id=515 data-nosnippet>515</a>    </span><span class="kw">pub const fn </span>get_state_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
 <a href=#516 id=516 data-nosnippet>516</a>        <span class="self">self</span>.state_id
 <a href=#517 id=517 data-nosnippet>517</a>    }
 <a href=#518 id=518 data-nosnippet>518</a>
 <a href=#519 id=519 data-nosnippet>519</a>    <span class="doccomment">/// Suppresses remote updates during click handling.
 <a href=#520 id=520 data-nosnippet>520</a>    /// Call this before processing a click.
-<a href=#521 id=521 data-nosnippet>521</a>    </span><span class="kw">pub fn </span>suppress_remote_updates(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#521 id=521 data-nosnippet>521</a>    </span><span class="kw">pub const fn </span>suppress_remote_updates(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
 <a href=#522 id=522 data-nosnippet>522</a>        <span class="self">self</span>.suppress_remote_updates = <span class="bool-val">true</span>;
 <a href=#523 id=523 data-nosnippet>523</a>    }
 <a href=#524 id=524 data-nosnippet>524</a>
 <a href=#525 id=525 data-nosnippet>525</a>    <span class="doccomment">/// Resumes remote updates after click handling.
 <a href=#526 id=526 data-nosnippet>526</a>    /// Call this after processing a click.
-<a href=#527 id=527 data-nosnippet>527</a>    </span><span class="kw">pub fn </span>resume_remote_updates(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#527 id=527 data-nosnippet>527</a>    </span><span class="kw">pub const fn </span>resume_remote_updates(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
 <a href=#528 id=528 data-nosnippet>528</a>        <span class="self">self</span>.suppress_remote_updates = <span class="bool-val">false</span>;
 <a href=#529 id=529 data-nosnippet>529</a>    }
 <a href=#530 id=530 data-nosnippet>530</a>
@@ -567,13 +567,13 @@
 <a href=#567 id=567 data-nosnippet>567</a>    /// -999 is used for clicking outside the inventory.
 <a href=#568 id=568 data-nosnippet>568</a>    /// -1 is also accepted (matches Java behavior, though not used by vanilla clients).
 <a href=#569 id=569 data-nosnippet>569</a>    </span><span class="attr">#[must_use]
-<a href=#570 id=570 data-nosnippet>570</a>    </span><span class="kw">pub fn </span>is_valid_slot_index(<span class="kw-2">&amp;</span><span class="self">self</span>, slot: i16) -&gt; bool {
+<a href=#570 id=570 data-nosnippet>570</a>    </span><span class="kw">pub const fn </span>is_valid_slot_index(<span class="kw-2">&amp;</span><span class="self">self</span>, slot: i16) -&gt; bool {
 <a href=#571 id=571 data-nosnippet>571</a>        slot == -<span class="number">1 </span>|| slot == -<span class="number">999 </span>|| (slot &gt;= <span class="number">0 </span>&amp;&amp; (slot <span class="kw">as </span>usize) &lt; <span class="self">self</span>.slots.len())
 <a href=#572 id=572 data-nosnippet>572</a>    }
 <a href=#573 id=573 data-nosnippet>573</a>
 <a href=#574 id=574 data-nosnippet>574</a>    <span class="doccomment">/// Returns the number of slots in this menu.
 <a href=#575 id=575 data-nosnippet>575</a>    </span><span class="attr">#[must_use]
-<a href=#576 id=576 data-nosnippet>576</a>    </span><span class="kw">pub fn </span>slot_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#576 id=576 data-nosnippet>576</a>    </span><span class="kw">pub const fn </span>slot_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
 <a href=#577 id=577 data-nosnippet>577</a>        <span class="self">self</span>.slots.len()
 <a href=#578 id=578 data-nosnippet>578</a>    }
 <a href=#579 id=579 data-nosnippet>579</a>
@@ -585,7 +585,7 @@
 <a href=#585 id=585 data-nosnippet>585</a>
 <a href=#586 id=586 data-nosnippet>586</a>    <span class="doccomment">/// Gets the carried item (cursor).
 <a href=#587 id=587 data-nosnippet>587</a>    </span><span class="attr">#[must_use]
-<a href=#588 id=588 data-nosnippet>588</a>    </span><span class="kw">pub fn </span>get_carried(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ItemStack {
+<a href=#588 id=588 data-nosnippet>588</a>    </span><span class="kw">pub const fn </span>get_carried(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ItemStack {
 <a href=#589 id=589 data-nosnippet>589</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.carried
 <a href=#590 id=590 data-nosnippet>590</a>    }
 <a href=#591 id=591 data-nosnippet>591</a>
@@ -595,7 +595,7 @@
 <a href=#595 id=595 data-nosnippet>595</a>    }
 <a href=#596 id=596 data-nosnippet>596</a>
 <a href=#597 id=597 data-nosnippet>597</a>    <span class="doccomment">/// Increments and returns the new state ID.
-<a href=#598 id=598 data-nosnippet>598</a>    </span><span class="kw">pub fn </span>increment_state_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; u32 {
+<a href=#598 id=598 data-nosnippet>598</a>    </span><span class="kw">pub const fn </span>increment_state_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; u32 {
 <a href=#599 id=599 data-nosnippet>599</a>        <span class="self">self</span>.state_id = <span class="self">self</span>.state_id.wrapping_add(<span class="number">1</span>) &amp; <span class="number">0x7FFF</span>; <span class="comment">// Keep it within 15 bits
 <a href=#600 id=600 data-nosnippet>600</a>        </span><span class="self">self</span>.state_id
 <a href=#601 id=601 data-nosnippet>601</a>    }
@@ -928,13 +928,13 @@
 <a href=#928 id=928 data-nosnippet>928</a>                <span class="kw">if </span>button == <span class="number">0 </span>{
 <a href=#929 id=929 data-nosnippet>929</a>                    <span class="comment">// Left click outside - drop all carried items
 <a href=#930 id=930 data-nosnippet>930</a>                    </span><span class="kw">let </span>to_drop = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.carried);
-<a href=#931 id=931 data-nosnippet>931</a>                    player.drop_item(to_drop, <span class="bool-val">true</span>);
+<a href=#931 id=931 data-nosnippet>931</a>                    player.drop_item(to_drop, <span class="bool-val">false</span>, <span class="bool-val">true</span>);
 <a href=#932 id=932 data-nosnippet>932</a>                } <span class="kw">else </span>{
 <a href=#933 id=933 data-nosnippet>933</a>                    <span class="comment">// Right click outside - drop one carried item
 <a href=#934 id=934 data-nosnippet>934</a>                    </span><span class="kw">let </span><span class="kw-2">mut </span>to_drop = <span class="self">self</span>.carried.clone();
 <a href=#935 id=935 data-nosnippet>935</a>                    to_drop.set_count(<span class="number">1</span>);
 <a href=#936 id=936 data-nosnippet>936</a>                    <span class="self">self</span>.carried.shrink(<span class="number">1</span>);
-<a href=#937 id=937 data-nosnippet>937</a>                    player.drop_item(to_drop, <span class="bool-val">true</span>);
+<a href=#937 id=937 data-nosnippet>937</a>                    player.drop_item(to_drop, <span class="bool-val">false</span>, <span class="bool-val">true</span>);
 <a href=#938 id=938 data-nosnippet>938</a>                }
 <a href=#939 id=939 data-nosnippet>939</a>            }
 <a href=#940 id=940 data-nosnippet>940</a>            <span class="kw">return</span>;
@@ -1127,7 +1127,7 @@
 <a href=#1127 id=1127 data-nosnippet>1127</a>
 <a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="kw">let </span>dropped = slot.remove(<span class="kw-2">&amp;mut </span>guard, amount);
 <a href=#1129 id=1129 data-nosnippet>1129</a>        <span class="kw">if </span>!dropped.is_empty() {
-<a href=#1130 id=1130 data-nosnippet>1130</a>            player.drop_item(dropped.clone(), <span class="bool-val">true</span>);
+<a href=#1130 id=1130 data-nosnippet>1130</a>            player.drop_item(dropped.clone(), <span class="bool-val">false</span>, <span class="bool-val">true</span>);
 <a href=#1131 id=1131 data-nosnippet>1131</a>        }
 <a href=#1132 id=1132 data-nosnippet>1132</a>        slot.set_changed(<span class="kw-2">&amp;mut </span>guard);
 <a href=#1133 id=1133 data-nosnippet>1133</a>
@@ -1150,7 +1150,7 @@
 <a href=#1150 id=1150 data-nosnippet>1150</a>                <span class="kw">if </span>more_dropped.is_empty() {
 <a href=#1151 id=1151 data-nosnippet>1151</a>                    <span class="kw">break</span>;
 <a href=#1152 id=1152 data-nosnippet>1152</a>                }
-<a href=#1153 id=1153 data-nosnippet>1153</a>                player.drop_item(more_dropped, <span class="bool-val">true</span>);
+<a href=#1153 id=1153 data-nosnippet>1153</a>                player.drop_item(more_dropped, <span class="bool-val">false</span>, <span class="bool-val">true</span>);
 <a href=#1154 id=1154 data-nosnippet>1154</a>                slot.set_changed(<span class="kw-2">&amp;mut </span>guard);
 <a href=#1155 id=1155 data-nosnippet>1155</a>            }
 <a href=#1156 id=1156 data-nosnippet>1156</a>        }
@@ -1196,7 +1196,7 @@
 <a href=#1196 id=1196 data-nosnippet>1196</a>        <span class="comment">// Default: drop the carried item
 <a href=#1197 id=1197 data-nosnippet>1197</a>        </span><span class="kw">let </span>carried = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.behavior_mut().carried);
 <a href=#1198 id=1198 data-nosnippet>1198</a>        <span class="kw">if </span>!carried.is_empty() {
-<a href=#1199 id=1199 data-nosnippet>1199</a>            player.drop_item(carried, <span class="bool-val">false</span>);
+<a href=#1199 id=1199 data-nosnippet>1199</a>            player.drop_item(carried, <span class="bool-val">false</span>, <span class="bool-val">true</span>);
 <a href=#1200 id=1200 data-nosnippet>1200</a>        }
 <a href=#1201 id=1201 data-nosnippet>1201</a>    }
 <a href=#1202 id=1202 data-nosnippet>1202</a>

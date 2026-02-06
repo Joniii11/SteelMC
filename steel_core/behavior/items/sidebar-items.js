@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["block_item","bucket","default","ender_eye","sign_item"],"struct":["BlockItemBehavior","DefaultItemBehavior","EnderEyeBehavior","FilledBucketBehavior","HangingSignItemBehavior","SignItemBehavior"]};
+window.SIDEBAR_ITEMS = {"mod":["block_item","bucket","default","ender_eye","shovel","sign_item","standing_and_wall_block_item"],"struct":["BlockItemBehavior","DefaultItemBehavior","EnderEyeBehavior","FilledBucketBehavior","HangingSignItemBehavior","ShovelBehaviour","SignItemBehavior","StandingAndWallBlockItem"]};

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/level_data/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (905b92696 2026-01-31)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/level_data/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Level data persistence module.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/level_data/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (f889772d6 2026-02-05)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/level_data/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Level data persistence module.
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! This module handles saving and loading world-level data like game rules,
 <a href=#4 id=4 data-nosnippet>4</a>//! time, weather, spawn point, and seed. This data is stored in `level.json`
@@ -120,12 +120,12 @@
 <a href=#120 id=120 data-nosnippet>120</a>
 <a href=#121 id=121 data-nosnippet>121</a>    <span class="doccomment">/// Gets the spawn position as a `BlockPos`.
 <a href=#122 id=122 data-nosnippet>122</a>    </span><span class="attr">#[must_use]
-<a href=#123 id=123 data-nosnippet>123</a>    </span><span class="kw">pub fn </span>spawn_pos(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BlockPos {
+<a href=#123 id=123 data-nosnippet>123</a>    </span><span class="kw">pub const fn </span>spawn_pos(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BlockPos {
 <a href=#124 id=124 data-nosnippet>124</a>        BlockPos::new(<span class="self">self</span>.spawn.x, <span class="self">self</span>.spawn.y, <span class="self">self</span>.spawn.z)
 <a href=#125 id=125 data-nosnippet>125</a>    }
 <a href=#126 id=126 data-nosnippet>126</a>
 <a href=#127 id=127 data-nosnippet>127</a>    <span class="doccomment">/// Sets the spawn position from a `BlockPos`.
-<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub fn </span>set_spawn_pos(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: BlockPos) {
+<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub const fn </span>set_spawn_pos(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: BlockPos) {
 <a href=#129 id=129 data-nosnippet>129</a>        <span class="self">self</span>.spawn.x = pos.x();
 <a href=#130 id=130 data-nosnippet>130</a>        <span class="self">self</span>.spawn.y = pos.y();
 <a href=#131 id=131 data-nosnippet>131</a>        <span class="self">self</span>.spawn.z = pos.z();
@@ -176,24 +176,24 @@
 <a href=#176 id=176 data-nosnippet>176</a>
 <a href=#177 id=177 data-nosnippet>177</a>    <span class="doccomment">/// Gets a reference to the level data.
 <a href=#178 id=178 data-nosnippet>178</a>    </span><span class="attr">#[must_use]
-<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>LevelData {
+<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="kw">pub const fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>LevelData {
 <a href=#180 id=180 data-nosnippet>180</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.data
 <a href=#181 id=181 data-nosnippet>181</a>    }
 <a href=#182 id=182 data-nosnippet>182</a>
 <a href=#183 id=183 data-nosnippet>183</a>    <span class="doccomment">/// Gets a mutable reference to the level data and marks it as dirty.
-<a href=#184 id=184 data-nosnippet>184</a>    </span><span class="kw">pub fn </span>data_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>LevelData {
+<a href=#184 id=184 data-nosnippet>184</a>    </span><span class="kw">pub const fn </span>data_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>LevelData {
 <a href=#185 id=185 data-nosnippet>185</a>        <span class="self">self</span>.dirty = <span class="bool-val">true</span>;
 <a href=#186 id=186 data-nosnippet>186</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>.data
 <a href=#187 id=187 data-nosnippet>187</a>    }
 <a href=#188 id=188 data-nosnippet>188</a>
 <a href=#189 id=189 data-nosnippet>189</a>    <span class="doccomment">/// Returns whether the data has been modified since last save.
 <a href=#190 id=190 data-nosnippet>190</a>    </span><span class="attr">#[must_use]
-<a href=#191 id=191 data-nosnippet>191</a>    </span><span class="kw">pub fn </span>is_dirty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#191 id=191 data-nosnippet>191</a>    </span><span class="kw">pub const fn </span>is_dirty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="self">self</span>.dirty
 <a href=#193 id=193 data-nosnippet>193</a>    }
 <a href=#194 id=194 data-nosnippet>194</a>
 <a href=#195 id=195 data-nosnippet>195</a>    <span class="doccomment">/// Marks the data as dirty (needs saving).
-<a href=#196 id=196 data-nosnippet>196</a>    </span><span class="kw">pub fn </span>mark_dirty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#196 id=196 data-nosnippet>196</a>    </span><span class="kw">pub const fn </span>mark_dirty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
 <a href=#197 id=197 data-nosnippet>197</a>        <span class="self">self</span>.dirty = <span class="bool-val">true</span>;
 <a href=#198 id=198 data-nosnippet>198</a>    }
 <a href=#199 id=199 data-nosnippet>199</a>
@@ -227,32 +227,38 @@
 <a href=#227 id=227 data-nosnippet>227</a>
 <a href=#228 id=228 data-nosnippet>228</a>    <span class="doccomment">/// Gets the seed.
 <a href=#229 id=229 data-nosnippet>229</a>    </span><span class="attr">#[must_use]
-<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">pub fn </span>seed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">pub const fn </span>seed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
 <a href=#231 id=231 data-nosnippet>231</a>        <span class="self">self</span>.data.seed
 <a href=#232 id=232 data-nosnippet>232</a>    }
 <a href=#233 id=233 data-nosnippet>233</a>
 <a href=#234 id=234 data-nosnippet>234</a>    <span class="doccomment">/// Gets the game time.
 <a href=#235 id=235 data-nosnippet>235</a>    </span><span class="attr">#[must_use]
-<a href=#236 id=236 data-nosnippet>236</a>    </span><span class="kw">pub fn </span>game_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+<a href=#236 id=236 data-nosnippet>236</a>    </span><span class="kw">pub const fn </span>game_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
 <a href=#237 id=237 data-nosnippet>237</a>        <span class="self">self</span>.data.game_time
 <a href=#238 id=238 data-nosnippet>238</a>    }
 <a href=#239 id=239 data-nosnippet>239</a>
 <a href=#240 id=240 data-nosnippet>240</a>    <span class="doccomment">/// Sets the game time.
-<a href=#241 id=241 data-nosnippet>241</a>    </span><span class="kw">pub fn </span>set_game_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: i64) {
+<a href=#241 id=241 data-nosnippet>241</a>    </span><span class="kw">pub const fn </span>set_game_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: i64) {
 <a href=#242 id=242 data-nosnippet>242</a>        <span class="self">self</span>.data.game_time = time;
 <a href=#243 id=243 data-nosnippet>243</a>        <span class="self">self</span>.dirty = <span class="bool-val">true</span>;
 <a href=#244 id=244 data-nosnippet>244</a>    }
 <a href=#245 id=245 data-nosnippet>245</a>
-<a href=#246 id=246 data-nosnippet>246</a>    <span class="doccomment">/// Gets the day time.
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="doccomment">/// Calculates the day based on the game time
 <a href=#247 id=247 data-nosnippet>247</a>    </span><span class="attr">#[must_use]
-<a href=#248 id=248 data-nosnippet>248</a>    </span><span class="kw">pub fn </span>day_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
-<a href=#249 id=249 data-nosnippet>249</a>        <span class="self">self</span>.data.day_time
-<a href=#250 id=250 data-nosnippet>250</a>    }
+<a href=#248 id=248 data-nosnippet>248</a>    </span><span class="kw">pub const fn </span>day(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+<a href=#249 id=249 data-nosnippet>249</a>        <span class="self">self</span>.data.game_time / <span class="number">24000
+<a href=#250 id=250 data-nosnippet>250</a>    </span>}
 <a href=#251 id=251 data-nosnippet>251</a>
-<a href=#252 id=252 data-nosnippet>252</a>    <span class="doccomment">/// Sets the day time.
-<a href=#253 id=253 data-nosnippet>253</a>    </span><span class="kw">pub fn </span>set_day_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: i64) {
-<a href=#254 id=254 data-nosnippet>254</a>        <span class="self">self</span>.data.day_time = time;
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="self">self</span>.dirty = <span class="bool-val">true</span>;
+<a href=#252 id=252 data-nosnippet>252</a>    <span class="doccomment">/// Gets the day time.
+<a href=#253 id=253 data-nosnippet>253</a>    </span><span class="attr">#[must_use]
+<a href=#254 id=254 data-nosnippet>254</a>    </span><span class="kw">pub const fn </span>day_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="self">self</span>.data.day_time
 <a href=#256 id=256 data-nosnippet>256</a>    }
-<a href=#257 id=257 data-nosnippet>257</a>}
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a>    <span class="doccomment">/// Sets the day time.
+<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">pub const fn </span>set_day_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, time: i64) {
+<a href=#260 id=260 data-nosnippet>260</a>        <span class="self">self</span>.data.day_time = time;
+<a href=#261 id=261 data-nosnippet>261</a>        <span class="self">self</span>.dirty = <span class="bool-val">true</span>;
+<a href=#262 id=262 data-nosnippet>262</a>    }
+<a href=#263 id=263 data-nosnippet>263</a>}
 </code></pre></div></section></main></body></html>
