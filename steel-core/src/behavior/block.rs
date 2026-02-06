@@ -10,7 +10,9 @@ use steel_registry::item_stack::ItemStack;
 use steel_utils::types::InteractionHand;
 use steel_utils::{BlockPos, BlockStateId};
 
-use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
+use crate::behavior::context::{
+    BlockHitResult, BlockPlaceContext, InteractionResult, UseOnContext,
+};
 use crate::block_entity::SharedBlockEntity;
 use crate::player::Player;
 use crate::world::World;
@@ -39,6 +41,32 @@ pub trait BlockBehaviour: Send + Sync {
 
     /// Returns the block state to use when placing this block.
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId>;
+
+    /// Returns whether this block state can be replaced by another block placement.
+    ///
+    /// This is used for blocks like slabs that can be merged into double slabs,
+    /// or other blocks with special replacement logic matches the vanillla logik in java the canBeReplaced thingy
+    ///
+    /// The default implementation returns `false`, meaning the block cannot be replaced
+    /// unless it has the `replaceable` config flag set.
+    ///
+    /// # args
+    /// * `state` - The current block state
+    /// * `context` - The use context containing placement information
+    /// * `placing_block` - The block that would replace this one
+    /// * `placement_pos` - The position where the block would be placed
+    /// * `replace_clicked` - Whether we're replacing the clicked block or an adjacent block
+    #[allow(unused_variables)]
+    fn can_be_replaced(
+        &self,
+        state: BlockStateId,
+        context: &UseOnContext<'_>,
+        placing_block: BlockRef,
+        placement_pos: BlockPos,
+        replace_clicked: bool,
+    ) -> bool {
+        false
+    }
 
     /// Called when this block is placed in the world.
     ///

@@ -52,6 +52,8 @@ pub fn build(blocks: &[BlockClass]) -> String {
     let mut wall_torch_blocks = Vec::new();
     let mut redstone_torch_blocks = Vec::new();
     let mut redstone_wall_torch_blocks = Vec::new();
+    let mut stair_blocks = Vec::new();
+    let mut slab_blocks = Vec::new();
 
     for block in blocks {
         let const_ident = to_const_ident(&block.name);
@@ -77,6 +79,8 @@ pub fn build(blocks: &[BlockClass]) -> String {
             "WallTorchBlock" => wall_torch_blocks.push(const_ident),
             "RedstoneTorchBlock" => redstone_torch_blocks.push(const_ident),
             "RedstoneWallTorchBlock" => redstone_wall_torch_blocks.push(const_ident),
+            "StairBlock" => stair_blocks.push(const_ident),
+            "SlabBlock" => slab_blocks.push(const_ident),
             _ => {}
         }
     }
@@ -97,6 +101,8 @@ pub fn build(blocks: &[BlockClass]) -> String {
     let wall_torch_type = Ident::new("WallTorchBlock", Span::call_site());
     let redstone_torch_type = Ident::new("RedstoneTorchBlock", Span::call_site());
     let redstone_wall_torch_type = Ident::new("RedstoneWallTorchBlock", Span::call_site());
+    let stair_type = Ident::new("StairBlock", Span::call_site());
+    let slab_type = Ident::new("SlabBlock", Span::call_site());
 
     let barrel_registrations = generate_registrations(barrel_blocks.iter(), &barrel_type);
     let candle_registrations = generate_registrations(candle_blocks.iter(), &candle_type);
@@ -135,6 +141,8 @@ pub fn build(blocks: &[BlockClass]) -> String {
         generate_registrations(redstone_torch_blocks.iter(), &redstone_torch_type);
     let redstone_wall_torch_registrations =
         generate_registrations(redstone_wall_torch_blocks.iter(), &redstone_wall_torch_type);
+    let stair_registrations = generate_registrations(stair_blocks.iter(), &stair_type);
+    let slab_registrations = generate_registrations(slab_blocks.iter(), &slab_type);
 
     let output = quote! {
         //! Generated block behavior assignments.
@@ -145,7 +153,7 @@ pub fn build(blocks: &[BlockClass]) -> String {
             BarrelBlock, CandleBlock, CraftingTableBlock, CropBlock, EndPortalFrameBlock, FarmlandBlock,
             FenceBlock, LiquidBlock, RotatedPillarBlock, StandingSignBlock, WallSignBlock,
             CeilingHangingSignBlock, WallHangingSignBlock, TorchBlock, WallTorchBlock,
-            RedstoneTorchBlock, RedstoneWallTorchBlock,
+            RedstoneTorchBlock, RedstoneWallTorchBlock, StairBlock, SlabBlock,
         };
 
         pub fn register_block_behaviors(registry: &mut BlockBehaviorRegistry) {
@@ -166,6 +174,8 @@ pub fn build(blocks: &[BlockClass]) -> String {
             #wall_torch_registrations
             #redstone_torch_registrations
             #redstone_wall_torch_registrations
+            #stair_registrations
+            #slab_registrations
         }
     };
 

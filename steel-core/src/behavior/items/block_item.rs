@@ -32,9 +32,22 @@ impl ItemBehavior for BlockItemBehavior {
         let clicked_block = REGISTRY.blocks.by_state_id(clicked_state);
         let clicked_replaceable = clicked_block.is_some_and(|b| b.config.replaceable);
 
+        // Check if the clicked block can be dynamically replaced (e.g., slabs merging)
+        let clicked_can_be_replaced = if !clicked_replaceable {
+            let block_behaviors = &*BLOCK_BEHAVIORS;
+            if let Some(clicked) = clicked_block {
+                let behavior = block_behaviors.get_behavior(clicked);
+                behavior.can_be_replaced(clicked_state, context, self.block, clicked_pos, true)
+            } else {
+                false
+            }
+        } else {
+            true
+        };
+
         // Determine placement position: replace clicked block if replaceable,
         // otherwise place adjacent to the clicked face
-        let (place_pos, replace_clicked) = if clicked_replaceable {
+        let (place_pos, replace_clicked) = if clicked_can_be_replaced {
             (clicked_pos, true)
         } else {
             (context.hit_result.direction.relative(&clicked_pos), false)
@@ -50,7 +63,26 @@ impl ItemBehavior for BlockItemBehavior {
         let existing_block = REGISTRY.blocks.by_state_id(existing_state);
         let existing_replaceable = existing_block.is_some_and(|b| b.config.replaceable);
 
-        if !existing_replaceable {
+        // Also check dynamic replacement for the existing block at the placement position
+        let existing_can_be_replaced = if !existing_replaceable {
+            let block_behaviors = &*BLOCK_BEHAVIORS;
+            if let Some(existing) = existing_block {
+                let behavior = block_behaviors.get_behavior(existing);
+                behavior.can_be_replaced(
+                    existing_state,
+                    context,
+                    self.block,
+                    place_pos,
+                    replace_clicked,
+                )
+            } else {
+                false
+            }
+        } else {
+            true
+        };
+
+        if !existing_can_be_replaced {
             return InteractionResult::Fail;
         }
 
