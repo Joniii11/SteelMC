@@ -33,7 +33,9 @@ impl ItemBehavior for BlockItemBehavior {
         let clicked_replaceable = clicked_block.is_some_and(|b| b.config.replaceable);
 
         // Check if the clicked block can be dynamically replaced (e.g., slabs merging)
-        let clicked_can_be_replaced = if !clicked_replaceable {
+        let clicked_can_be_replaced = if clicked_replaceable {
+            true
+        } else {
             let block_behaviors = &*BLOCK_BEHAVIORS;
             if let Some(clicked) = clicked_block {
                 let behavior = block_behaviors.get_behavior(clicked);
@@ -41,8 +43,6 @@ impl ItemBehavior for BlockItemBehavior {
             } else {
                 false
             }
-        } else {
-            true
         };
 
         // Determine placement position: replace clicked block if replaceable,
@@ -64,7 +64,9 @@ impl ItemBehavior for BlockItemBehavior {
         let existing_replaceable = existing_block.is_some_and(|b| b.config.replaceable);
 
         // Also check dynamic replacement for the existing block at the placement position
-        let existing_can_be_replaced = if !existing_replaceable {
+        let existing_can_be_replaced = if existing_replaceable {
+            true
+        } else {
             let block_behaviors = &*BLOCK_BEHAVIORS;
             if let Some(existing) = existing_block {
                 let behavior = block_behaviors.get_behavior(existing);
@@ -78,8 +80,6 @@ impl ItemBehavior for BlockItemBehavior {
             } else {
                 false
             }
-        } else {
-            true
         };
 
         if !existing_can_be_replaced {
