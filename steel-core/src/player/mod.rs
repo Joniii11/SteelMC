@@ -1709,6 +1709,8 @@ impl Player {
     }
 
     /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
+    // this is just temporary there because the logic is not yet implemented completly for the other branches
+    #[allow(clippy::match_same_arms)]
     pub fn handle_player_command(&self, packet: SPlayerCommand) {
         match packet.action {
             PlayerCommandAction::StartSprinting => {
@@ -1729,7 +1731,7 @@ impl Player {
             }
             PlayerCommandAction::StartRidingJump => {
                 // TODO: implement horse jumping when vehicles are added
-                let _jump_boost = packet.jump_boost;
+                // let _jump_boost = packet.jump_boost;
             }
             PlayerCommandAction::StopRidingJump => {
                 // TODO: implement horse jumping when vehicles are added
