@@ -16,8 +16,8 @@ use steel_protocol::packets::game::{
     SChunkBatchReceived, SClientTickEnd, SCommandSuggestion, SContainerButtonClick,
     SContainerClick, SContainerClose, SContainerSlotStateChanged, SMovePlayerPos,
     SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SPickItemFromBlock, SPlayerAbilities,
-    SPlayerAction, SPlayerInput, SPlayerLoad, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate,
-    SSwing, SUseItem, SUseItemOn,
+    SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoad, SSetCarriedItem,
+    SSetCreativeModeSlot, SSignUpdate, SSwing, SUseItem, SUseItemOn,
 };
 use steel_protocol::utils::{ConnectionProtocol, PacketError, RawPacket};
 use steel_registry::packets::play;
@@ -366,6 +366,10 @@ impl JavaConnection {
                 player
                     .connection
                     .send_packet(CPongResponse::new(packet.time));
+            }
+            play::S_PLAYER_COMMAND => {
+                let packet = SPlayerCommand::read_packet(data)?;
+                player.handle_player_command(packet);
             }
             id => log::info!("play packet id {id} is not known"),
         }

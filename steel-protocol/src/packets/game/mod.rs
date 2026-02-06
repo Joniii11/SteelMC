@@ -64,6 +64,7 @@ mod s_move_player;
 mod s_pick_item_from_block;
 mod s_player_abilities;
 mod s_player_action;
+mod s_player_command;
 mod s_player_input;
 mod s_player_load;
 mod s_set_carried_item;
@@ -151,6 +152,7 @@ pub use s_move_player::{
 pub use s_pick_item_from_block::SPickItemFromBlock;
 pub use s_player_abilities::SPlayerAbilities;
 pub use s_player_action::{PlayerAction, SPlayerAction};
+pub use s_player_command::{PlayerCommandAction, SPlayerCommand};
 pub use s_player_input::SPlayerInput;
 pub use s_player_load::SPlayerLoad;
 pub use s_set_carried_item::SSetCarriedItem;

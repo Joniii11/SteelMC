@@ -34,8 +34,8 @@ use std::{
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
     AnimateAction, CAnimate, CEntityPositionSync, COpenSignEditor, CPlayerPosition, CSetEntityData,
-    CSetHeldSlot, PlayerAction, SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities,
-    SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
+    CSetHeldSlot, PlayerAction, PlayerCommandAction, SAcceptTeleportation, SPickItemFromBlock,
+    SPlayerAbilities, SPlayerAction, SPlayerCommand, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::shapes::AABBd;
@@ -1706,7 +1706,38 @@ impl Player {
     /// Handles a player input packet (movement keys, sneaking, sprinting).
     pub fn handle_player_input(&self, packet: SPlayerInput) {
         self.shift_key_down.store(packet.shift(), Ordering::Relaxed);
-        // Note: sprinting is handled via SPlayerCommand packet
+    }
+
+    /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
+    pub fn handle_player_command(&self, packet: SPlayerCommand) {
+        match packet.action {
+            PlayerCommandAction::StartSprinting => {
+                self.sprinting.store(true, Ordering::Relaxed);
+            }
+            PlayerCommandAction::StopSprinting => {
+                self.sprinting.store(false, Ordering::Relaxed);
+            }
+            PlayerCommandAction::StartFallFlying => {
+                // TODO: check if player has elytra equipped and is falling
+                self.fall_flying.store(true, Ordering::Relaxed);
+            }
+            PlayerCommandAction::LeaveBed => {
+                if self.sleeping.load(Ordering::Relaxed) {
+                    self.sleeping.store(false, Ordering::Relaxed);
+                    // TODO: update pose and notify other players
+                }
+            }
+            PlayerCommandAction::StartRidingJump => {
+                // TODO: implement horse jumping when vehicles are added
+                let _jump_boost = packet.jump_boost;
+            }
+            PlayerCommandAction::StopRidingJump => {
+                // TODO: implement horse jumping when vehicles are added
+            }
+            PlayerCommandAction::OpenVehicleInventory => {
+                // TODO: implement vehicle inventory when vehicles are added
+            }
+        }
     }
 
     /// Handles the use of an item on a block.
