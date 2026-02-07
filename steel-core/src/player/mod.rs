@@ -50,10 +50,7 @@ use steel_registry::vanilla_game_rules::{
     SHOW_DEATH_MESSAGES,
 };
 use steel_registry::{REGISTRY, vanilla_chat_types};
-use steel_utils::{
-    serial::write::{OptionalBlockPos, OptionalIdentifier},
-    translations_registry::TRANSLATIONS,
-};
+use steel_utils::serial::write::{OptionalBlockPos, OptionalIdentifier};
 
 use steel_utils::locks::SyncMutex;
 use steel_utils::types::GameType;
