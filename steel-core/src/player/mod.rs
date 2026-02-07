@@ -33,9 +33,9 @@ use std::{
 };
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
-    AnimateAction, CAnimate, CEntityPositionSync, COpenSignEditor, CPlayerPosition, CSetEntityData,
-    CSetHeldSlot, PlayerAction, SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities,
-    SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
+    AnimateAction, CAnimate, CDamageEvent, CEntityPositionSync, CHurtAnimation, COpenSignEditor,
+    CPlayerPosition, CSetEntityData, CSetHealth, CSetHeldSlot, PlayerAction, SAcceptTeleportation,
+    SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::shapes::AABBd;
@@ -58,6 +58,7 @@ use text_components::{
 };
 use uuid::Uuid;
 
+use crate::entity::damage::DamageSource;
 use crate::inventory::SyncPlayerInv;
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
@@ -65,6 +66,7 @@ use crate::{
     config::STEEL_CONFIG,
     entity::{Entity, EntityLevelCallback, NullEntityCallback, RemovalReason},
 };
+use steel_registry::vanilla_damage_types;
 
 use steel_crypto::{SignatureValidator, public_key_from_bytes, signature::NoValidation};
 use steel_protocol::packets::{
@@ -289,6 +291,16 @@ pub struct Player {
     /// Last `on_ground` state sent to tracking players (for detecting changes).
     last_sent_on_ground: AtomicBool,
 
+    /// Whether the player is dead. Prevents double-death processing.
+    dead: AtomicBool,
+
+    /// Invulnerability ticks remaining after taking damage.
+    /// When > 0, the player can only take damage if it exceeds `last_hurt`.
+    invulnerable_time: AtomicI32,
+
+    /// The last damage amount taken (for invulnerability frame comparison).
+    last_hurt: AtomicCell<f32>,
+
     /// Whether the player has been removed from the world.
     removed: AtomicBool,
 
@@ -324,7 +336,11 @@ impl Player {
             rotation: AtomicCell::new((0.0, 0.0)),
             prev_position: SyncMutex::new(pos),
             prev_rotation: AtomicCell::new((0.0, 0.0)),
-            entity_data: SyncMutex::new(PlayerEntityData::new()),
+            entity_data: SyncMutex::new({
+                let mut data = PlayerEntityData::new();
+                data.health.set(20.0);
+                data
+            }),
             speed: AtomicCell::new(0.1), // Default walking speed
             sprinting: AtomicBool::new(false),
             last_chunk_pos: SyncMutex::new(ChunkPos::new(0, 0)),
@@ -361,6 +377,9 @@ impl Player {
             block_breaking: SyncMutex::new(BlockBreakingManager::new()),
             position_sync_delay: AtomicI32::new(0),
             last_sent_on_ground: AtomicBool::new(false),
+            dead: AtomicBool::new(false),
+            invulnerable_time: AtomicI32::new(0),
+            last_hurt: AtomicCell::new(0.0),
             removed: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
         }
@@ -421,6 +440,15 @@ impl Player {
         self.sync_entity_data();
 
         self.connection.tick();
+
+        // Tick invulnerability frames
+        let inv_time = self.invulnerable_time.load(Ordering::Relaxed);
+        if inv_time > 0 {
+            self.invulnerable_time
+                .store(inv_time - 1, Ordering::Relaxed);
+        }
+
+        self.check_below_world();
 
         // TODO: Implement player ticking logic here
         // This will include:
@@ -2277,8 +2305,140 @@ impl Player {
         }
     }
 
+    // ==========================================
+    // Damage System
+    // ==========================================
+
+    /// Checks if the player has fallen below the world and applies void damage.
+    ///
+    /// Mirrors vanilla's `Entity.checkBelowWorld()` + `LivingEntity.onBelowWorld()`.
+    /// The void kills players at 64 blocks below the minimum build height by dealing
+    /// 4 damage per application (subject to invulnerability frames).
+    fn check_below_world(&self) {
+        let pos = *self.position.lock();
+        let min_y = self.world.get_min_y();
+
+        // Vanilla: if y < minY - 64, call onBelowWorld()
+        if pos.y < f64::from(min_y - 64) {
+            let source = DamageSource::environment(vanilla_damage_types::OUT_OF_WORLD);
+            self.hurt(&source, 4.0);
+        }
+    }
+
+    /// Deals damage to the player.
+    ///
+    /// This is the main entry point for the damage system. It handles:
+    /// - Checking invulnerability (creative/spectator mode)
+    /// - Invulnerability frames (after recent damage)
+    /// - Health reduction
+    /// - Sending packets to the client (health update, hurt animation, damage event)
+    /// - Death detection (Phase 2 will handle actual death logic)
+    ///
+    /// Returns `true` if the damage was actually applied.
+    ///
+    /// Based on vanilla's `Player.hurtServer()` and `LivingEntity.hurtServer()`.
+    pub fn hurt(&self, source: &DamageSource, mut amount: f32) -> bool {
+        // Dead players can't take more damage
+        if self.dead.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        // Creative/spectator invulnerability check
+        // Void damage (out_of_world) and /kill (generic_kill) bypass this
+        let abilities = self.abilities.lock();
+        if abilities.invulnerable && !source.bypasses_invulnerability() {
+            return false;
+        }
+        drop(abilities);
+
+        // Zero damage does nothing
+        if amount <= 0.0 {
+            return false;
+        }
+
+        let inv_time = self.invulnerable_time.load(Ordering::Relaxed);
+        if inv_time > 10 {
+            let last = self.last_hurt.load();
+            if amount <= last {
+                log::debug!(
+                    "{}: damage {amount} blocked by invulnerability frames (inv_time={inv_time}, last_hurt={last})",
+                    self.gameprofile.name
+                );
+                return false;
+            }
+            log::debug!(
+                "{}: partial damage during invulnerability (inv_time={inv_time}, amount={amount}, last_hurt={last}, effective={})",
+                self.gameprofile.name,
+                amount - last
+            );
+            amount -= last;
+        }
+
+        self.last_hurt.store(amount);
+        self.invulnerable_time.store(20, Ordering::Relaxed);
+
+        let current_health = self.get_health();
+        let new_health = (current_health - amount).max(0.0);
+        log::info!(
+            "{}: took {amount} damage (type: {}), health {current_health} -> {new_health}, inv_time set to 20",
+            self.gameprofile.name,
+            source.damage_type.key
+        );
+        self.entity_data.lock().health.set(new_health);
+
+        // Send health update to this player (C_SET_HEALTH)
+        self.connection.send_packet(CSetHealth {
+            health: new_health,
+            food: 20,             // TODO: implement food system
+            food_saturation: 5.0, // TODO: implement food system
+        });
+
+        // Get the damage type registry ID for the damage event packet
+        let type_id = *REGISTRY.damage_types.get_id(source.damage_type) as i32;
+
+        let damage_event = CDamageEvent {
+            entity_id: self.id,
+            source_type_id: type_id,
+            source_cause_id: source.causing_entity_id.map_or(0, |id| id + 1),
+            source_direct_id: source.direct_entity_id.map_or(0, |id| id + 1),
+            source_position: source.source_position.map(|pos| (pos.x, pos.y, pos.z)),
+        };
+        let chunk_pos = *self.last_chunk_pos.lock();
+        self.world
+            .broadcast_to_nearby(chunk_pos, damage_event, None);
+
+        let (yaw, _) = self.rotation.load();
+        let hurt_anim = CHurtAnimation {
+            entity_id: self.id,
+            yaw,
+        };
+        self.world.broadcast_to_nearby(chunk_pos, hurt_anim, None);
+
+        // Check if player died
+        if new_health <= 0.0 {
+            self.dead.store(true, Ordering::Relaxed);
+            // TODO: Phase 2 - implement die() method
+            // For now, log the death
+            log::info!(
+                "{} died (damage type: {})",
+                self.gameprofile.name,
+                source.damage_type.key,
+            );
+        }
+
+        true
+    }
+
+    /// Returns whether the player is dead.
+    #[must_use]
+    pub fn is_dead(&self) -> bool {
+        self.dead.load(Ordering::Relaxed)
+    }
+
     /// Cleans up player resources.
     pub const fn cleanup(&self) {}
+
+    pub fn respawn(&self) {}
 }
 
 impl Entity for Player {

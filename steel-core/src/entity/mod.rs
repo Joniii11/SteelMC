@@ -38,6 +38,7 @@ pub fn next_entity_id() -> i32 {
 mod base;
 mod cache;
 mod callback;
+pub mod damage;
 pub mod entities;
 mod registry;
 mod storage;
