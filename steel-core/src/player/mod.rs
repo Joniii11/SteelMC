@@ -50,11 +50,15 @@ use steel_registry::vanilla_game_rules::{
     SHOW_DEATH_MESSAGES,
 };
 use steel_registry::{REGISTRY, vanilla_chat_types};
-use steel_utils::serial::write::{OptionalBlockPos, OptionalIdentifier};
+use steel_utils::{
+    serial::write::{OptionalBlockPos, OptionalIdentifier},
+    translations_registry::TRANSLATIONS,
+};
 
 use steel_utils::locks::SyncMutex;
 use steel_utils::types::GameType;
 use text_components::resolving::TextResolutor;
+use text_components::translation::TranslatedMessage;
 use text_components::{Modifier, TextComponent};
 use text_components::{
     content::Resolvable,
@@ -2417,12 +2421,20 @@ impl Player {
     }
 
     /// TODO: death messages, xp drops, kill credit, lastDeathLocation
-    fn die(&self, _source: &DamageSource) {
+    fn die(&self, source: &DamageSource) {
         let show_death_messages =
             self.world.get_game_rule(SHOW_DEATH_MESSAGES) == GameRuleValue::Bool(true);
 
-        // TODO: use CombatTracker.getDeathMessage() with proper translation keys
-        let death_message = TextComponent::plain(format!("{} died", self.gameprofile.name));
+        // TODO: use CombatTracker for multi-arg messages (killer name, item, etc.)
+        let death_key = format!("death.attack.{}", source.damage_type.message_id);
+        let death_message = TranslatedMessage {
+            key: death_key.into(),
+            fallback: None,
+            args: Some(Box::new([TextComponent::plain(
+                self.gameprofile.name.clone(),
+            )])),
+        }
+        .component();
 
         // 1) Send death screen to the dying player
         self.connection.send_packet(CPlayerCombatKill {
