@@ -2406,11 +2406,6 @@ impl Player {
 
         let current_health = self.get_health();
         let new_health = (current_health - final_damage).max(0.0);
-        log::info!(
-            "{}: {final_damage} damage ({}), health {current_health} -> {new_health}",
-            self.gameprofile.name,
-            source.damage_type.key
-        );
         self.entity_data.lock().health.set(new_health);
 
         self.connection.send_packet(CSetHealth {
@@ -2422,12 +2417,6 @@ impl Player {
 
     /// TODO: death messages, xp drops, kill credit, lastDeathLocation
     fn die(&self, source: &DamageSource) {
-        log::info!(
-            "{} died ({})",
-            self.gameprofile.name,
-            source.damage_type.key
-        );
-
         // TODO: proper translation keys based on damage type
         let death_message = TextComponent::plain(format!("{} died", self.gameprofile.name));
 
@@ -2474,15 +2463,11 @@ impl Player {
         self.dead.load(Ordering::Relaxed)
     }
 
-    // ── Respawn ─────────────────────────────────────────────────────────
-
     /// TODO: bed/respawn anchor, cross-dimension, potion clearing and noRespawnBlockAvailable when bed is missing or obstructed
     pub fn respawn(&self) {
         if !self.dead.load(Ordering::Relaxed) {
             return;
         }
-
-        log::info!("{} is respawning", self.gameprofile.name);
 
         self.dead.store(false, Ordering::Relaxed);
         self.invulnerable_time.store(0, Ordering::Relaxed);
