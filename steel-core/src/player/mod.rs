@@ -34,8 +34,9 @@ use std::{
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
     AnimateAction, CAnimate, CDamageEvent, CEntityPositionSync, CHurtAnimation, COpenSignEditor,
-    CPlayerPosition, CSetEntityData, CSetHealth, CSetHeldSlot, PlayerAction, SAcceptTeleportation,
-    SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
+    CPlayerCombatKill, CPlayerPosition, CRespawn, CSetEntityData, CSetHealth, CSetHeldSlot,
+    ClientCommandAction, PlayerAction, SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities,
+    SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::shapes::AABBd;
@@ -44,8 +45,12 @@ use steel_registry::entity_types::EntityTypeRef;
 use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_entities;
 use steel_registry::vanilla_entity_data::PlayerEntityData;
-use steel_registry::vanilla_game_rules::{ELYTRA_MOVEMENT_CHECK, PLAYER_MOVEMENT_CHECK};
+use steel_registry::vanilla_game_rules::{
+    ELYTRA_MOVEMENT_CHECK, IMMEDIATE_RESPAWN, KEEP_INVENTORY, PLAYER_MOVEMENT_CHECK,
+    SHOW_DEATH_MESSAGES,
+};
 use steel_registry::{REGISTRY, vanilla_chat_types};
+use steel_utils::serial::write::{OptionalBlockPos, OptionalIdentifier};
 
 use steel_utils::locks::SyncMutex;
 use steel_utils::types::GameType;
@@ -74,10 +79,10 @@ use steel_protocol::packets::{
     game::{
         CBlockChangedAck, CBlockUpdate, CContainerClose, CGameEvent, CMoveEntityPosRot,
         CMoveEntityRot, COpenScreen, CPlayerChat, CPlayerInfoUpdate, CRotateHead,
-        CSetChunkCacheRadius, ChatTypeBound, FilterType, GameEventType, PreviousMessage, SChat,
-        SChatAck, SChatSessionUpdate, SContainerButtonClick, SContainerClick, SContainerClose,
-        SContainerSlotStateChanged, SMovePlayer, SPlayerInput, SSetCreativeModeSlot, SSignUpdate,
-        calc_delta, to_angle_byte,
+        CSetChunkCacheRadius, CSystemChat, ChatTypeBound, FilterType, GameEventType,
+        PreviousMessage, SChat, SChatAck, SChatSessionUpdate, SContainerButtonClick,
+        SContainerClick, SContainerClose, SContainerSlotStateChanged, SMovePlayer, SPlayerInput,
+        SSetCreativeModeSlot, SSignUpdate, calc_delta, to_angle_byte,
     },
 };
 use steel_registry::{blocks::properties::Direction, item_stack::ItemStack};
@@ -2305,140 +2310,259 @@ impl Player {
         }
     }
 
-    // ==========================================
-    // Damage System
-    // ==========================================
-
-    /// Checks if the player has fallen below the world and applies void damage.
-    ///
-    /// Mirrors vanilla's `Entity.checkBelowWorld()` + `LivingEntity.onBelowWorld()`.
-    /// The void kills players at 64 blocks below the minimum build height by dealing
-    /// 4 damage per application (subject to invulnerability frames).
     fn check_below_world(&self) {
         let pos = *self.position.lock();
-        let min_y = self.world.get_min_y();
-
-        // Vanilla: if y < minY - 64, call onBelowWorld()
-        if pos.y < f64::from(min_y - 64) {
-            let source = DamageSource::environment(vanilla_damage_types::OUT_OF_WORLD);
-            self.hurt(&source, 4.0);
+        if pos.y < f64::from(self.world.get_min_y() - 64) {
+            self.hurt(
+                &DamageSource::environment(vanilla_damage_types::OUT_OF_WORLD),
+                4.0,
+            );
         }
     }
 
-    /// Deals damage to the player.
-    ///
-    /// This is the main entry point for the damage system. It handles:
-    /// - Checking invulnerability (creative/spectator mode)
-    /// - Invulnerability frames (after recent damage)
-    /// - Health reduction
-    /// - Sending packets to the client (health update, hurt animation, damage event)
-    /// - Death detection (Phase 2 will handle actual death logic)
-    ///
-    /// Returns `true` if the damage was actually applied.
-    ///
-    /// Based on vanilla's `Player.hurtServer()` and `LivingEntity.hurtServer()`.
-    pub fn hurt(&self, source: &DamageSource, mut amount: f32) -> bool {
-        // Dead players can't take more damage
+    /// Main entry point for dealing damage. Returns `true` if damage was applied.
+    pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
         if self.dead.load(Ordering::Relaxed) {
             return false;
         }
 
-        // Creative/spectator invulnerability check
-        // Void damage (out_of_world) and /kill (generic_kill) bypass this
         let abilities = self.abilities.lock();
         if abilities.invulnerable && !source.bypasses_invulnerability() {
             return false;
         }
         drop(abilities);
 
-        // Zero damage does nothing
+        // TODO: gamerule damage-type checks (drowningDamage, fallDamage, etc.)
+        // TODO: difficulty scaling (Peaceful/Easy/Hard) — assumes Normal for now
+        if source.scales_with_difficulty() {}
+
         if amount <= 0.0 {
             return false;
         }
 
+        // Invulnerability frames: only damage exceeding the last hit applies as
+        // a delta. `last_hurt` always stores the original amount, not the delta.
         let inv_time = self.invulnerable_time.load(Ordering::Relaxed);
-        if inv_time > 10 {
+        let took_full_damage;
+
+        if inv_time > 10 && !source.bypasses_cooldown() {
             let last = self.last_hurt.load();
             if amount <= last {
-                log::debug!(
-                    "{}: damage {amount} blocked by invulnerability frames (inv_time={inv_time}, last_hurt={last})",
-                    self.gameprofile.name
-                );
                 return false;
             }
-            log::debug!(
-                "{}: partial damage during invulnerability (inv_time={inv_time}, amount={amount}, last_hurt={last}, effective={})",
-                self.gameprofile.name,
-                amount - last
-            );
-            amount -= last;
+            self.last_hurt.store(amount);
+            self.actually_hurt(source, amount - last);
+            took_full_damage = false;
+        } else {
+            self.last_hurt.store(amount);
+            self.invulnerable_time.store(20, Ordering::Relaxed);
+            self.actually_hurt(source, amount);
+            took_full_damage = true;
         }
 
-        self.last_hurt.store(amount);
-        self.invulnerable_time.store(20, Ordering::Relaxed);
+        if took_full_damage {
+            let type_id = *REGISTRY.damage_types.get_id(source.damage_type) as i32;
+            let chunk_pos = *self.last_chunk_pos.lock();
 
-        let current_health = self.get_health();
-        let new_health = (current_health - amount).max(0.0);
-        log::info!(
-            "{}: took {amount} damage (type: {}), health {current_health} -> {new_health}, inv_time set to 20",
-            self.gameprofile.name,
-            source.damage_type.key
-        );
-        self.entity_data.lock().health.set(new_health);
-
-        // Send health update to this player (C_SET_HEALTH)
-        self.connection.send_packet(CSetHealth {
-            health: new_health,
-            food: 20,             // TODO: implement food system
-            food_saturation: 5.0, // TODO: implement food system
-        });
-
-        // Get the damage type registry ID for the damage event packet
-        let type_id = *REGISTRY.damage_types.get_id(source.damage_type) as i32;
-
-        let damage_event = CDamageEvent {
-            entity_id: self.id,
-            source_type_id: type_id,
-            source_cause_id: source.causing_entity_id.map_or(0, |id| id + 1),
-            source_direct_id: source.direct_entity_id.map_or(0, |id| id + 1),
-            source_position: source.source_position.map(|pos| (pos.x, pos.y, pos.z)),
-        };
-        let chunk_pos = *self.last_chunk_pos.lock();
-        self.world
-            .broadcast_to_nearby(chunk_pos, damage_event, None);
-
-        let (yaw, _) = self.rotation.load();
-        let hurt_anim = CHurtAnimation {
-            entity_id: self.id,
-            yaw,
-        };
-        self.world.broadcast_to_nearby(chunk_pos, hurt_anim, None);
-
-        // Check if player died
-        if new_health <= 0.0 {
-            self.dead.store(true, Ordering::Relaxed);
-            // TODO: Phase 2 - implement die() method
-            // For now, log the death
-            log::info!(
-                "{} died (damage type: {})",
-                self.gameprofile.name,
-                source.damage_type.key,
+            self.world.broadcast_to_nearby(
+                chunk_pos,
+                CDamageEvent {
+                    entity_id: self.id,
+                    source_type_id: type_id,
+                    source_cause_id: source.causing_entity_id.map_or(0, |id| id + 1),
+                    source_direct_id: source.direct_entity_id.map_or(0, |id| id + 1),
+                    source_position: source.source_position.map(|pos| (pos.x, pos.y, pos.z)),
+                },
+                None,
             );
+
+            let (yaw, _) = self.rotation.load();
+            self.world.broadcast_to_nearby(
+                chunk_pos,
+                CHurtAnimation {
+                    entity_id: self.id,
+                    yaw,
+                },
+                None,
+            );
+        }
+
+        if self.get_health() <= 0.0 {
+            self.dead.store(true, Ordering::Relaxed);
+            self.die(source);
         }
 
         true
     }
 
-    /// Returns whether the player is dead.
+    /// Applies damage after reductions (armor, enchantments, absorption).
+    /// TODO: armor, enchantment, absorption, food exhaustion
+    fn actually_hurt(&self, source: &DamageSource, amount: f32) {
+        let final_damage = amount; // TODO: apply reductions here
+
+        if final_damage <= 0.0 {
+            return;
+        }
+
+        let current_health = self.get_health();
+        let new_health = (current_health - final_damage).max(0.0);
+        log::info!(
+            "{}: {final_damage} damage ({}), health {current_health} -> {new_health}",
+            self.gameprofile.name,
+            source.damage_type.key
+        );
+        self.entity_data.lock().health.set(new_health);
+
+        self.connection.send_packet(CSetHealth {
+            health: new_health,
+            food: 20,
+            food_saturation: 5.0,
+        });
+    }
+
+    /// TODO: death messages, xp drops, kill credit, lastDeathLocation
+    fn die(&self, source: &DamageSource) {
+        log::info!(
+            "{} died ({})",
+            self.gameprofile.name,
+            source.damage_type.key
+        );
+
+        // TODO: proper translation keys based on damage type
+        let death_message = TextComponent::plain(format!("{} died", self.gameprofile.name));
+
+        if self.world.get_game_rule(SHOW_DEATH_MESSAGES) == GameRuleValue::Bool(true) {
+            self.world.broadcast_system_chat(CSystemChat {
+                content: death_message.clone(),
+                overlay: false,
+            });
+        }
+
+        self.connection.send_packet(CPlayerCombatKill {
+            player_id: self.id,
+            message: death_message,
+        });
+
+        if self.world.get_game_rule(KEEP_INVENTORY) != GameRuleValue::Bool(true) {
+            let items: Vec<ItemStack> = {
+                let mut inventory = self.inventory.lock();
+                (0..inventory.get_container_size())
+                    .filter_map(|slot| {
+                        let item = inventory.get_item(slot).clone();
+                        if item.is_empty() {
+                            None
+                        } else {
+                            inventory.set_item(slot, ItemStack::empty());
+                            Some(item)
+                        }
+                    })
+                    .collect()
+            };
+            for item in items {
+                self.drop_item(item, true, false);
+            }
+        }
+
+        if self.world.get_game_rule(IMMEDIATE_RESPAWN) == GameRuleValue::Bool(true) {
+            self.respawn();
+        }
+    }
+
+    /// if a player is dead or not
     #[must_use]
     pub fn is_dead(&self) -> bool {
         self.dead.load(Ordering::Relaxed)
     }
 
+    // ── Respawn ─────────────────────────────────────────────────────────
+
+    /// TODO: bed/respawn anchor, cross-dimension, potion clearing and noRespawnBlockAvailable when bed is missing or obstructed
+    pub fn respawn(&self) {
+        if !self.dead.load(Ordering::Relaxed) {
+            return;
+        }
+
+        log::info!("{} is respawning", self.gameprofile.name);
+
+        self.dead.store(false, Ordering::Relaxed);
+        self.invulnerable_time.store(0, Ordering::Relaxed);
+        self.last_hurt.store(0.0);
+        self.entity_data.lock().health.set(20.0);
+
+        let world = &self.world;
+        let dimension_key = world.dimension.key.clone();
+        let dimension_type_id = *(REGISTRY.dimension_types.get_id(
+            REGISTRY
+                .dimension_types
+                .by_key(&dimension_key)
+                .expect("Dimension should registered be!"),
+        )) as i32;
+
+        self.connection.send_packet(CRespawn {
+            dimension_type: dimension_type_id,
+            dimension_name: dimension_key,
+            hashed_seed: world.obfuscated_seed(),
+            gamemode: self.game_mode.load() as u8,
+            previous_gamemode: -1,
+            is_debug: false,
+            is_flat: true, // TODO: non-flat generator support
+            has_death_location: false,
+            death_dimension_name: OptionalIdentifier(None),
+            death_location: OptionalBlockPos(None),
+            portal_cooldown_ticks: 0,
+            sea_level: 63,
+            data_kept: 0,
+        });
+
+        // TODO: bed/respawn anchor lookup
+        let spawn_pos = world.level_data.read().data().spawn_pos();
+        let spawn = Vector3::new(
+            f64::from(spawn_pos.x()) + 0.5,
+            f64::from(spawn_pos.y()),
+            f64::from(spawn_pos.z()) + 0.5,
+        );
+        *self.position.lock() = spawn;
+        *self.prev_position.lock() = spawn;
+        *self.last_good_position.lock() = spawn;
+        *self.first_good_position.lock() = spawn;
+        self.rotation.store((0.0, 0.0));
+
+        // CRespawn wipes the client's chunk cache — reset tracking so the
+        // next tick treats this as a fresh join.
+        world.player_area_map.remove_by_entity_id(self.id);
+        world.chunk_map.remove_player(self);
+        world.entity_tracker().on_player_leave(self.id);
+        *self.chunk_sender.lock() = ChunkSender::default();
+        self.client_loaded.store(false, Ordering::Relaxed);
+
+        self.connection.send_packet(CSetHealth {
+            health: 20.0,
+            food: 20,
+            food_saturation: 5.0,
+        });
+        self.send_abilities();
+        self.teleport(spawn.x, spawn.y, spawn.z, 0.0, 0.0);
+        self.connection.send_packet(CGameEvent {
+            event: GameEventType::LevelChunksLoadStart,
+            data: 0.0,
+        });
+    }
+
+    /// Handles client commands, requestStats and RequestGameRuleValues are still todo
+    pub fn handle_client_command(&self, action: ClientCommandAction) {
+        match action {
+            ClientCommandAction::PerformRespawn => self.respawn(),
+            ClientCommandAction::RequestStats => {
+                // TODO: implement stats
+            }
+            ClientCommandAction::RequestGameRuleValues => {
+                // TODO: implement game rule value response
+            }
+        }
+    }
+
     /// Cleans up player resources.
     pub const fn cleanup(&self) {}
-
-    pub fn respawn(&self) {}
 }
 
 impl Entity for Player {
