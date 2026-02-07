@@ -2343,22 +2343,21 @@ impl Player {
         // Invulnerability frames: only damage exceeding the last hit applies as
         // a delta. `last_hurt` always stores the original amount, not the delta.
         let inv_time = self.invulnerable_time.load(Ordering::Relaxed);
-        let took_full_damage;
 
-        if inv_time > 10 && !source.bypasses_cooldown() {
+        let took_full_damage = if inv_time > 10 && !source.bypasses_cooldown() {
             let last = self.last_hurt.load();
             if amount <= last {
                 return false;
             }
             self.last_hurt.store(amount);
             self.actually_hurt(source, amount - last);
-            took_full_damage = false;
+            false
         } else {
             self.last_hurt.store(amount);
             self.invulnerable_time.store(20, Ordering::Relaxed);
             self.actually_hurt(source, amount);
-            took_full_damage = true;
-        }
+            true
+        };
 
         if took_full_damage {
             let type_id = *REGISTRY.damage_types.get_id(source.damage_type) as i32;
@@ -2464,6 +2463,9 @@ impl Player {
     }
 
     /// TODO: bed/respawn anchor, cross-dimension, potion clearing and noRespawnBlockAvailable when bed is missing or obstructed
+    ///
+    /// # Panics
+    /// if the player dies in a dim that doesn't even exist :O so probably will never happen.
     pub fn respawn(&self) {
         if !self.dead.load(Ordering::Relaxed) {
             return;
@@ -2533,15 +2535,12 @@ impl Player {
         });
     }
 
-    /// Handles client commands, requestStats and RequestGameRuleValues are still todo
+    /// Handles client commands, requestStats and `RequestGameRuleValues` are still todo
     pub fn handle_client_command(&self, action: ClientCommandAction) {
         match action {
             ClientCommandAction::PerformRespawn => self.respawn(),
-            ClientCommandAction::RequestStats => {
+            ClientCommandAction::RequestStats | ClientCommandAction::RequestGameRuleValues => {
                 // TODO: implement stats
-            }
-            ClientCommandAction::RequestGameRuleValues => {
-                // TODO: implement game rule value response
             }
         }
     }
