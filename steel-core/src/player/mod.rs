@@ -1709,7 +1709,7 @@ impl Player {
     }
 
     /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
-    // this is just temporary there because the logic is not yet implemented completly for the other branches
+    // this is just temporary there because the logic is not yet implemented complete for the other branches
     #[allow(clippy::match_same_arms)]
     pub fn handle_player_command(&self, packet: SPlayerCommand) {
         match packet.action {
