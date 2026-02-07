@@ -27,14 +27,15 @@ pub use signature_cache::{LastSeen, MessageCache};
 use std::{
     sync::{
         Arc, Weak,
-        atomic::{AtomicBool, AtomicI32, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU8, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
-    AnimateAction, CAnimate, CEntityPositionSync, COpenSignEditor, CPlayerPosition, CSetEntityData,
-    CSetHeldSlot, PlayerAction, PlayerCommandAction, SAcceptTeleportation, SPickItemFromBlock,
+    AnimateAction, AttributeModifierData, AttributeModifierOperation, AttributeSnapshot, CAnimate,
+    CEntityPositionSync, COpenSignEditor, CPlayerPosition, CSetEntityData, CSetHeldSlot,
+    CUpdateAttributes, PlayerAction, PlayerCommandAction, SAcceptTeleportation, SPickItemFromBlock,
     SPlayerAbilities, SPlayerAction, SPlayerCommand, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_registry::blocks::block_state_ext::BlockStateExt;
@@ -47,6 +48,7 @@ use steel_registry::vanilla_entity_data::PlayerEntityData;
 use steel_registry::vanilla_game_rules::{ELYTRA_MOVEMENT_CHECK, PLAYER_MOVEMENT_CHECK};
 use steel_registry::{REGISTRY, vanilla_chat_types};
 
+use steel_utils::Identifier;
 use steel_utils::locks::SyncMutex;
 use steel_utils::types::GameType;
 use text_components::resolving::TextResolutor;
@@ -89,6 +91,34 @@ use steel_utils::types::InteractionHand;
 use steel_utils::{ChunkPos, math::Vector3, translations};
 
 use crate::entity::LivingEntity;
+
+// Vanilla shared flags byte bit indices (Entity.java DATA_SHARED_FLAGS_ID, index 0).
+// Each constant is the bit INDEX; use `1 << FLAG_*` to get the mask.
+// Some flags are not yet used but are defined here for completeness and future phases.
+#[allow(dead_code)]
+const FLAG_ONFIRE: u8 = 0;
+const FLAG_SHIFT_KEY_DOWN: u8 = 1;
+const FLAG_SPRINTING: u8 = 3;
+#[allow(dead_code)]
+const FLAG_SWIMMING: u8 = 4;
+#[allow(dead_code)]
+const FLAG_INVISIBLE: u8 = 5;
+#[allow(dead_code)]
+const FLAG_GLOWING: u8 = 6;
+const FLAG_FALL_FLYING: u8 = 7;
+
+// Vanilla sprint speed modifier constants (LivingEntity.java).
+// Identifier: `minecraft:sprinting`
+// Operation: ADD_MULTIPLIED_TOTAL (result *= 1 + amount)
+// Amount: 0.3 (i.e., +30% speed while sprinting)
+const SPRINT_SPEED_MODIFIER_AMOUNT: f64 = 0.3;
+
+/// Vanilla base movement speed for players (from entities.json `movement_speed` attribute).
+const BASE_MOVEMENT_SPEED: f64 = 0.10000000149011612;
+
+/// Vanilla attribute registry ID for `minecraft:movement_speed` (from attributes.json).
+const ATTRIBUTE_MOVEMENT_SPEED_ID: i32 = 22;
+
 use crate::inventory::{
     MenuInstance, MenuProvider,
     container::Container,
@@ -289,6 +319,9 @@ pub struct Player {
     /// Last `on_ground` state sent to tracking players (for detecting changes).
     last_sent_on_ground: AtomicBool,
 
+    /// Timestamp (millis since epoch) of the player's last action, used for AFK detection.
+    last_action_time: AtomicI64,
+
     /// Whether the player has been removed from the world.
     removed: AtomicBool,
 
@@ -361,6 +394,12 @@ impl Player {
             block_breaking: SyncMutex::new(BlockBreakingManager::new()),
             position_sync_delay: AtomicI32::new(0),
             last_sent_on_ground: AtomicBool::new(false),
+            last_action_time: AtomicI64::new(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64,
+            ),
             removed: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
         }
@@ -417,6 +456,10 @@ impl Player {
         // Update pose based on current state
         self.update_pose();
 
+        // Pack boolean states into the shared flags byte so other clients
+        // can render sprint/sneak/elytra animations correctly.
+        self.update_shared_flags();
+
         // Sync dirty entity data to nearby players
         self.sync_entity_data();
 
@@ -434,6 +477,50 @@ impl Player {
     }
 
     /// Syncs dirty entity data to nearby players.
+    /// Computes the vanilla shared flags byte from internal boolean states and
+    /// writes it into `entity_data.shared_flags`. The dirty-tracking in
+    /// [`SyncedValue`] ensures that a `SetEntityData` packet is only sent when
+    /// the value actually changes.
+    ///
+    /// Vanilla bit layout (Entity.java `DATA_SHARED_FLAGS_ID`, index 0):
+    /// - Bit 0: on fire
+    /// - Bit 1: shift key down (sneaking)
+    /// - Bit 3: sprinting
+    /// - Bit 4: swimming
+    /// - Bit 5: invisible
+    /// - Bit 6: glowing
+    /// - Bit 7: fall flying (elytra)
+    fn update_shared_flags(&self) {
+        let mut flags: u8 = 0;
+
+        // TODO: on_fire — set bit when fire/lava system is implemented
+        // if self.is_on_fire() { flags |= 1 << FLAG_ONFIRE; }
+
+        if self.shift_key_down.load(Ordering::Relaxed) {
+            flags |= 1 << FLAG_SHIFT_KEY_DOWN;
+        }
+
+        if self.sprinting.load(Ordering::Relaxed) {
+            flags |= 1 << FLAG_SPRINTING;
+        }
+
+        // TODO: swimming — set bit when swimming system is implemented
+        // if self.is_swimming() { flags |= 1 << FLAG_SWIMMING; }
+
+        // TODO: invisible — set bit when potion/spectator invisibility is implemented
+        // if self.is_invisible() { flags |= 1 << FLAG_INVISIBLE; }
+
+        // TODO: glowing — set bit when glowing effect is implemented
+        // if self.is_glowing() { flags |= 1 << FLAG_GLOWING; }
+
+        if self.fall_flying.load(Ordering::Relaxed) {
+            flags |= 1 << FLAG_FALL_FLYING;
+        }
+
+        // Cast to i8 for the network Byte serializer (same bit pattern).
+        self.entity_data.lock().shared_flags.set(flags as i8);
+    }
+
     fn sync_entity_data(&self) {
         if let Some(dirty_values) = self.entity_data.lock().pack_dirty() {
             let packet = CSetEntityData::new(self.id, dirty_values);
@@ -1230,6 +1317,7 @@ impl Player {
 
     /// Handles a container click packet (slot interaction).
     pub fn handle_container_click(&self, packet: SContainerClick) {
+        self.reset_last_action_time();
         // First check if we have an open external menu
         let mut open_menu_guard = self.open_menu.lock();
 
@@ -1469,6 +1557,24 @@ impl Player {
         self.fall_flying.store(fall_flying, Ordering::Relaxed);
     }
 
+    /// Resets the last action time to the current time.
+    ///
+    /// Called by packet handlers to track when the player last performed an action.
+    /// Used for AFK detection/idle timeout.
+    pub fn reset_last_action_time(&self) {
+        let millis = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        self.last_action_time.store(millis, Ordering::Relaxed);
+    }
+
+    /// Returns the timestamp (millis since epoch) of the player's last action.
+    #[must_use]
+    pub fn get_last_action_time(&self) -> i64 {
+        self.last_action_time.load(Ordering::Relaxed)
+    }
+
     /// Returns true if the player is flying (creative/spectator flight).
     #[must_use]
     pub fn is_flying(&self) -> bool {
@@ -1692,6 +1798,7 @@ impl Player {
 
     /// Triggers arm swing animation and broadcasts it to nearby players.
     pub fn swing(&self, hand: InteractionHand, update_self: bool) {
+        self.reset_last_action_time();
         let action = match hand {
             InteractionHand::MainHand => AnimateAction::SwingMainHand,
             InteractionHand::OffHand => AnimateAction::SwingOffHand,
@@ -1705,41 +1812,125 @@ impl Player {
 
     /// Handles a player input packet (movement keys, sneaking, sprinting).
     pub fn handle_player_input(&self, packet: SPlayerInput) {
+        // Vanilla stores the input unconditionally before the guard check.
+        // SteelMC doesn't have setLastClientInput yet, so we skip that.
+
+        if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
+        self.reset_last_action_time();
         self.shift_key_down.store(packet.shift(), Ordering::Relaxed);
+        // Immediately update shared flags so the dirty bit is set for the
+        // next sync_entity_data() call in tick().
+        self.update_shared_flags();
     }
 
     /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
     // this is just temporary there because the logic is not yet implemented complete for the other branches
     #[allow(clippy::match_same_arms)]
     pub fn handle_player_command(&self, packet: SPlayerCommand) {
+        if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
+        self.reset_last_action_time();
+
         match packet.action {
             PlayerCommandAction::StartSprinting => {
                 self.sprinting.store(true, Ordering::Relaxed);
+                self.apply_sprint_speed_modifier(true);
             }
             PlayerCommandAction::StopSprinting => {
                 self.sprinting.store(false, Ordering::Relaxed);
+                self.apply_sprint_speed_modifier(false);
             }
             PlayerCommandAction::StartFallFlying => {
-                // TODO: check if player has elytra equipped and is falling
+                // TODO: Validate elytra — needs canGlide() checks:
+                //   - not already fall flying
+                //   - not on ground, not in water, not a passenger
+                //   - no Levitation effect
+                //   - at least one equipped item has GLIDER component in correct slot
+                //     and won't break on next damage
+                //   - not in creative flight
+                // If validation fails, call stop_fall_flying() (toggle shared flag 7)
+                // Also needs tick-based updateFallFlying():
+                //   - re-validate canGlide() every tick
+                //   - damage a random glider item every 20 ticks
+                //   - emit ELYTRA_GLIDE game event every 10 ticks
+                // Blocked on: equipment checks working end-to-end, potion effects,
+                //             fluid detection, passenger/vehicle system
                 self.fall_flying.store(true, Ordering::Relaxed);
             }
             PlayerCommandAction::LeaveBed => {
                 if self.sleeping.load(Ordering::Relaxed) {
                     self.sleeping.store(false, Ordering::Relaxed);
-                    // TODO: update pose and notify other players
+                    // TODO: Full bed wake-up logic:
+                    //   - set bed block OCCUPIED property to false
+                    //   - compute stand-up position via BedBlock::findStandUpPosition
+                    //   - teleport player + set rotation toward bed
+                    //   - set pose to Standing, clear sleeping pos entity data
+                    //   - update server sleeping player list (for sleep-skip)
+                    //   - set sleepCounter = 100
+                    //   - set awaiting_position_from_client
+                    // Blocked on: bed block properties, sleeping pos entity data
                 }
             }
             PlayerCommandAction::StartRidingJump => {
-                // TODO: implement horse jumping when vehicles are added
-                // let _jump_boost = packet.jump_boost;
+                // TODO: horse jump — check getControlledVehicle() is PlayerRideableJumping,
+                //       validate canJump() && data > 0, call handleStartJump(data)
+                // Blocked on: vehicle/entity system
             }
             PlayerCommandAction::StopRidingJump => {
-                // TODO: implement horse jumping when vehicles are added
+                // TODO: stop horse jump — call handleStopJump() on controlled vehicle
+                // Blocked on: vehicle/entity system
             }
             PlayerCommandAction::OpenVehicleInventory => {
-                // TODO: implement vehicle inventory when vehicles are added
+                // TODO: open vehicle inventory — check getVehicle() is HasCustomInventoryScreen
+                // Blocked on: vehicle/entity system
             }
         }
+
+        // Update shared flags immediately after any state change so the
+        // dirty bit is set for the next sync_entity_data() call.
+        self.update_shared_flags();
+    }
+
+    /// Applies or removes the sprint speed modifier and broadcasts the attribute
+    /// change to nearby players via `CUpdateAttributes`.
+    ///
+    /// Matches vanilla `LivingEntity.setSprinting()` which adds/removes the
+    /// `SPEED_MODIFIER_SPRINTING` attribute modifier (+30% `ADD_MULTIPLIED_TOTAL`).
+    fn apply_sprint_speed_modifier(&self, sprinting: bool) {
+        // Compute effective speed server-side.
+        // Vanilla: base * (1 + modifier_sum) for ADD_MULTIPLIED_TOTAL
+        let effective_speed = if sprinting {
+            BASE_MOVEMENT_SPEED * (1.0 + SPRINT_SPEED_MODIFIER_AMOUNT)
+        } else {
+            BASE_MOVEMENT_SPEED
+        };
+        self.speed.store(effective_speed as f32);
+
+        // Build the attribute snapshot with or without the sprint modifier.
+        let modifiers = if sprinting {
+            vec![AttributeModifierData {
+                id: Identifier::vanilla_static("sprinting"),
+                amount: SPRINT_SPEED_MODIFIER_AMOUNT,
+                operation: AttributeModifierOperation::AddMultipliedTotal,
+            }]
+        } else {
+            Vec::new()
+        };
+
+        let snapshot = AttributeSnapshot {
+            attribute_id: ATTRIBUTE_MOVEMENT_SPEED_ID,
+            base_value: BASE_MOVEMENT_SPEED,
+            modifiers,
+        };
+
+        let packet = CUpdateAttributes::new(self.id, vec![snapshot]);
+        let chunk_pos = *self.last_chunk_pos.lock();
+        self.world.broadcast_to_nearby(chunk_pos, packet, None);
     }
 
     /// Handles the use of an item on a block.
@@ -1784,6 +1975,8 @@ impl Player {
             return;
         }
 
+        self.reset_last_action_time();
+
         // 5. Validate Y height
         if pos.y() >= self.world.max_build_height() {
             // TODO: Send "build.tooHigh" message to player
@@ -1821,6 +2014,12 @@ impl Player {
 
     /// Handles a player action packet (block breaking, item dropping, etc.).
     pub fn handle_player_action(&self, packet: SPlayerAction) {
+        if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
+        self.reset_last_action_time();
+
         use block_breaking::BlockBreakAction;
 
         match packet.action {
@@ -1880,6 +2079,13 @@ impl Player {
 
     /// Handles the use of an item.
     pub fn handle_use_item(&self, packet: SUseItem) {
+        if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
+        self.ack_block_changes_up_to(packet.sequence);
+        self.reset_last_action_time();
+
         log::info!(
             "Player {} used {:?} (sequence: {}, yaw: {}, pitch: {})",
             self.gameprofile.name,
@@ -1964,9 +2170,19 @@ impl Player {
             .broadcast_changes(&self.connection);
     }
 
-    /// Sets selected slot
+    /// Sets selected slot.
     pub fn handle_set_carried_item(&self, packet: SSetCarriedItem) {
-        self.inventory.lock().set_selected_slot(packet.slot as u8);
+        if (packet.slot as usize) < PlayerInventory::SELECTION_SIZE {
+            // TODO: if selected slot changed and using main hand, call stopUsingItem()
+            self.inventory.lock().set_selected_slot(packet.slot as u8);
+            self.reset_last_action_time();
+        } else {
+            log::warn!(
+                "{} tried to set an invalid carried item: {}",
+                self.gameprofile.name,
+                packet.slot
+            );
+        }
     }
 
     /// Handles a sign update packet from the client.
@@ -2450,7 +2666,7 @@ impl LivingEntity for Player {
 
     fn set_sprinting(&mut self, sprinting: bool) {
         self.sprinting.store(sprinting, Ordering::Relaxed);
-        // TODO: Apply speed modifiers when attribute system is implemented
+        self.apply_sprint_speed_modifier(sprinting);
     }
 
     fn get_speed(&self) -> f32 {

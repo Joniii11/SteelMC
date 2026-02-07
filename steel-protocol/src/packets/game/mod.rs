@@ -46,6 +46,7 @@ mod c_tab_list;
 mod c_take_item_entity;
 mod c_ticking_state;
 mod c_ticking_step;
+mod c_update_attributes;
 mod chat_session_data;
 mod s_accept_teleportation;
 mod s_chat;
@@ -132,6 +133,9 @@ pub use c_tab_list::CTabList;
 pub use c_take_item_entity::CTakeItemEntity;
 pub use c_ticking_state::CTickingState;
 pub use c_ticking_step::CTickingStep;
+pub use c_update_attributes::{
+    AttributeModifierData, AttributeModifierOperation, AttributeSnapshot, CUpdateAttributes,
+};
 pub use chat_session_data::ProtocolRemoteChatSessionData;
 pub use s_accept_teleportation::SAcceptTeleportation;
 pub use s_chat::SChat;
