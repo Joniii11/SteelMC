@@ -3,6 +3,7 @@ pub mod execute;
 pub mod flyspeed;
 pub mod gamemode;
 pub mod gamerule;
+pub mod kill;
 pub mod seed;
 pub mod stop;
 pub mod summon;
