@@ -13,6 +13,7 @@ use crate::command::context::CommandContext;
 use crate::command::error::CommandError;
 use crate::entity::LivingEntity;
 use crate::entity::damage::DamageSource;
+use crate::player::Player;
 use steel_registry::vanilla_damage_types;
 use steel_utils::translations;
 
@@ -25,7 +26,7 @@ pub fn command_handler() -> impl CommandHandlerDyn {
 }
 
 /// `LivingEntity.kill()` — hurt with `genericKill` at `Float.MAX_VALUE`.
-fn kill_player(player: &crate::player::Player) {
+fn kill_player(player: &Player) {
     player.hurt(
         &DamageSource::environment(vanilla_damage_types::GENERIC_KILL),
         f32::MAX,

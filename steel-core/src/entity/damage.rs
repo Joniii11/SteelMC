@@ -40,14 +40,14 @@ impl DamageSource {
     /// `LivingEntity.hurtServer()`.
     /// TODO: use damage type tag query once supported
     #[must_use]
-    pub fn bypasses_cooldown(&self) -> bool {
+    pub const fn bypasses_cooldown(&self) -> bool {
         false
     }
 
     /// Whether this damage scales with world difficulty.
     /// Reads the `scaling` field from the damage type registry entry.
     #[must_use]
-    pub fn scales_with_difficulty(&self) -> bool {
+    pub const fn scales_with_difficulty(&self) -> bool {
         match self.damage_type.scaling {
             DamageScaling::Never => false,
             // TODO: WhenCausedByLivingNonPlayer needs entity type checking

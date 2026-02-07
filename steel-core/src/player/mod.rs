@@ -2397,7 +2397,7 @@ impl Player {
 
     /// Applies damage after reductions (armor, enchantments, absorption).
     /// TODO: armor, enchantment, absorption, food exhaustion
-    fn actually_hurt(&self, source: &DamageSource, amount: f32) {
+    fn actually_hurt(&self, _source: &DamageSource, amount: f32) {
         let final_damage = amount; // TODO: apply reductions here
 
         if final_damage <= 0.0 {
@@ -2416,7 +2416,7 @@ impl Player {
     }
 
     /// TODO: death messages, xp drops, kill credit, lastDeathLocation
-    fn die(&self, source: &DamageSource) {
+    fn die(&self, _source: &DamageSource) {
         // TODO: proper translation keys based on damage type
         let death_message = TextComponent::plain(format!("{} died", self.gameprofile.name));
 
@@ -2598,7 +2598,6 @@ impl Entity for Player {
 
     fn set_removed(&self, reason: RemovalReason) {
         if !self.removed.swap(true, Ordering::AcqRel) {
-            // First time being removed - notify callback
             self.level_callback.lock().on_remove(reason);
         }
     }
