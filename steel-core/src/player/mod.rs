@@ -2334,7 +2334,9 @@ impl Player {
 
         // TODO: gamerule damage-type checks (drowningDamage, fallDamage, etc.)
         // TODO: difficulty scaling (Peaceful/Easy/Hard) — assumes Normal for now
-        if source.scales_with_difficulty() {}
+        if source.scales_with_difficulty() {
+            // needs todo
+        }
 
         if amount <= 0.0 {
             return false;
