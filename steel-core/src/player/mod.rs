@@ -35,8 +35,8 @@ use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
     AnimateAction, CAnimate, CDamageEvent, CEntityPositionSync, CHurtAnimation, COpenSignEditor,
     CPlayerCombatKill, CPlayerPosition, CRespawn, CSetEntityData, CSetHealth, CSetHeldSlot,
-    ClientCommandAction, PlayerAction, SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities,
-    SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
+    CSetTime, ClientCommandAction, PlayerAction, SAcceptTeleportation, SPickItemFromBlock,
+    SPlayerAbilities, SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::shapes::AABBd;
@@ -46,7 +46,7 @@ use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_entities;
 use steel_registry::vanilla_entity_data::PlayerEntityData;
 use steel_registry::vanilla_game_rules::{
-    ELYTRA_MOVEMENT_CHECK, IMMEDIATE_RESPAWN, KEEP_INVENTORY, PLAYER_MOVEMENT_CHECK,
+    ADVANCE_TIME, ELYTRA_MOVEMENT_CHECK, IMMEDIATE_RESPAWN, KEEP_INVENTORY, PLAYER_MOVEMENT_CHECK,
     SHOW_DEATH_MESSAGES,
 };
 use steel_registry::{REGISTRY, vanilla_chat_types};
@@ -2418,20 +2418,30 @@ impl Player {
 
     /// TODO: death messages, xp drops, kill credit, lastDeathLocation
     fn die(&self, _source: &DamageSource) {
-        // TODO: proper translation keys based on damage type
+        let show_death_messages =
+            self.world.get_game_rule(SHOW_DEATH_MESSAGES) == GameRuleValue::Bool(true);
+
+        // TODO: use CombatTracker.getDeathMessage() with proper translation keys
         let death_message = TextComponent::plain(format!("{} died", self.gameprofile.name));
 
-        if self.world.get_game_rule(SHOW_DEATH_MESSAGES) == GameRuleValue::Bool(true) {
+        // 1) Send death screen to the dying player
+        self.connection.send_packet(CPlayerCombatKill {
+            player_id: self.id,
+            message: if show_death_messages {
+                death_message.clone()
+            } else {
+                TextComponent::const_plain("")
+            },
+        });
+
+        // 2) Broadcast death message to all players
+        // TODO: team death message visibility (ALWAYS / HIDE_FOR_OTHER_TEAMS / HIDE_FOR_OWN_TEAM)
+        if show_death_messages {
             self.world.broadcast_system_chat(CSystemChat {
-                content: death_message.clone(),
+                content: death_message,
                 overlay: false,
             });
         }
-
-        self.connection.send_packet(CPlayerCombatKill {
-            player_id: self.id,
-            message: death_message,
-        });
 
         if self.world.get_game_rule(KEEP_INVENTORY) != GameRuleValue::Bool(true) {
             let items: Vec<ItemStack> = {
@@ -2487,9 +2497,11 @@ impl Player {
                 .expect("Dimension should registered be!"),
         )) as i32;
 
+        // TODO: bed/respawn anchor lookup, send NO_RESPAWN_BLOCK_AVAILABLE if missing
+
         self.connection.send_packet(CRespawn {
             dimension_type: dimension_type_id,
-            dimension_name: dimension_key,
+            dimension_name: dimension_key.clone(),
             hashed_seed: world.obfuscated_seed(),
             gamemode: self.game_mode.load() as u8,
             previous_gamemode: -1,
@@ -2503,7 +2515,6 @@ impl Player {
             data_kept: 0,
         });
 
-        // TODO: bed/respawn anchor lookup
         let spawn_pos = world.level_data.read().data().spawn_pos();
         let spawn = Vector3::new(
             f64::from(spawn_pos.x()) + 0.5,
@@ -2515,9 +2526,44 @@ impl Player {
         *self.last_good_position.lock() = spawn;
         *self.first_good_position.lock() = spawn;
         self.rotation.store((0.0, 0.0));
+        self.teleport(spawn.x, spawn.y, spawn.z, 0.0, 0.0);
 
-        // CRespawn wipes the client's chunk cache — reset tracking so the
-        // next tick treats this as a fresh join.
+        // TODO: send CSetDefaultSpawnPosition (dimension, pos, yaw, pitch)
+
+        // TODO: send CChangeDifficulty (difficulty, locked)
+
+        // TODO: send CSetExperience (progress, level, total)
+
+        // TODO: send mob effect packets once effects are implemented
+
+        // TODO: send CInitializeBorder once world border is implemented
+
+        // time sync
+        {
+            let level_data = world.level_data.read();
+            let game_time = level_data.game_time();
+            let day_time = level_data.day_time();
+            drop(level_data);
+            let advance_time = world
+                .get_game_rule(ADVANCE_TIME)
+                .as_bool()
+                .expect("gamerule advance_time should always be a bool.");
+            self.connection.send_packet(CSetTime {
+                game_time,
+                day_time,
+                time_of_day_increasing: advance_time,
+            });
+        }
+
+        // TODO: send weather state if raining/thundering maybe implement that in pr https://github.com/Steel-Foundation/SteelMC/pull/87
+
+        self.connection.send_packet(CGameEvent {
+            event: GameEventType::LevelChunksLoadStart,
+            data: 0.0,
+        });
+
+        // TODO: tick rate update for joining player
+
         world.player_area_map.remove_by_entity_id(self.id);
         world.chunk_map.remove_player(self);
         world.entity_tracker().on_player_leave(self.id);
@@ -2530,11 +2576,6 @@ impl Player {
             food_saturation: 5.0,
         });
         self.send_abilities();
-        self.teleport(spawn.x, spawn.y, spawn.z, 0.0, 0.0);
-        self.connection.send_packet(CGameEvent {
-            event: GameEventType::LevelChunksLoadStart,
-            data: 0.0,
-        });
     }
 
     /// Handles client commands, requestStats and `RequestGameRuleValues` are still todo
