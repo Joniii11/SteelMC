@@ -50,7 +50,6 @@ use steel_registry::vanilla_game_rules::{
     SHOW_DEATH_MESSAGES,
 };
 use steel_registry::{REGISTRY, vanilla_chat_types};
-use steel_utils::serial::write::{OptionalBlockPos, OptionalIdentifier};
 
 use steel_utils::locks::SyncMutex;
 use steel_utils::types::GameType;
@@ -2517,8 +2516,8 @@ impl Player {
             is_debug: false,
             is_flat: true, // TODO: non-flat generator support
             has_death_location: false,
-            death_dimension_name: OptionalIdentifier(None),
-            death_location: OptionalBlockPos(None),
+            death_dimension_name: None,
+            death_location: None,
             portal_cooldown_ticks: 0,
             sea_level: 63,
             data_kept: 0,

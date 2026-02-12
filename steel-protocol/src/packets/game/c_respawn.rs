@@ -2,8 +2,7 @@
 
 use steel_macros::{ClientPacket, WriteTo};
 use steel_registry::packets::play::C_RESPAWN;
-use steel_utils::Identifier;
-use steel_utils::serial::write::{OptionalBlockPos, OptionalIdentifier};
+use steel_utils::{BlockPos, Identifier};
 
 /// Respawn a player in any dimension.
 ///
@@ -30,9 +29,11 @@ pub struct CRespawn {
     /// Whether the player has a death location.
     pub has_death_location: bool,
     /// The dimension name of the death location (if `has_death_location` is true).
-    pub death_dimension_name: OptionalIdentifier,
+    #[write(as = Unprefixed)]
+    pub death_dimension_name: Option<Identifier>,
     /// The block position of the death location (if `has_death_location` is true).
-    pub death_location: OptionalBlockPos,
+    #[write(as = Unprefixed)]
+    pub death_location: Option<BlockPos>,
     /// The portal cooldown in ticks.
     #[write(as = VarInt)]
     pub portal_cooldown_ticks: i32,
