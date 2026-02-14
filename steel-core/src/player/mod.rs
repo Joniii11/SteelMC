@@ -2651,7 +2651,6 @@ impl Player {
         world.player_area_map.remove_by_entity_id(self.id);
         world.chunk_map.remove_player(self);
         world.entity_tracker().on_player_leave(self.id);
-        *self.chunk_sender.lock() = ChunkSender::default();
         self.client_loaded.store(false, Ordering::Relaxed);
 
         self.send_packet(CSetHealth {
