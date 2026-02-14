@@ -22,7 +22,7 @@ use steel_utils::translations;
 pub fn command_handler() -> impl CommandHandlerDyn {
     CommandHandlerBuilder::new(&["kill"], "Kills entities.", "minecraft:command.kill")
         .executes(KillSelfExecutor)
-        .then(argument("targets", EntityArgument::new()).executes(KillTargetsExecutor))
+        .then(argument("targets", EntityArgument::multiple()).executes(KillTargetsExecutor))
 }
 
 /// `LivingEntity.kill()` — hurt with `genericKill` at `Float.MAX_VALUE`.

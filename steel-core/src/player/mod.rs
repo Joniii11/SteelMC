@@ -2464,7 +2464,7 @@ impl Player {
         let new_health = (current_health - final_damage).max(0.0);
         self.entity_data.lock().health.set(new_health);
 
-        self.connection.send_packet(CSetHealth {
+        self.send_packet(CSetHealth {
             health: new_health,
             food: 20,
             food_saturation: 5.0,
@@ -2488,7 +2488,7 @@ impl Player {
         .component();
 
         // 1) Send death screen to the dying player
-        self.connection.send_packet(CPlayerCombatKill {
+        self.send_packet(CPlayerCombatKill {
             player_id: self.id,
             message: if show_death_messages {
                 death_message.clone()
@@ -2562,7 +2562,7 @@ impl Player {
 
         // TODO: bed/respawn anchor lookup, send NO_RESPAWN_BLOCK_AVAILABLE if missing
 
-        self.connection.send_packet(CRespawn {
+        self.send_packet(CRespawn {
             dimension_type: dimension_type_id,
             dimension_name: dimension_key.clone(),
             hashed_seed: world.obfuscated_seed(),
@@ -2607,20 +2607,41 @@ impl Player {
             let game_time = level_data.game_time();
             let day_time = level_data.day_time();
             drop(level_data);
+
             let advance_time = world
                 .get_game_rule(ADVANCE_TIME)
                 .as_bool()
                 .expect("gamerule advance_time should always be a bool.");
-            self.connection.send_packet(CSetTime {
+            self.send_packet(CSetTime {
                 game_time,
                 day_time,
                 time_of_day_increasing: advance_time,
             });
         }
 
-        // TODO: send weather state if raining/thundering maybe implement that in pr https://github.com/Steel-Foundation/SteelMC/pull/87
+        if world.is_raining() {
+            let (rain_level, thunder_level) = {
+                let weather = world.weather.lock();
+                (weather.rain_level, weather.thunder_level)
+            };
 
-        self.connection.send_packet(CGameEvent {
+            self.send_packet(CGameEvent {
+                event: GameEventType::StartRaining,
+                data: 0.0,
+            });
+
+            self.send_packet(CGameEvent {
+                event: GameEventType::RainLevelChange,
+                data: rain_level,
+            });
+
+            self.send_packet(CGameEvent {
+                event: GameEventType::ThunderLevelChange,
+                data: thunder_level,
+            });
+        }
+
+        self.send_packet(CGameEvent {
             event: GameEventType::LevelChunksLoadStart,
             data: 0.0,
         });
@@ -2633,7 +2654,7 @@ impl Player {
         *self.chunk_sender.lock() = ChunkSender::default();
         self.client_loaded.store(false, Ordering::Relaxed);
 
-        self.connection.send_packet(CSetHealth {
+        self.send_packet(CSetHealth {
             health: 20.0,
             food: 20,
             food_saturation: 5.0,
