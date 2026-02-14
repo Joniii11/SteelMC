@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConfigLabel"],"static":["CONFIG","STEEL_CONFIG"],"struct":["ConfigLink","ServerConfig","ServerConfigRef","ServerLinks"]};
+window.SIDEBAR_ITEMS = {"enum":["ConfigLabel","WordGeneratorTypes","WorldStorageConfig"],"static":["CONFIG","STEEL_CONFIG"],"struct":["ConfigLink","ServerConfig","ServerConfigRef","ServerLinks"]};

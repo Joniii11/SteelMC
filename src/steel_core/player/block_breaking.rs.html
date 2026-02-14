@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/player/block_breaking.rs`."><title>block_breaking.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (f889772d6 2026-02-05)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/player/</div>block_breaking.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Block breaking state machine for players.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/player/block_breaking.rs`."><title>block_breaking.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (a423f68a0 2026-02-13)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/player/</div>block_breaking.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Block breaking state machine for players.
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! This module implements the logic from Java's `ServerPlayerGameMode` for handling
 <a href=#4 id=4 data-nosnippet>4</a>//! block breaking, including progress tracking and validation.
@@ -113,7 +113,7 @@
 <a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span>progress = destroy_speed * (ticks_spent + <span class="number">1</span>) <span class="kw">as </span>f32;
 <a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">let </span>state = (progress * <span class="number">10.0</span>) <span class="kw">as </span>i32;
 <a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">if </span><span class="macro">state !</span>= <span class="self">self</span>.last_sent_state {
+<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">if </span>state != <span class="self">self</span>.last_sent_state {
 <a href=#117 id=117 data-nosnippet>117</a>            world.broadcast_block_destruction(player.id, pos, state);
 <a href=#118 id=118 data-nosnippet>118</a>            <span class="self">self</span>.last_sent_state = state;
 <a href=#119 id=119 data-nosnippet>119</a>        }
@@ -141,7 +141,7 @@
 <a href=#141 id=141 data-nosnippet>141</a>
 <a href=#142 id=142 data-nosnippet>142</a>        <span class="comment">// Validate Y coordinate
 <a href=#143 id=143 data-nosnippet>143</a>        </span><span class="kw">if </span>pos.y() &gt;= world.max_build_height() {
-<a href=#144 id=144 data-nosnippet>144</a>            player.connection.send_packet(CBlockUpdate {
+<a href=#144 id=144 data-nosnippet>144</a>            player.send_packet(CBlockUpdate {
 <a href=#145 id=145 data-nosnippet>145</a>                pos,
 <a href=#146 id=146 data-nosnippet>146</a>                block_state: world.get_block_state(<span class="kw-2">&amp;</span>pos),
 <a href=#147 id=147 data-nosnippet>147</a>            });
@@ -152,7 +152,7 @@
 <a href=#152 id=152 data-nosnippet>152</a>            BlockBreakAction::Start =&gt; {
 <a href=#153 id=153 data-nosnippet>153</a>                <span class="comment">// Check may_interact permission
 <a href=#154 id=154 data-nosnippet>154</a>                </span><span class="kw">if </span>!world.may_interact(player, <span class="kw-2">&amp;</span>pos) {
-<a href=#155 id=155 data-nosnippet>155</a>                    player.connection.send_packet(CBlockUpdate {
+<a href=#155 id=155 data-nosnippet>155</a>                    player.send_packet(CBlockUpdate {
 <a href=#156 id=156 data-nosnippet>156</a>                        pos,
 <a href=#157 id=157 data-nosnippet>157</a>                        block_state: world.get_block_state(<span class="kw-2">&amp;</span>pos),
 <a href=#158 id=158 data-nosnippet>158</a>                    });
@@ -183,7 +183,7 @@
 <a href=#183 id=183 data-nosnippet>183</a>                        <span class="comment">// Start breaking
 <a href=#184 id=184 data-nosnippet>184</a>                        </span><span class="kw">if </span><span class="self">self</span>.is_destroying_block {
 <a href=#185 id=185 data-nosnippet>185</a>                            <span class="comment">// Send block update for the old position to cancel client prediction
-<a href=#186 id=186 data-nosnippet>186</a>                            </span>player.connection.send_packet(CBlockUpdate {
+<a href=#186 id=186 data-nosnippet>186</a>                            </span>player.send_packet(CBlockUpdate {
 <a href=#187 id=187 data-nosnippet>187</a>                                pos: <span class="self">self</span>.destroy_pos,
 <a href=#188 id=188 data-nosnippet>188</a>                                block_state: world.get_block_state(<span class="kw-2">&amp;</span><span class="self">self</span>.destroy_pos),
 <a href=#189 id=189 data-nosnippet>189</a>                            });
@@ -229,7 +229,7 @@
 <a href=#229 id=229 data-nosnippet>229</a>            BlockBreakAction::Abort =&gt; {
 <a href=#230 id=230 data-nosnippet>230</a>                <span class="self">self</span>.is_destroying_block = <span class="bool-val">false</span>;
 <a href=#231 id=231 data-nosnippet>231</a>
-<a href=#232 id=232 data-nosnippet>232</a>                <span class="kw">if </span><span class="self">self</span>.<span class="macro">destroy_pos !</span>= pos {
+<a href=#232 id=232 data-nosnippet>232</a>                <span class="kw">if </span><span class="self">self</span>.destroy_pos != pos {
 <a href=#233 id=233 data-nosnippet>233</a>                    <span class="macro">log::warn!</span>(
 <a href=#234 id=234 data-nosnippet>234</a>                        <span class="string">"Mismatch in destroy block pos: {:?} vs {:?}"</span>,
 <a href=#235 id=235 data-nosnippet>235</a>                        <span class="self">self</span>.destroy_pos,
@@ -247,7 +247,7 @@
 <a href=#247 id=247 data-nosnippet>247</a>    </span><span class="kw">fn </span>destroy_and_ack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, player: <span class="kw-2">&amp;</span>Player, world: <span class="kw-2">&amp;</span>World, pos: BlockPos) {
 <a href=#248 id=248 data-nosnippet>248</a>        <span class="kw">if </span>!<span class="self">self</span>.destroy_block(player, world, pos) {
 <a href=#249 id=249 data-nosnippet>249</a>            <span class="comment">// Send block update to resync client
-<a href=#250 id=250 data-nosnippet>250</a>            </span>player.connection.send_packet(CBlockUpdate {
+<a href=#250 id=250 data-nosnippet>250</a>            </span>player.send_packet(CBlockUpdate {
 <a href=#251 id=251 data-nosnippet>251</a>                pos,
 <a href=#252 id=252 data-nosnippet>252</a>                block_state: world.get_block_state(<span class="kw-2">&amp;</span>pos),
 <a href=#253 id=253 data-nosnippet>253</a>            });
@@ -301,7 +301,7 @@
 <a href=#301 id=301 data-nosnippet>301</a>                .by_state_id(state)
 <a href=#302 id=302 data-nosnippet>302</a>                .map_or(<span class="number">0.0</span>, |b| b.config.destroy_time);
 <a href=#303 id=303 data-nosnippet>303</a>
-<a href=#304 id=304 data-nosnippet>304</a>            <span class="kw">if </span><span class="macro">block_destroy_time !</span>= <span class="number">0.0 </span>{
+<a href=#304 id=304 data-nosnippet>304</a>            <span class="kw">if </span>block_destroy_time != <span class="number">0.0 </span>{
 <a href=#305 id=305 data-nosnippet>305</a>                <span class="kw">let </span><span class="kw-2">mut </span>inv = player.inventory.lock();
 <a href=#306 id=306 data-nosnippet>306</a>                <span class="kw">let </span>damage_per_block = inv.get_selected_item().get_tool_damage_per_block();
 <a href=#307 id=307 data-nosnippet>307</a>
@@ -321,8 +321,8 @@
 <a href=#321 id=321 data-nosnippet>321</a>
 <a href=#322 id=322 data-nosnippet>322</a>            <span class="comment">// Handle drops (skip for creative/spectator)
 <a href=#323 id=323 data-nosnippet>323</a>            </span><span class="kw">let </span>game_mode = player.game_mode.load();
-<a href=#324 id=324 data-nosnippet>324</a>            <span class="kw">if </span><span class="macro">game_mode !</span>= GameType::Spectator
-<a href=#325 id=325 data-nosnippet>325</a>                &amp;&amp; <span class="macro">game_mode !</span>= GameType::Creative
+<a href=#324 id=324 data-nosnippet>324</a>            <span class="kw">if </span>game_mode != GameType::Spectator
+<a href=#325 id=325 data-nosnippet>325</a>                &amp;&amp; game_mode != GameType::Creative
 <a href=#326 id=326 data-nosnippet>326</a>                &amp;&amp; has_correct_tool
 <a href=#327 id=327 data-nosnippet>327</a>            {
 <a href=#328 id=328 data-nosnippet>328</a>                <span class="comment">// TODO: Call playerDestroy to spawn drops

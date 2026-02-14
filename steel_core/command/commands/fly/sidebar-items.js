@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["command_handler","query_flying_speed","set_fly","set_flying_speed","toggle_fly"]};
