@@ -7,6 +7,8 @@ authors.workspace = true
 build = "build/build.rs"
 
 [dependencies]
+steel-macros.workspace = true
+
 # Async runtime
 tokio.workspace = true
 tokio-util.workspace = true
@@ -47,6 +49,7 @@ criterion.workspace = true
 
 [build-dependencies]
 # Serialization
+serde.workspace = true
 serde_json.workspace = true
 # Proc macros
 proc-macro2.workspace = true

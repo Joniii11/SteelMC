@@ -21,14 +21,14 @@ use crate::server::registry_cache::RegistryCache;
 use crate::world::{World, WorldConfig, WorldTickTimings};
 use steel_crypto::key_store::KeyStore;
 use steel_protocol::packets::game::{
-    CGameEvent, CLogin, CSetHeldSlot, CSystemChat, CTabList, CTickingState, CTickingStep,
-    CommonPlayerSpawnInfo, GameEventType,
+    CEntityEvent, CGameEvent, CLogin, CSetHeldSlot, CSystemChat, CTabList, CTickingState,
+    CTickingStep, CommonPlayerSpawnInfo, GameEventType,
 };
 use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_dimension_types::OVERWORLD;
 use steel_registry::vanilla_game_rules::{IMMEDIATE_RESPAWN, LIMITED_CRAFTING, REDUCED_DEBUG_INFO};
 use steel_registry::{REGISTRY, Registry, vanilla_blocks};
-use steel_utils::locks::SyncRwLock;
+use steel_utils::{entity_events::EntityStatus, locks::SyncRwLock};
 use text_components::{Modifier, TextComponent, format::Color};
 use tick_rate_manager::{SprintReport, TickRateManager};
 use tokio::{runtime::Runtime, task::spawn_blocking, time::sleep};
@@ -194,7 +194,7 @@ impl Server {
                 dimension: dimension_key,
                 seed: hashed_seed,
                 game_type: player.game_mode.load(),
-                previous_game_type: None,
+                previous_game_type: Some(player.prev_game_mode.load()),
                 is_debug: false,
                 // TODO: Change once we add a normal generator
                 is_flat: true,
@@ -238,6 +238,12 @@ impl Server {
 
         let commands = self.command_dispatcher.read().get_commands();
         player.send_packet(commands);
+
+        // TODO: Set permissions level to match player's level
+        player.send_packet(CEntityEvent {
+            entity_id: player.id,
+            event: EntityStatus::PermissionLevelOwners,
+        });
 
         // Send current ticking state to the joining player
         self.send_ticking_state_to_player(&player);

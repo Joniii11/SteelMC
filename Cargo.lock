@@ -2959,6 +2959,7 @@ dependencies = [
  "serde",
  "serde_json",
  "simdnbt",
+ "steel-macros",
  "text_components",
  "tokio",
  "tokio-util",

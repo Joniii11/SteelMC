@@ -611,6 +611,22 @@ impl GameType {
     }
 }
 
+impl ReadFrom for GameType {
+    fn read(data: &mut Cursor<&[u8]>) -> io::Result<Self> {
+        let value = VarInt::read(data)?.0;
+        match value {
+            0 => Ok(GameType::Survival),
+            1 => Ok(GameType::Creative),
+            2 => Ok(GameType::Adventure),
+            3 => Ok(GameType::Spectator),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid GameType",
+            )),
+        }
+    }
+}
+
 #[allow(missing_docs)]
 impl From<GameType> for i8 {
     fn from(value: GameType) -> Self {
@@ -628,6 +644,42 @@ impl From<GameType> for i32 {
 impl From<GameType> for f32 {
     fn from(value: GameType) -> Self {
         f32::from(value as i8)
+    }
+}
+
+#[allow(missing_docs)]
+impl From<i8> for GameType {
+    fn from(value: i8) -> Self {
+        match value {
+            1 => GameType::Creative,
+            2 => GameType::Adventure,
+            3 => GameType::Spectator,
+            _ => GameType::Survival,
+        }
+    }
+}
+
+#[allow(missing_docs)]
+impl From<i32> for GameType {
+    fn from(value: i32) -> Self {
+        match value {
+            1 => GameType::Creative,
+            2 => GameType::Adventure,
+            3 => GameType::Spectator,
+            _ => GameType::Survival,
+        }
+    }
+}
+
+#[allow(missing_docs)]
+impl From<f32> for GameType {
+    fn from(value: f32) -> Self {
+        match value {
+            1. => GameType::Creative,
+            2. => GameType::Adventure,
+            3. => GameType::Spectator,
+            _ => GameType::Survival,
+        }
     }
 }
 
