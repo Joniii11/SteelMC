@@ -12,13 +12,15 @@ use steel_protocol::packets::common::{
     SPingRequest,
 };
 use steel_protocol::packets::game::{
-    CBundleDelimiter, SAcceptTeleportation, SChat, SChatAck, SChatCommand, SChatSessionUpdate,
-    SChunkBatchReceived, SClientCommand, SClientTickEnd, SCommandSuggestion, SContainerButtonClick,
-    SContainerClick, SContainerClose, SContainerSlotStateChanged, SMovePlayerPos,
-    SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SPickItemFromBlock, SPlayerAbilities,
-    SPlayerAction, SPlayerInput, SPlayerLoad, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate,
+    CBundleDelimiter, SAcceptTeleportation, SChangeGameMode, SChat, SChatAck, SChatCommand,
+    SChatSessionUpdate, SChunkBatchReceived, SClientCommand, SClientTickEnd,
+    SCommandSuggestion, SContainerButtonClick, SContainerClick, SContainerClose,
+    SContainerSlotStateChanged, SMovePlayerPos, SMovePlayerPosRot, SMovePlayerRot,
+    SMovePlayerStatusOnly, SPickItemFromBlock, SPlayerAbilities, SPlayerAction,
+    SPlayerInput, SPlayerLoad, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate,
     SSwing, SUseItem, SUseItemOn,
 };
+
 use steel_protocol::utils::{ConnectionProtocol, PacketError, RawPacket};
 use steel_registry::packets::play;
 use steel_utils::locks::{AsyncMutex, SyncMutex};
@@ -348,6 +350,11 @@ impl JavaConnection {
             play::S_PING_REQUEST => {
                 let packet = SPingRequest::read_packet(data)?;
                 player.send_packet(CPongResponse::new(packet.time));
+            }
+            play::S_CHANGE_GAME_MODE => {
+                // TODO: Check player permission level (Or gamemode permission)
+                let packet = SChangeGameMode::read_packet(data)?;
+                player.set_game_mode(packet.gamemode);
             }
             id => log::info!("play packet id {id} is not known"),
         }

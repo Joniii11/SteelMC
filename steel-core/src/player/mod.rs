@@ -74,6 +74,7 @@ use crate::entity::damage::DamageSource;
 use crate::inventory::SyncPlayerInv;
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
+use crate::{command::commands::gamemode::get_gamemode_translation, inventory::SyncPlayerInv};
 use crate::{
     config::STEEL_CONFIG,
     entity::{Entity, EntityLevelCallback, NullEntityCallback, RemovalReason},
@@ -244,6 +245,9 @@ pub struct Player {
     /// The player's current game mode (Survival, Creative, Adventure, Spectator)
     pub game_mode: AtomicCell<GameType>,
 
+    /// The player's last game mode
+    pub prev_game_mode: AtomicCell<GameType>,
+
     /// The player's inventory container (shared with `inventory_menu`).
     pub inventory: SyncPlayerInv,
 
@@ -381,6 +385,7 @@ impl Player {
             chat_session: SyncMutex::new(None),
             message_chain: SyncMutex::new(None),
             game_mode: AtomicCell::new(GameType::Survival),
+            prev_game_mode: AtomicCell::new(GameType::Survival),
             inventory: inventory.clone(),
             inventory_menu: SyncMutex::new(InventoryMenu::new(inventory)),
             open_menu: SyncMutex::new(None),
@@ -1274,6 +1279,7 @@ impl Player {
             return false;
         }
 
+        self.prev_game_mode.store(self.game_mode.load());
         self.game_mode.store(gamemode);
 
         // Update abilities based on new game mode (mirrors vanilla GameType.updatePlayerAbilities)
@@ -1292,6 +1298,12 @@ impl Player {
         let update_packet =
             CPlayerInfoUpdate::update_game_mode(self.gameprofile.id, gamemode as i32);
         self.world.broadcast_to_all(update_packet);
+
+        self.send_message(
+            &translations::COMMANDS_GAMEMODE_SUCCESS_SELF
+                .message([get_gamemode_translation(gamemode)])
+                .into(),
+        );
 
         true
     }
