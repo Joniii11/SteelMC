@@ -71,7 +71,6 @@ use text_components::{
 use uuid::Uuid;
 
 use crate::entity::damage::DamageSource;
-use crate::inventory::SyncPlayerInv;
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
 use crate::{command::commands::gamemode::get_gamemode_translation, inventory::SyncPlayerInv};

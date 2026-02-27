@@ -13,12 +13,11 @@ use steel_protocol::packets::common::{
 };
 use steel_protocol::packets::game::{
     CBundleDelimiter, SAcceptTeleportation, SChangeGameMode, SChat, SChatAck, SChatCommand,
-    SChatSessionUpdate, SChunkBatchReceived, SClientCommand, SClientTickEnd,
-    SCommandSuggestion, SContainerButtonClick, SContainerClick, SContainerClose,
-    SContainerSlotStateChanged, SMovePlayerPos, SMovePlayerPosRot, SMovePlayerRot,
-    SMovePlayerStatusOnly, SPickItemFromBlock, SPlayerAbilities, SPlayerAction,
-    SPlayerInput, SPlayerLoad, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate,
-    SSwing, SUseItem, SUseItemOn,
+    SChatSessionUpdate, SChunkBatchReceived, SClientCommand, SClientTickEnd, SCommandSuggestion,
+    SContainerButtonClick, SContainerClick, SContainerClose, SContainerSlotStateChanged,
+    SMovePlayerPos, SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SPickItemFromBlock,
+    SPlayerAbilities, SPlayerAction, SPlayerInput, SPlayerLoad, SSetCarriedItem,
+    SSetCreativeModeSlot, SSignUpdate, SSwing, SUseItem, SUseItemOn,
 };
 
 use steel_protocol::utils::{ConnectionProtocol, PacketError, RawPacket};
