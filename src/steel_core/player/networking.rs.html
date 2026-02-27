@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/player/networking.rs`."><title>networking.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (a423f68a0 2026-02-13)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/player/</div>networking.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! This module contains the `JavaConnection` struct, which is used to represent a connection to a Java client.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/player/networking.rs`."><title>networking.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (6a979b3e3 2026-02-26)" data-channel="nightly" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/player/</div>networking.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! This module contains the `JavaConnection` struct, which is used to represent a connection to a Java client.
 <a href=#2 id=2 data-nosnippet>2</a></span><span class="kw">use </span>std::io::Cursor;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::sync::atomic::Ordering;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>std::sync::{Arc, Weak};
@@ -12,12 +12,12 @@
 <a href=#12 id=12 data-nosnippet>12</a>    SPingRequest,
 <a href=#13 id=13 data-nosnippet>13</a>};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>steel_protocol::packets::game::{
-<a href=#15 id=15 data-nosnippet>15</a>    CBundleDelimiter, SAcceptTeleportation, SChat, SChatAck, SChatCommand, SChatSessionUpdate,
-<a href=#16 id=16 data-nosnippet>16</a>    SChunkBatchReceived, SClientTickEnd, SCommandSuggestion, SContainerButtonClick,
-<a href=#17 id=17 data-nosnippet>17</a>    SContainerClick, SContainerClose, SContainerSlotStateChanged, SMovePlayerPos,
-<a href=#18 id=18 data-nosnippet>18</a>    SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SPickItemFromBlock, SPlayerAbilities,
-<a href=#19 id=19 data-nosnippet>19</a>    SPlayerAction, SPlayerInput, SPlayerLoad, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate,
-<a href=#20 id=20 data-nosnippet>20</a>    SSwing, SUseItem, SUseItemOn,
+<a href=#15 id=15 data-nosnippet>15</a>    CBundleDelimiter, SAcceptTeleportation, SChangeGameMode, SChat, SChatAck, SChatCommand,
+<a href=#16 id=16 data-nosnippet>16</a>    SChatSessionUpdate, SChunkBatchReceived, SClientTickEnd, SCommandSuggestion,
+<a href=#17 id=17 data-nosnippet>17</a>    SContainerButtonClick, SContainerClick, SContainerClose, SContainerSlotStateChanged,
+<a href=#18 id=18 data-nosnippet>18</a>    SMovePlayerPos, SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SPickItemFromBlock,
+<a href=#19 id=19 data-nosnippet>19</a>    SPlayerAbilities, SPlayerAction, SPlayerInput, SPlayerLoad, SSetCarriedItem,
+<a href=#20 id=20 data-nosnippet>20</a>    SSetCreativeModeSlot, SSignUpdate, SSwing, SUseItem, SUseItemOn,
 <a href=#21 id=21 data-nosnippet>21</a>};
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>steel_protocol::utils::{ConnectionProtocol, PacketError, RawPacket};
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>steel_registry::packets::play;
@@ -345,126 +345,131 @@
 <a href=#345 id=345 data-nosnippet>345</a>                <span class="kw">let </span>packet = SPingRequest::read_packet(data)<span class="question-mark">?</span>;
 <a href=#346 id=346 data-nosnippet>346</a>                player.send_packet(CPongResponse::new(packet.time));
 <a href=#347 id=347 data-nosnippet>347</a>            }
-<a href=#348 id=348 data-nosnippet>348</a>            id =&gt; <span class="macro">log::info!</span>(<span class="string">"play packet id {id} is not known"</span>),
-<a href=#349 id=349 data-nosnippet>349</a>        }
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="prelude-val">Ok</span>(())
-<a href=#351 id=351 data-nosnippet>351</a>    }
-<a href=#352 id=352 data-nosnippet>352</a>
-<a href=#353 id=353 data-nosnippet>353</a>    <span class="doccomment">/// Listens for packets from the client.
-<a href=#354 id=354 data-nosnippet>354</a>    </span><span class="kw">pub async fn </span>listener(
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#356 id=356 data-nosnippet>356</a>        <span class="kw-2">mut </span>reader: TCPNetworkDecoder&lt;BufReader&lt;OwnedReadHalf&gt;&gt;,
-<a href=#357 id=357 data-nosnippet>357</a>        server: Arc&lt;Server&gt;,
-<a href=#358 id=358 data-nosnippet>358</a>    ) {
-<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">loop </span>{
-<a href=#360 id=360 data-nosnippet>360</a>            <span class="macro">select!</span> {
-<a href=#361 id=361 data-nosnippet>361</a>                () = <span class="self">self</span>.wait_for_close() =&gt; {
-<a href=#362 id=362 data-nosnippet>362</a>                    <span class="kw">break</span>;
-<a href=#363 id=363 data-nosnippet>363</a>                }
-<a href=#364 id=364 data-nosnippet>364</a>                packet = reader.get_raw_packet() =&gt; {
-<a href=#365 id=365 data-nosnippet>365</a>                    <span class="kw">match </span>packet {
-<a href=#366 id=366 data-nosnippet>366</a>                        <span class="prelude-val">Ok</span>(packet) =&gt; {
-<a href=#367 id=367 data-nosnippet>367</a>                            <span class="kw">if let </span><span class="prelude-val">Some</span>(player) = <span class="self">self</span>.player.upgrade()
-<a href=#368 id=368 data-nosnippet>368</a>                                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.process_packet(packet, player, server.clone()) {
-<a href=#369 id=369 data-nosnippet>369</a>                                <span class="macro">log::warn!</span>(
-<a href=#370 id=370 data-nosnippet>370</a>                                    <span class="string">"Failed to get packet from client {}: {err}"</span>,
-<a href=#371 id=371 data-nosnippet>371</a>                                    <span class="self">self</span>.id
-<a href=#372 id=372 data-nosnippet>372</a>                                );
-<a href=#373 id=373 data-nosnippet>373</a>                            }
-<a href=#374 id=374 data-nosnippet>374</a>                        }
-<a href=#375 id=375 data-nosnippet>375</a>                        <span class="prelude-val">Err</span>(err) =&gt; {
-<a href=#376 id=376 data-nosnippet>376</a>                            <span class="macro">log::debug!</span>(<span class="string">"Failed to get raw packet from client {}: {err}"</span>, <span class="self">self</span>.id);
-<a href=#377 id=377 data-nosnippet>377</a>                            <span class="self">self</span>.close();
-<a href=#378 id=378 data-nosnippet>378</a>                        }
-<a href=#379 id=379 data-nosnippet>379</a>                    }
-<a href=#380 id=380 data-nosnippet>380</a>                }
-<a href=#381 id=381 data-nosnippet>381</a>            }
-<a href=#382 id=382 data-nosnippet>382</a>        }
-<a href=#383 id=383 data-nosnippet>383</a>    }
-<a href=#384 id=384 data-nosnippet>384</a>
-<a href=#385 id=385 data-nosnippet>385</a>    <span class="doccomment">/// Sends packets to the client.
-<a href=#386 id=386 data-nosnippet>386</a>    ///
-<a href=#387 id=387 data-nosnippet>387</a>    /// # Panics
-<a href=#388 id=388 data-nosnippet>388</a>    /// - If the player is not available.
-<a href=#389 id=389 data-nosnippet>389</a>    </span><span class="kw">pub async fn </span>sender(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>sender_recv: UnboundedReceiver&lt;EncodedPacket&gt;) {
-<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">loop </span>{
-<a href=#391 id=391 data-nosnippet>391</a>            <span class="macro">select!</span> {
-<a href=#392 id=392 data-nosnippet>392</a>                () = <span class="self">self</span>.wait_for_close() =&gt; {
-<a href=#393 id=393 data-nosnippet>393</a>                    <span class="kw">break</span>;
-<a href=#394 id=394 data-nosnippet>394</a>                }
-<a href=#395 id=395 data-nosnippet>395</a>                packet = sender_recv.recv() =&gt; {
-<a href=#396 id=396 data-nosnippet>396</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(packet) = packet {
-<a href=#397 id=397 data-nosnippet>397</a>                        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.network_writer.lock().<span class="kw">await</span>.write_packet(<span class="kw-2">&amp;</span>packet).<span class="kw">await
-<a href=#398 id=398 data-nosnippet>398</a>                        </span>{
-<a href=#399 id=399 data-nosnippet>399</a>                            <span class="macro">log::warn!</span>(<span class="string">"Failed to send packet to client {}: {err}"</span>, <span class="self">self</span>.id);
-<a href=#400 id=400 data-nosnippet>400</a>                            <span class="self">self</span>.close();
-<a href=#401 id=401 data-nosnippet>401</a>                        }
-<a href=#402 id=402 data-nosnippet>402</a>                    } <span class="kw">else </span>{
-<a href=#403 id=403 data-nosnippet>403</a>                        <span class="comment">//log::warn!(
-<a href=#404 id=404 data-nosnippet>404</a>                        //    "Internal packet_sender_recv channel closed for client {}",
-<a href=#405 id=405 data-nosnippet>405</a>                        //    self.id
-<a href=#406 id=406 data-nosnippet>406</a>                        //);
-<a href=#407 id=407 data-nosnippet>407</a>                        </span><span class="self">self</span>.close();
-<a href=#408 id=408 data-nosnippet>408</a>                    }
-<a href=#409 id=409 data-nosnippet>409</a>                }
-<a href=#410 id=410 data-nosnippet>410</a>            }
-<a href=#411 id=411 data-nosnippet>411</a>        }
-<a href=#412 id=412 data-nosnippet>412</a>
-<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">let </span>player = <span class="self">self</span>.player.upgrade().expect(<span class="string">"Player is not available"</span>);
-<a href=#414 id=414 data-nosnippet>414</a>        <span class="kw">let </span>world = player.world.clone();
-<a href=#415 id=415 data-nosnippet>415</a>        world.remove_player(player).<span class="kw">await</span>;
-<a href=#416 id=416 data-nosnippet>416</a>    }
-<a href=#417 id=417 data-nosnippet>417</a>}
-<a href=#418 id=418 data-nosnippet>418</a>
-<a href=#419 id=419 data-nosnippet>419</a><span class="kw">impl </span>TextResolutor <span class="kw">for </span>JavaConnection {
-<a href=#420 id=420 data-nosnippet>420</a>    <span class="kw">fn </span>resolve_content(<span class="kw-2">&amp;</span><span class="self">self</span>, _resolvable: <span class="kw-2">&amp;</span>Resolvable) -&gt; TextComponent {
-<a href=#421 id=421 data-nosnippet>421</a>        TextComponent::new()
-<a href=#422 id=422 data-nosnippet>422</a>    }
+<a href=#348 id=348 data-nosnippet>348</a>            play::S_CHANGE_GAME_MODE =&gt; {
+<a href=#349 id=349 data-nosnippet>349</a>                <span class="comment">// TODO: Check player permission level (Or gamemode permission)
+<a href=#350 id=350 data-nosnippet>350</a>                </span><span class="kw">let </span>packet = SChangeGameMode::read_packet(data)<span class="question-mark">?</span>;
+<a href=#351 id=351 data-nosnippet>351</a>                player.set_game_mode(packet.gamemode);
+<a href=#352 id=352 data-nosnippet>352</a>            }
+<a href=#353 id=353 data-nosnippet>353</a>            id =&gt; <span class="macro">log::info!</span>(<span class="string">"play packet id {id} is not known"</span>),
+<a href=#354 id=354 data-nosnippet>354</a>        }
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="prelude-val">Ok</span>(())
+<a href=#356 id=356 data-nosnippet>356</a>    }
+<a href=#357 id=357 data-nosnippet>357</a>
+<a href=#358 id=358 data-nosnippet>358</a>    <span class="doccomment">/// Listens for packets from the client.
+<a href=#359 id=359 data-nosnippet>359</a>    </span><span class="kw">pub async fn </span>listener(
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw-2">mut </span>reader: TCPNetworkDecoder&lt;BufReader&lt;OwnedReadHalf&gt;&gt;,
+<a href=#362 id=362 data-nosnippet>362</a>        server: Arc&lt;Server&gt;,
+<a href=#363 id=363 data-nosnippet>363</a>    ) {
+<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">loop </span>{
+<a href=#365 id=365 data-nosnippet>365</a>            <span class="macro">select!</span> {
+<a href=#366 id=366 data-nosnippet>366</a>                () = <span class="self">self</span>.wait_for_close() =&gt; {
+<a href=#367 id=367 data-nosnippet>367</a>                    <span class="kw">break</span>;
+<a href=#368 id=368 data-nosnippet>368</a>                }
+<a href=#369 id=369 data-nosnippet>369</a>                packet = reader.get_raw_packet() =&gt; {
+<a href=#370 id=370 data-nosnippet>370</a>                    <span class="kw">match </span>packet {
+<a href=#371 id=371 data-nosnippet>371</a>                        <span class="prelude-val">Ok</span>(packet) =&gt; {
+<a href=#372 id=372 data-nosnippet>372</a>                            <span class="kw">if let </span><span class="prelude-val">Some</span>(player) = <span class="self">self</span>.player.upgrade()
+<a href=#373 id=373 data-nosnippet>373</a>                                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.process_packet(packet, player, server.clone()) {
+<a href=#374 id=374 data-nosnippet>374</a>                                <span class="macro">log::warn!</span>(
+<a href=#375 id=375 data-nosnippet>375</a>                                    <span class="string">"Failed to get packet from client {}: {err}"</span>,
+<a href=#376 id=376 data-nosnippet>376</a>                                    <span class="self">self</span>.id
+<a href=#377 id=377 data-nosnippet>377</a>                                );
+<a href=#378 id=378 data-nosnippet>378</a>                            }
+<a href=#379 id=379 data-nosnippet>379</a>                        }
+<a href=#380 id=380 data-nosnippet>380</a>                        <span class="prelude-val">Err</span>(err) =&gt; {
+<a href=#381 id=381 data-nosnippet>381</a>                            <span class="macro">log::debug!</span>(<span class="string">"Failed to get raw packet from client {}: {err}"</span>, <span class="self">self</span>.id);
+<a href=#382 id=382 data-nosnippet>382</a>                            <span class="self">self</span>.close();
+<a href=#383 id=383 data-nosnippet>383</a>                        }
+<a href=#384 id=384 data-nosnippet>384</a>                    }
+<a href=#385 id=385 data-nosnippet>385</a>                }
+<a href=#386 id=386 data-nosnippet>386</a>            }
+<a href=#387 id=387 data-nosnippet>387</a>        }
+<a href=#388 id=388 data-nosnippet>388</a>    }
+<a href=#389 id=389 data-nosnippet>389</a>
+<a href=#390 id=390 data-nosnippet>390</a>    <span class="doccomment">/// Sends packets to the client.
+<a href=#391 id=391 data-nosnippet>391</a>    ///
+<a href=#392 id=392 data-nosnippet>392</a>    /// # Panics
+<a href=#393 id=393 data-nosnippet>393</a>    /// - If the player is not available.
+<a href=#394 id=394 data-nosnippet>394</a>    </span><span class="kw">pub async fn </span>sender(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>sender_recv: UnboundedReceiver&lt;EncodedPacket&gt;) {
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">loop </span>{
+<a href=#396 id=396 data-nosnippet>396</a>            <span class="macro">select!</span> {
+<a href=#397 id=397 data-nosnippet>397</a>                () = <span class="self">self</span>.wait_for_close() =&gt; {
+<a href=#398 id=398 data-nosnippet>398</a>                    <span class="kw">break</span>;
+<a href=#399 id=399 data-nosnippet>399</a>                }
+<a href=#400 id=400 data-nosnippet>400</a>                packet = sender_recv.recv() =&gt; {
+<a href=#401 id=401 data-nosnippet>401</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(packet) = packet {
+<a href=#402 id=402 data-nosnippet>402</a>                        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.network_writer.lock().<span class="kw">await</span>.write_packet(<span class="kw-2">&amp;</span>packet).<span class="kw">await
+<a href=#403 id=403 data-nosnippet>403</a>                        </span>{
+<a href=#404 id=404 data-nosnippet>404</a>                            <span class="macro">log::warn!</span>(<span class="string">"Failed to send packet to client {}: {err}"</span>, <span class="self">self</span>.id);
+<a href=#405 id=405 data-nosnippet>405</a>                            <span class="self">self</span>.close();
+<a href=#406 id=406 data-nosnippet>406</a>                        }
+<a href=#407 id=407 data-nosnippet>407</a>                    } <span class="kw">else </span>{
+<a href=#408 id=408 data-nosnippet>408</a>                        <span class="comment">//log::warn!(
+<a href=#409 id=409 data-nosnippet>409</a>                        //    "Internal packet_sender_recv channel closed for client {}",
+<a href=#410 id=410 data-nosnippet>410</a>                        //    self.id
+<a href=#411 id=411 data-nosnippet>411</a>                        //);
+<a href=#412 id=412 data-nosnippet>412</a>                        </span><span class="self">self</span>.close();
+<a href=#413 id=413 data-nosnippet>413</a>                    }
+<a href=#414 id=414 data-nosnippet>414</a>                }
+<a href=#415 id=415 data-nosnippet>415</a>            }
+<a href=#416 id=416 data-nosnippet>416</a>        }
+<a href=#417 id=417 data-nosnippet>417</a>
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw">let </span>player = <span class="self">self</span>.player.upgrade().expect(<span class="string">"Player is not available"</span>);
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">let </span>world = player.world.clone();
+<a href=#420 id=420 data-nosnippet>420</a>        world.remove_player(player).<span class="kw">await</span>;
+<a href=#421 id=421 data-nosnippet>421</a>    }
+<a href=#422 id=422 data-nosnippet>422</a>}
 <a href=#423 id=423 data-nosnippet>423</a>
-<a href=#424 id=424 data-nosnippet>424</a>    <span class="kw">fn </span>resolve_custom(<span class="kw-2">&amp;</span><span class="self">self</span>, _data: <span class="kw-2">&amp;</span>CustomData) -&gt; <span class="prelude-ty">Option</span>&lt;TextComponent&gt; {
-<a href=#425 id=425 data-nosnippet>425</a>        <span class="prelude-val">None
-<a href=#426 id=426 data-nosnippet>426</a>    </span>}
-<a href=#427 id=427 data-nosnippet>427</a>
-<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">fn </span>translate(<span class="kw-2">&amp;</span><span class="self">self</span>, _key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-<a href=#429 id=429 data-nosnippet>429</a>        <span class="prelude-val">None
-<a href=#430 id=430 data-nosnippet>430</a>    </span>}
-<a href=#431 id=431 data-nosnippet>431</a>}
+<a href=#424 id=424 data-nosnippet>424</a><span class="kw">impl </span>TextResolutor <span class="kw">for </span>JavaConnection {
+<a href=#425 id=425 data-nosnippet>425</a>    <span class="kw">fn </span>resolve_content(<span class="kw-2">&amp;</span><span class="self">self</span>, _resolvable: <span class="kw-2">&amp;</span>Resolvable) -&gt; TextComponent {
+<a href=#426 id=426 data-nosnippet>426</a>        TextComponent::new()
+<a href=#427 id=427 data-nosnippet>427</a>    }
+<a href=#428 id=428 data-nosnippet>428</a>
+<a href=#429 id=429 data-nosnippet>429</a>    <span class="kw">fn </span>resolve_custom(<span class="kw-2">&amp;</span><span class="self">self</span>, _data: <span class="kw-2">&amp;</span>CustomData) -&gt; <span class="prelude-ty">Option</span>&lt;TextComponent&gt; {
+<a href=#430 id=430 data-nosnippet>430</a>        <span class="prelude-val">None
+<a href=#431 id=431 data-nosnippet>431</a>    </span>}
 <a href=#432 id=432 data-nosnippet>432</a>
-<a href=#433 id=433 data-nosnippet>433</a><span class="kw">impl </span>NetworkConnection <span class="kw">for </span>JavaConnection {
-<a href=#434 id=434 data-nosnippet>434</a>    <span class="kw">fn </span>compression(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CompressionInfo&gt; {
-<a href=#435 id=435 data-nosnippet>435</a>        <span class="self">self</span>.compression
-<a href=#436 id=436 data-nosnippet>436</a>    }
+<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">fn </span>translate(<span class="kw-2">&amp;</span><span class="self">self</span>, _key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="prelude-val">None
+<a href=#435 id=435 data-nosnippet>435</a>    </span>}
+<a href=#436 id=436 data-nosnippet>436</a>}
 <a href=#437 id=437 data-nosnippet>437</a>
-<a href=#438 id=438 data-nosnippet>438</a>    <span class="kw">fn </span>send_encoded(<span class="kw-2">&amp;</span><span class="self">self</span>, packet: EncodedPacket) {
-<a href=#439 id=439 data-nosnippet>439</a>        <span class="self">self</span>.send_encoded_packet(packet);
-<a href=#440 id=440 data-nosnippet>440</a>    }
-<a href=#441 id=441 data-nosnippet>441</a>
-<a href=#442 id=442 data-nosnippet>442</a>    <span class="kw">fn </span>send_encoded_bundle(<span class="kw-2">&amp;</span><span class="self">self</span>, packets: Vec&lt;EncodedPacket&gt;) {
-<a href=#443 id=443 data-nosnippet>443</a>        <span class="self">self</span>.send_packet(CBundleDelimiter);
-<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">for </span>packet <span class="kw">in </span>packets {
-<a href=#445 id=445 data-nosnippet>445</a>            <span class="self">self</span>.send_encoded_packet(packet);
-<a href=#446 id=446 data-nosnippet>446</a>        }
-<a href=#447 id=447 data-nosnippet>447</a>        <span class="self">self</span>.send_packet(CBundleDelimiter);
-<a href=#448 id=448 data-nosnippet>448</a>    }
-<a href=#449 id=449 data-nosnippet>449</a>
-<a href=#450 id=450 data-nosnippet>450</a>    <span class="kw">fn </span>disconnect_with_reason(<span class="kw-2">&amp;</span><span class="self">self</span>, reason: TextComponent) {
-<a href=#451 id=451 data-nosnippet>451</a>        <span class="self">self</span>.disconnect(reason);
-<a href=#452 id=452 data-nosnippet>452</a>    }
-<a href=#453 id=453 data-nosnippet>453</a>
-<a href=#454 id=454 data-nosnippet>454</a>    <span class="kw">fn </span>tick(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-<a href=#455 id=455 data-nosnippet>455</a>        <span class="self">self</span>.keep_connection_alive();
-<a href=#456 id=456 data-nosnippet>456</a>    }
-<a href=#457 id=457 data-nosnippet>457</a>
-<a href=#458 id=458 data-nosnippet>458</a>    <span class="kw">fn </span>latency(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i32 {
-<a href=#459 id=459 data-nosnippet>459</a>        <span class="kw-2">*</span><span class="self">self</span>.latency.lock() <span class="kw">as </span>i32
-<a href=#460 id=460 data-nosnippet>460</a>    }
-<a href=#461 id=461 data-nosnippet>461</a>
-<a href=#462 id=462 data-nosnippet>462</a>    <span class="kw">fn </span>close(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-<a href=#463 id=463 data-nosnippet>463</a>        <span class="self">self</span>.cancel_token.cancel();
-<a href=#464 id=464 data-nosnippet>464</a>    }
-<a href=#465 id=465 data-nosnippet>465</a>
-<a href=#466 id=466 data-nosnippet>466</a>    <span class="kw">fn </span>closed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#467 id=467 data-nosnippet>467</a>        <span class="self">self</span>.cancel_token.is_cancelled()
-<a href=#468 id=468 data-nosnippet>468</a>    }
-<a href=#469 id=469 data-nosnippet>469</a>}
+<a href=#438 id=438 data-nosnippet>438</a><span class="kw">impl </span>NetworkConnection <span class="kw">for </span>JavaConnection {
+<a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">fn </span>compression(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CompressionInfo&gt; {
+<a href=#440 id=440 data-nosnippet>440</a>        <span class="self">self</span>.compression
+<a href=#441 id=441 data-nosnippet>441</a>    }
+<a href=#442 id=442 data-nosnippet>442</a>
+<a href=#443 id=443 data-nosnippet>443</a>    <span class="kw">fn </span>send_encoded(<span class="kw-2">&amp;</span><span class="self">self</span>, packet: EncodedPacket) {
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="self">self</span>.send_encoded_packet(packet);
+<a href=#445 id=445 data-nosnippet>445</a>    }
+<a href=#446 id=446 data-nosnippet>446</a>
+<a href=#447 id=447 data-nosnippet>447</a>    <span class="kw">fn </span>send_encoded_bundle(<span class="kw-2">&amp;</span><span class="self">self</span>, packets: Vec&lt;EncodedPacket&gt;) {
+<a href=#448 id=448 data-nosnippet>448</a>        <span class="self">self</span>.send_packet(CBundleDelimiter);
+<a href=#449 id=449 data-nosnippet>449</a>        <span class="kw">for </span>packet <span class="kw">in </span>packets {
+<a href=#450 id=450 data-nosnippet>450</a>            <span class="self">self</span>.send_encoded_packet(packet);
+<a href=#451 id=451 data-nosnippet>451</a>        }
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="self">self</span>.send_packet(CBundleDelimiter);
+<a href=#453 id=453 data-nosnippet>453</a>    }
+<a href=#454 id=454 data-nosnippet>454</a>
+<a href=#455 id=455 data-nosnippet>455</a>    <span class="kw">fn </span>disconnect_with_reason(<span class="kw-2">&amp;</span><span class="self">self</span>, reason: TextComponent) {
+<a href=#456 id=456 data-nosnippet>456</a>        <span class="self">self</span>.disconnect(reason);
+<a href=#457 id=457 data-nosnippet>457</a>    }
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a>    <span class="kw">fn </span>tick(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+<a href=#460 id=460 data-nosnippet>460</a>        <span class="self">self</span>.keep_connection_alive();
+<a href=#461 id=461 data-nosnippet>461</a>    }
+<a href=#462 id=462 data-nosnippet>462</a>
+<a href=#463 id=463 data-nosnippet>463</a>    <span class="kw">fn </span>latency(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i32 {
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw-2">*</span><span class="self">self</span>.latency.lock() <span class="kw">as </span>i32
+<a href=#465 id=465 data-nosnippet>465</a>    }
+<a href=#466 id=466 data-nosnippet>466</a>
+<a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">fn </span>close(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+<a href=#468 id=468 data-nosnippet>468</a>        <span class="self">self</span>.cancel_token.cancel();
+<a href=#469 id=469 data-nosnippet>469</a>    }
+<a href=#470 id=470 data-nosnippet>470</a>
+<a href=#471 id=471 data-nosnippet>471</a>    <span class="kw">fn </span>closed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#472 id=472 data-nosnippet>472</a>        <span class="self">self</span>.cancel_token.is_cancelled()
+<a href=#473 id=473 data-nosnippet>473</a>    }
+<a href=#474 id=474 data-nosnippet>474</a>}
 </code></pre></div></section></main></body></html>
