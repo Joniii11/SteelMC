@@ -39,10 +39,11 @@ use std::{
 use steel_protocol::packet_traits::{ClientPacket, EncodedPacket};
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
-    AnimateAction, CAddEntity, CAnimate, CDamageEvent, CEntityPositionSync, CHurtAnimation,
-    COpenSignEditor, CPlayerCombatKill, CPlayerPosition, CRemoveEntities, CRespawn, CSetEntityData,
-    CSetHealth, CSetHeldSlot, CSetTime, ClientCommandAction, PlayerAction, SAcceptTeleportation,
-    SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
+    AnimateAction, CAddEntity, CAnimate, CDamageEvent, CEntityEvent, CEntityPositionSync,
+    CHurtAnimation, COpenSignEditor, CPlayerCombatKill, CPlayerPosition, CRemoveEntities, CRespawn,
+    CSetEntityData, CSetHealth, CSetHeldSlot, CSetTime, ClientCommandAction, PlayerAction,
+    SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SSetCarriedItem,
+    SUseItem, SUseItemOn,
 };
 use steel_protocol::utils::ConnectionProtocol;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
@@ -57,6 +58,7 @@ use steel_registry::vanilla_game_rules::{
     SHOW_DEATH_MESSAGES,
 };
 use steel_registry::{REGISTRY, vanilla_chat_types};
+use steel_utils::entity_events::EntityStatus;
 
 use steel_utils::locks::SyncMutex;
 use steel_utils::types::GameType;
@@ -70,8 +72,8 @@ use text_components::{
 };
 use uuid::Uuid;
 
-use crate::entity::LivingEntityBase;
 use crate::entity::damage::DamageSource;
+use crate::entity::{DEATH_DURATION, LivingEntityBase};
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
 use crate::{command::commands::gamemode::get_gamemode_translation, inventory::SyncPlayerInv};
@@ -322,7 +324,7 @@ pub struct Player {
     /// Last `on_ground` state sent to tracking players (for detecting changes).
     last_sent_on_ground: AtomicBool,
 
-    /// Shared living-entity fields (dead, invulnerable_time, last_hurt).
+    /// Shared living-entity fields (`dead`, `invulnerable_time`, `last_hurt`).
     /// Vanilla: `LivingEntity` (L230-232) + `Entity.invulnerableTime` (L256).
     living_base: LivingEntityBase,
 
@@ -413,7 +415,7 @@ impl Player {
             position_sync_delay: AtomicI32::new(0),
             last_sent_on_ground: AtomicBool::new(false),
             living_base: LivingEntityBase::new(),
-            last_sent_health: AtomicCell::new(0.0),
+            last_sent_health: AtomicCell::new(-1.0_f32),
             last_sent_food: AtomicI32::new(-1),
             last_food_saturation_zero: AtomicBool::new(true),
             removed: AtomicBool::new(false),
@@ -500,23 +502,34 @@ impl Player {
             .lock()
             .send_next_chunks(self.connection.clone(), &self.world, chunk_pos);
 
-        // Try to pick up nearby items (vanilla: Player.aiStep)
-        self.touch_nearby_items();
+        // Decrement invulnerability timer each tick (Vanilla: ServerPlayer.doTick)
+        let inv_time = self.get_invulnerable_time();
+        if inv_time > 0 {
+            self.set_invulnerable_time(inv_time - 1);
+        }
 
-        // Broadcast inventory changes to client
+        if self.is_dead_or_dying() {
+            self.tick_death();
+        } else {
+            self.touch_nearby_items();
+            self.block_breaking.lock().tick(self, &self.world);
+            self.check_below_world();
+
+            // TODO: Implement remaining player ticking logic here
+            // - Handling food/health regeneration
+            // - Managing game mode specific logic
+            // - Updating advancements
+            // - Handling falling
+        }
+
+        // --- Post-tick (always runs, vanilla does not gate these behind isAlive) ---
         self.broadcast_inventory_changes();
-
-        // Tick block breaking
-        self.block_breaking.lock().tick(self, &self.world);
-
-        // Update pose based on current state
         self.update_pose();
-
-        // Sync dirty entity data to nearby players
         self.sync_entity_data();
 
         // Only send CSetHealth when a value actually changed, matching vanilla's
         // `lastSentHealth` / `lastSentFood` / `lastFoodSaturationZero` pattern.
+        #[allow(clippy::float_cmp)]
         {
             let health = self.get_health();
             let food: i32 = 20; // TODO: use actual food level once hunger is implemented
@@ -541,23 +554,26 @@ impl Player {
         }
 
         self.connection.tick();
+    }
 
-        let inv_time = self.get_invulnerable_time();
-        if inv_time > 0 {
-            self.set_invulnerable_time(inv_time - 1);
+    /// Ticks the death animation timer.
+    fn tick_death(&self) {
+        let death_time = self.living_base.increment_death_time();
+
+        if death_time >= DEATH_DURATION && !self.is_removed() {
+            let chunk_pos = *self.last_chunk_pos.lock();
+            self.world.broadcast_to_nearby(
+                chunk_pos,
+                CEntityEvent {
+                    entity_id: self.id,
+                    event: EntityStatus::Poof,
+                },
+                None,
+            );
+
+            self.world
+                .broadcast_to_all(CRemoveEntities::single(self.id));
         }
-
-        self.check_below_world();
-
-        // TODO: Implement player ticking logic here
-        // This will include:
-        // - Checking if the player is alive
-        // - Handling movement
-        // - Updating inventory
-        // - Handling food/health regeneration
-        // - Managing game mode specific logic
-        // - Updating advancements
-        // - Handling falling
     }
 
     /// Syncs dirty entity data to nearby players.
@@ -1358,9 +1374,7 @@ impl Player {
         let health = *entity_data.health.get();
         if health <= 0.0 {
             entity_data.health.set(20.0);
-            self.set_dead(false);
-            self.set_invulnerable_time(0);
-            self.set_last_hurt(0.0);
+            self.living_base.reset_death_state();
             true
         } else {
             false
@@ -2523,7 +2537,6 @@ impl Player {
         }
 
         if self.get_health() <= 0.0 {
-            self.set_dead(true);
             self.die(source);
         }
 
@@ -2545,6 +2558,24 @@ impl Player {
     }
 
     fn die(&self, source: &DamageSource) {
+        if self.removed.load(Ordering::Relaxed) || self.is_dead() {
+            return;
+        }
+
+        self.set_dead(true);
+        self.entity_data.lock().pose.set(EntityPose::Dying);
+
+        // Broadcast entity event 3 (death sound) to all nearby players.
+        let chunk_pos = *self.last_chunk_pos.lock();
+        self.world.broadcast_to_nearby(
+            chunk_pos,
+            CEntityEvent {
+                entity_id: self.id,
+                event: EntityStatus::Death,
+            },
+            None,
+        );
+
         let show_death_messages =
             self.world.get_game_rule(SHOW_DEATH_MESSAGES) == GameRuleValue::Bool(true);
 
@@ -2559,7 +2590,6 @@ impl Player {
         }
         .component();
 
-        // 1) Send death screen to the dying player
         self.send_packet(CPlayerCombatKill {
             player_id: self.id,
             message: if show_death_messages {
@@ -2569,7 +2599,6 @@ impl Player {
             },
         });
 
-        // 2) Broadcast death message to all players
         // TODO: team death message visibility (ALWAYS / HIDE_FOR_OTHER_TEAMS / HIDE_FOR_OWN_TEAM)
         if show_death_messages {
             self.world.broadcast_system_chat(CSystemChat {
@@ -2607,6 +2636,7 @@ impl Player {
     ///
     /// # Panics
     /// If the player dies in a dimension that doesn't exist.
+    #[allow(clippy::too_many_lines)]
     pub fn respawn(&self) {
         if !self.is_dead() {
             return;
@@ -2617,9 +2647,7 @@ impl Player {
         // Despawn the dead player entity for all other clients.
         world.broadcast_to_all(CRemoveEntities::single(self.id));
 
-        self.set_dead(false);
-        self.set_invulnerable_time(0);
-        self.set_last_hurt(0.0);
+        self.living_base.reset_death_state();
         self.entity_data.lock().health.set(20.0);
 
         self.last_sent_health.store(-1.0);
@@ -2851,12 +2879,12 @@ impl Entity for Player {
     /// - Standing: 1.62
     /// - Crouching: 1.27
     /// - Swimming/FallFlying/SpinAttack: 0.4
-    /// - Sleeping/Dying: 0.2
+    /// - Sleeping: 0.2
     fn get_eye_height(&self) -> f64 {
         match self.get_desired_pose() {
             EntityPose::Sneaking => 1.27,
             EntityPose::FallFlying | EntityPose::Swimming | EntityPose::SpinAttack => 0.4,
-            EntityPose::Sleeping | EntityPose::Dying => 0.2,
+            EntityPose::Sleeping => 0.2,
             // Standing and all other poses use default player eye height
             _ => f64::from(vanilla_entities::PLAYER.dimensions.eye_height),
         }

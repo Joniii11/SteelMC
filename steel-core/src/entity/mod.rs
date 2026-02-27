@@ -51,7 +51,7 @@ pub use callback::{
     EntityChunkCallback, EntityLevelCallback, NullEntityCallback, PlayerEntityCallback,
     RemovalReason,
 };
-pub use living_base::LivingEntityBase;
+pub use living_base::{DEATH_DURATION, LivingEntityBase};
 pub use registry::{ENTITIES, EntityRegistry, init_entities};
 pub use storage::EntityStorage;
 pub use tracker::EntityTracker;
