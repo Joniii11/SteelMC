@@ -39,10 +39,10 @@ use std::{
 use steel_protocol::packet_traits::{ClientPacket, EncodedPacket};
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
-    AnimateAction, CAnimate, CDamageEvent, CEntityPositionSync, CHurtAnimation, COpenSignEditor,
-    CPlayerCombatKill, CPlayerPosition, CRespawn, CSetEntityData, CSetHealth, CSetHeldSlot,
-    CSetTime, ClientCommandAction, PlayerAction, SAcceptTeleportation, SPickItemFromBlock,
-    SPlayerAbilities, SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
+    AnimateAction, CAddEntity, CAnimate, CDamageEvent, CEntityPositionSync, CHurtAnimation,
+    COpenSignEditor, CPlayerCombatKill, CPlayerPosition, CRemoveEntities, CRespawn, CSetEntityData,
+    CSetHealth, CSetHeldSlot, CSetTime, ClientCommandAction, PlayerAction, SAcceptTeleportation,
+    SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_protocol::utils::ConnectionProtocol;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
@@ -70,6 +70,7 @@ use text_components::{
 };
 use uuid::Uuid;
 
+use crate::entity::LivingEntityBase;
 use crate::entity::damage::DamageSource;
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
@@ -321,15 +322,18 @@ pub struct Player {
     /// Last `on_ground` state sent to tracking players (for detecting changes).
     last_sent_on_ground: AtomicBool,
 
-    /// Whether the player is dead. Prevents double-death processing.
-    dead: AtomicBool,
+    /// Shared living-entity fields (dead, invulnerable_time, last_hurt).
+    /// Vanilla: `LivingEntity` (L230-232) + `Entity.invulnerableTime` (L256).
+    living_base: LivingEntityBase,
 
-    /// Invulnerability ticks remaining after taking damage.
-    /// When > 0, the player can only take damage if it exceeds `last_hurt`.
-    invulnerable_time: AtomicI32,
+    /// Last health value sent to the client via `CSetHealth`.
+    last_sent_health: AtomicCell<f32>,
 
-    /// The last damage amount taken (for invulnerability frame comparison).
-    last_hurt: AtomicCell<f32>,
+    /// Last food level sent to the client via `CSetHealth`.
+    last_sent_food: AtomicI32,
+
+    /// Whether saturation was zero last time we sent `CSetHealth`.
+    last_food_saturation_zero: AtomicBool,
 
     /// Whether the player has been removed from the world.
     removed: AtomicBool,
@@ -408,9 +412,10 @@ impl Player {
             block_breaking: SyncMutex::new(BlockBreakingManager::new()),
             position_sync_delay: AtomicI32::new(0),
             last_sent_on_ground: AtomicBool::new(false),
-            dead: AtomicBool::new(false),
-            invulnerable_time: AtomicI32::new(0),
-            last_hurt: AtomicCell::new(0.0),
+            living_base: LivingEntityBase::new(),
+            last_sent_health: AtomicCell::new(0.0),
+            last_sent_food: AtomicI32::new(-1),
+            last_food_saturation_zero: AtomicBool::new(true),
             removed: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
         }
@@ -510,13 +515,36 @@ impl Player {
         // Sync dirty entity data to nearby players
         self.sync_entity_data();
 
+        // Only send CSetHealth when a value actually changed, matching vanilla's
+        // `lastSentHealth` / `lastSentFood` / `lastFoodSaturationZero` pattern.
+        {
+            let health = self.get_health();
+            let food: i32 = 20; // TODO: use actual food level once hunger is implemented
+            let saturation: f32 = 5.0; // TODO: use actual saturation once hunger is implemented
+            let saturation_zero = saturation == 0.0;
+
+            let prev_health = self.last_sent_health.load();
+            let prev_food = self.last_sent_food.load(Ordering::Relaxed);
+            let prev_sat_zero = self.last_food_saturation_zero.load(Ordering::Relaxed);
+
+            if health != prev_health || food != prev_food || saturation_zero != prev_sat_zero {
+                self.send_packet(CSetHealth {
+                    health,
+                    food,
+                    food_saturation: saturation,
+                });
+                self.last_sent_health.store(health);
+                self.last_sent_food.store(food, Ordering::Relaxed);
+                self.last_food_saturation_zero
+                    .store(saturation_zero, Ordering::Relaxed);
+            }
+        }
+
         self.connection.tick();
 
-        // Tick invulnerability frames
-        let inv_time = self.invulnerable_time.load(Ordering::Relaxed);
+        let inv_time = self.get_invulnerable_time();
         if inv_time > 0 {
-            self.invulnerable_time
-                .store(inv_time - 1, Ordering::Relaxed);
+            self.set_invulnerable_time(inv_time - 1);
         }
 
         self.check_below_world();
@@ -1312,6 +1340,29 @@ impl Player {
     pub fn send_abilities(&self) {
         let packet = self.abilities.lock().to_packet();
         self.send_packet(packet);
+    }
+
+    /// If the player's health is at or below zero (e.g. they disconnected while dead),
+    /// resets health to 20.0 so they don't enter a zombie state on rejoin.
+    /// Returns `true` if health was reset.
+    pub fn reset_health_if_dead(&self) -> bool {
+        let mut entity_data = self.entity_data.lock();
+        let health = *entity_data.health.get();
+        if health <= 0.0 {
+            entity_data.health.set(20.0);
+            self.set_dead(false);
+            self.set_invulnerable_time(0);
+            self.set_last_hurt(0.0);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Invalidates the delta-tracking state so that the next `tick()` will send
+    /// `CSetHealth` to the client (vanilla: `resetSentInfo`).
+    pub fn reset_sent_info(&self) {
+        self.last_sent_health.store(-1.0e8);
     }
 
     /// Handles a container button click packet (e.g., enchanting table buttons).
@@ -2388,7 +2439,7 @@ impl Player {
 
     /// Main entry point for dealing damage. Returns `true` if damage was applied.
     pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
-        if self.dead.load(Ordering::Relaxed) {
+        if self.is_dead() {
             return false;
         }
 
@@ -2399,7 +2450,7 @@ impl Player {
         drop(abilities);
 
         // TODO: gamerule damage-type checks (drowningDamage, fallDamage, etc.)
-        // TODO: difficulty scaling (Peaceful/Easy/Hard) — assumes Normal for now
+        // TODO: difficulty scaling (Peaceful/Easy/Hard)
         if source.scales_with_difficulty() {
             // needs todo
         }
@@ -2408,21 +2459,19 @@ impl Player {
             return false;
         }
 
-        // Invulnerability frames: only damage exceeding the last hit applies as
-        // a delta. `last_hurt` always stores the original amount, not the delta.
-        let inv_time = self.invulnerable_time.load(Ordering::Relaxed);
+        let inv_time = self.get_invulnerable_time();
 
         let took_full_damage = if inv_time > 10 && !source.bypasses_cooldown() {
-            let last = self.last_hurt.load();
+            let last = self.get_last_hurt();
             if amount <= last {
                 return false;
             }
-            self.last_hurt.store(amount);
+            self.set_last_hurt(amount);
             self.actually_hurt(source, amount - last);
             false
         } else {
-            self.last_hurt.store(amount);
-            self.invulnerable_time.store(20, Ordering::Relaxed);
+            self.set_last_hurt(amount);
+            self.set_invulnerable_time(20);
             self.actually_hurt(source, amount);
             true
         };
@@ -2438,7 +2487,7 @@ impl Player {
                     source_type_id: type_id,
                     source_cause_id: source.causing_entity_id.map_or(0, |id| id + 1),
                     source_direct_id: source.direct_entity_id.map_or(0, |id| id + 1),
-                    source_position: source.source_position.map(|pos| (pos.x, pos.y, pos.z)),
+                    source_position: source.source_position,
                 },
                 None,
             );
@@ -2455,34 +2504,27 @@ impl Player {
         }
 
         if self.get_health() <= 0.0 {
-            self.dead.store(true, Ordering::Relaxed);
+            self.set_dead(true);
             self.die(source);
         }
 
         true
     }
 
-    /// Applies damage after reductions (armor, enchantments, absorption).
-    /// TODO: armor, enchantment, absorption, food exhaustion
+    /// Applies damage after reductions. TODO: armor, enchantment, absorption, food exhaustion
     fn actually_hurt(&self, _source: &DamageSource, amount: f32) {
-        let final_damage = amount; // TODO: apply reductions here
-
-        if final_damage <= 0.0 {
+        // TODO: apply armor/enchant/absorption reductions here (vanilla: getDamageAfterArmorAbsorb, getDamageAfterMagicAbsorb)
+        // TODO: absorption amount handling
+        // TODO: food exhaustion (source.getFoodExhaustion())
+        // TODO: combat tracker (getCombatTracker().recordDamage)
+        if amount <= 0.0 {
             return;
         }
 
-        let current_health = self.get_health();
-        let new_health = (current_health - final_damage).max(0.0);
+        let new_health = (self.get_health() - amount).max(0.0);
         self.entity_data.lock().health.set(new_health);
-
-        self.send_packet(CSetHealth {
-            health: new_health,
-            food: 20,
-            food_saturation: 5.0,
-        });
     }
 
-    /// TODO: death messages, xp drops, kill credit, lastDeathLocation
     fn die(&self, source: &DamageSource) {
         let show_death_messages =
             self.world.get_game_rule(SHOW_DEATH_MESSAGES) == GameRuleValue::Bool(true);
@@ -2542,27 +2584,28 @@ impl Player {
         }
     }
 
-    /// if a player is dead or not
-    #[must_use]
-    pub fn is_dead(&self) -> bool {
-        self.dead.load(Ordering::Relaxed)
-    }
-
-    /// TODO: bed/respawn anchor, cross-dimension, potion clearing and noRespawnBlockAvailable when bed is missing or obstructed
+    /// TODO: bed/respawn anchor, cross-dimension, potion clearing, noRespawnBlockAvailable
     ///
     /// # Panics
-    /// if the player dies in a dim that doesn't even exist :O so probably will never happen.
+    /// If the player dies in a dimension that doesn't exist.
     pub fn respawn(&self) {
-        if !self.dead.load(Ordering::Relaxed) {
+        if !self.is_dead() {
             return;
         }
 
-        self.dead.store(false, Ordering::Relaxed);
-        self.invulnerable_time.store(0, Ordering::Relaxed);
-        self.last_hurt.store(0.0);
+        let world = &self.world;
+
+        // Despawn the dead player entity for all other clients.
+        world.broadcast_to_all(CRemoveEntities::single(self.id));
+
+        self.set_dead(false);
+        self.set_invulnerable_time(0);
+        self.set_last_hurt(0.0);
         self.entity_data.lock().health.set(20.0);
 
-        let world = &self.world;
+        self.last_sent_health.store(-1.0);
+        self.last_sent_food.store(-1, Ordering::Relaxed);
+
         let dimension_key = world.dimension.key.clone();
         let dimension_type_id = *(REGISTRY.dimension_types.get_id(
             REGISTRY
@@ -2612,7 +2655,36 @@ impl Player {
 
         // TODO: send CInitializeBorder once world border is implemented
 
-        // time sync
+        // Vanilla: ChunkMap.addEntity -> addPairing -> sendPairingData
+        // TODO: also send SetEquipment + UpdateAttributes in the bundle
+        let player_type_id = *REGISTRY.entity_types.get_id(vanilla_entities::PLAYER) as i32;
+        let spawn_packet = CAddEntity::player(
+            self.id,
+            self.gameprofile.id,
+            player_type_id,
+            spawn.x,
+            spawn.y,
+            spawn.z,
+            0.0,
+            0.0,
+        );
+        let entity_data = self.entity_data.lock().pack_all();
+        let entity_id = self.id;
+        world.players.iter_players(|_, p| {
+            if p.id != entity_id {
+                p.send_bundle(|bundle| {
+                    bundle.add(spawn_packet.clone());
+                    if !entity_data.is_empty() {
+                        bundle.add(CSetEntityData::new(entity_id, entity_data.clone()));
+                    }
+                });
+            }
+            true
+        });
+
+        // TODO: sendPlayerPermissionLevel
+        // TODO: initInventoryMenu
+
         {
             let level_data = world.level_data.read();
             let game_time = level_data.game_time();
@@ -2659,16 +2731,12 @@ impl Player {
 
         // TODO: tick rate update for joining player
 
+        // --- 6) Re-enter chunk tracking (vanilla: addEntity -> updatePlayerStatus) ---
         world.player_area_map.remove_by_entity_id(self.id);
         world.chunk_map.remove_player(self);
         world.entity_tracker().on_player_leave(self.id);
         self.client_loaded.store(false, Ordering::Relaxed);
 
-        self.send_packet(CSetHealth {
-            health: 20.0,
-            food: 20,
-            food_saturation: 5.0,
-        });
         self.send_abilities();
     }
 
@@ -2785,12 +2853,15 @@ impl LivingEntity for Player {
         let max_health = self.get_max_health();
         let clamped = health.clamp(0.0, max_health);
         self.entity_data.lock().health.set(clamped);
-        // Dirty flag set automatically, will sync on next tick
     }
 
     fn get_max_health(&self) -> f32 {
         // TODO: Get from attributes system when implemented
         20.0
+    }
+
+    fn living_base(&self) -> &LivingEntityBase {
+        &self.living_base
     }
 
     fn get_position(&self) -> Vector3<f64> {

@@ -40,6 +40,7 @@ mod cache;
 mod callback;
 pub mod damage;
 pub mod entities;
+mod living_base;
 mod registry;
 mod storage;
 mod tracker;
@@ -50,6 +51,7 @@ pub use callback::{
     EntityChunkCallback, EntityLevelCallback, NullEntityCallback, PlayerEntityCallback,
     RemovalReason,
 };
+pub use living_base::LivingEntityBase;
 pub use registry::{ENTITIES, EntityRegistry, init_entities};
 pub use storage::EntityStorage;
 pub use tracker::EntityTracker;
@@ -400,6 +402,41 @@ pub trait LivingEntity: Entity {
     /// Returns true if the entity is alive (health > 0).
     fn is_alive(&self) -> bool {
         !self.is_dead_or_dying()
+    }
+
+    /// Returns a reference to the shared [`LivingEntityBase`] that holds
+    /// `dead`, `invulnerable_time`, and `last_hurt`.
+    fn living_base(&self) -> &LivingEntityBase;
+
+    /// Whether the entity has been killed. Prevents double-death processing.
+    /// Vanilla: `LivingEntity.dead` (L230)
+    fn is_dead(&self) -> bool {
+        self.living_base().is_dead()
+    }
+    /// Sets the dead flag. See [`is_dead`](Self::is_dead).
+    fn set_dead(&self, dead: bool) {
+        self.living_base().set_dead(dead);
+    }
+
+    /// Remaining invulnerability ticks after taking damage.
+    /// While > 0 the entity can only take damage exceeding `last_hurt`.
+    /// Vanilla: `Entity.invulnerableTime` (Entity.java L256)
+    fn get_invulnerable_time(&self) -> i32 {
+        self.living_base().get_invulnerable_time()
+    }
+    /// Sets invulnerability ticks. See [`get_invulnerable_time`](Self::get_invulnerable_time).
+    fn set_invulnerable_time(&self, ticks: i32) {
+        self.living_base().set_invulnerable_time(ticks);
+    }
+
+    /// The damage amount from the last hit (for invulnerability frame comparison).
+    /// Vanilla: `LivingEntity.lastHurt` (L232)
+    fn get_last_hurt(&self) -> f32 {
+        self.living_base().get_last_hurt()
+    }
+    /// Sets the last hurt amount. See [`get_last_hurt`](Self::get_last_hurt).
+    fn set_last_hurt(&self, amount: f32) {
+        self.living_base().set_last_hurt(amount);
     }
 
     /// Gets the entity's position.
