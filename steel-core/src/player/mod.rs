@@ -2481,7 +2481,6 @@ impl Player {
 
     /// Main entry point for dealing damage. Returns `true` if damage was applied.
     pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
-        // --- Phase 1: Check abilities (separate lock, dropped before living_base) ---
         {
             let abilities = self.abilities.lock();
             if abilities.invulnerable && !source.bypasses_invulnerability() {
@@ -2499,7 +2498,6 @@ impl Player {
             return false;
         }
 
-        // --- Phase 2: Invulnerability frame logic (living_base locked, then dropped) ---
         let (took_full_damage, effective_amount) = {
             let mut living_base = self.living_base.lock();
             if living_base.is_dead() {
@@ -2551,7 +2549,6 @@ impl Player {
             );
         }
 
-        // --- Phase 5: Check for death (living_base not held, die() can lock it) ---
         if *self.entity_data.lock().health.get() <= 0.0 {
             self.die(source);
         }
