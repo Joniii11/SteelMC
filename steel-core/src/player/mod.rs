@@ -72,7 +72,6 @@ use text_components::{
 };
 use uuid::Uuid;
 
-use crate::entity::damage::DamageSource;
 use crate::entity::{DEATH_DURATION, LivingEntityBase};
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
@@ -81,6 +80,7 @@ use crate::{
     config::STEEL_CONFIG,
     entity::{Entity, EntityLevelCallback, NullEntityCallback, RemovalReason},
 };
+use crate::{config::WorldGeneratorTypes, entity::damage::DamageSource};
 use steel_registry::vanilla_damage_types;
 
 use steel_crypto::{SignatureValidator, public_key_from_bytes, signature::NoValidation};
@@ -2701,7 +2701,7 @@ impl Player {
             gamemode: self.game_mode.load() as u8,
             previous_gamemode: -1,
             is_debug: false,
-            is_flat: true, // TODO: non-flat generator support
+            is_flat: matches!(STEEL_CONFIG.world_generator, WorldGeneratorTypes::Flat),
             has_death_location: false,
             death_dimension_name: None,
             death_location: None,
