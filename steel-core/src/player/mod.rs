@@ -579,6 +579,7 @@ impl Player {
 
             self.world
                 .broadcast_to_all(CRemoveEntities::single(self.id));
+            self.set_removed(RemovalReason::Killed);
         }
     }
 
@@ -2488,6 +2489,10 @@ impl Player {
             }
         }
 
+        if *self.entity_data.lock().health.get() <= 0.0 {
+            return false;
+        }
+
         // TODO: gamerule damage-type checks (drowningDamage, fallDamage, etc.)
         // TODO: difficulty scaling (Peaceful/Easy/Hard)
         if source.scales_with_difficulty() {
@@ -2664,12 +2669,18 @@ impl Player {
             living_base.reset_death_state();
         };
 
+        self.removed.store(false, Ordering::Relaxed);
+
         let world = &self.world;
 
         // Despawn the dead player entity for all other clients.
         world.broadcast_to_all(CRemoveEntities::single(self.id));
 
-        self.entity_data.lock().health.set(20.0);
+        {
+            let mut entity_data = self.entity_data.lock();
+            entity_data.health.set(20.0);
+            entity_data.pose.set(EntityPose::Standing);
+        }
 
         self.last_sent_health.store(-1.0);
         self.last_sent_food.store(-1, Ordering::Relaxed);
@@ -2679,7 +2690,7 @@ impl Player {
             REGISTRY
                 .dimension_types
                 .by_key(&dimension_key)
-                .expect("Dimension should registered be!"),
+                .expect("Dimension should be registered!"),
         )) as i32;
 
         // TODO: bed/respawn anchor lookup, send NO_RESPAWN_BLOCK_AVAILABLE if missing
@@ -2806,6 +2817,7 @@ impl Player {
         self.client_loaded.store(false, Ordering::Relaxed);
 
         self.send_abilities();
+        self.send_inventory_to_remote();
     }
 
     /// Handles client commands, requestStats and `RequestGameRuleValues` are still todo

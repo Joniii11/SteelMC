@@ -1,6 +1,7 @@
 //! Handler for the "kill" command.
 //! Mirrors `net.minecraft.server.commands.KillCommand`.
 
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use text_components::TextComponent;
@@ -75,9 +76,11 @@ impl CommandExecutor<((), Vec<Arc<dyn LivingEntity + Send + Sync>>)> for KillTar
         let victim_count = target_ids.len();
         let players = context.server.get_players();
 
+        let player_map: FxHashMap<i32, &Arc<Player>> = players.iter().map(|p| (p.id, p)).collect();
+
         let mut last_name = String::new();
         for target_id in &target_ids {
-            if let Some(player) = players.iter().find(|p| p.id == *target_id) {
+            if let Some(player) = player_map.get(target_id) {
                 kill_player(player);
                 last_name.clone_from(&player.gameprofile.name);
             }
