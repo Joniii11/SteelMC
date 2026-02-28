@@ -502,7 +502,6 @@ impl Player {
             .lock()
             .send_next_chunks(self.connection.clone(), &self.world, chunk_pos);
 
-        // Decrement invulnerability timer each tick (Vanilla: ServerPlayer.doTick)
         {
             let mut living_base = self.living_base.lock();
             let inv_time = living_base.get_invulnerable_time();
