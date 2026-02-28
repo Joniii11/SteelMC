@@ -503,12 +503,12 @@ impl Player {
             .send_next_chunks(self.connection.clone(), &self.world, chunk_pos);
 
         // Decrement invulnerability timer each tick (Vanilla: ServerPlayer.doTick)
-        let inv_time = self.get_invulnerable_time();
+        let inv_time = self.living_base.get_invulnerable_time();
         if inv_time > 0 {
-            self.set_invulnerable_time(inv_time - 1);
+            self.living_base.set_invulnerable_time(inv_time - 1);
         }
 
-        if self.is_dead_or_dying() {
+        if *self.entity_data.lock().health.get() <= 0.0 {
             self.tick_death();
         } else {
             self.touch_nearby_items();
@@ -531,7 +531,7 @@ impl Player {
         // `lastSentHealth` / `lastSentFood` / `lastFoodSaturationZero` pattern.
         #[allow(clippy::float_cmp)]
         {
-            let health = self.get_health();
+            let health = *self.entity_data.lock().health.get();
             let food: i32 = 20; // TODO: use actual food level once hunger is implemented
             let saturation: f32 = 5.0; // TODO: use actual saturation once hunger is implemented
             let saturation_zero = saturation == 0.0;
@@ -2472,7 +2472,7 @@ impl Player {
 
     /// Main entry point for dealing damage. Returns `true` if damage was applied.
     pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
-        if self.is_dead() {
+        if self.living_base.is_dead() {
             return false;
         }
 
@@ -2492,19 +2492,19 @@ impl Player {
             return false;
         }
 
-        let inv_time = self.get_invulnerable_time();
+        let inv_time = self.living_base.get_invulnerable_time();
 
         let took_full_damage = if inv_time > 10 && !source.bypasses_cooldown() {
-            let last = self.get_last_hurt();
+            let last = self.living_base.get_last_hurt();
             if amount <= last {
                 return false;
             }
-            self.set_last_hurt(amount);
+            self.living_base.set_last_hurt(amount);
             self.actually_hurt(source, amount - last);
             false
         } else {
-            self.set_last_hurt(amount);
-            self.set_invulnerable_time(20);
+            self.living_base.set_last_hurt(amount);
+            self.living_base.set_invulnerable_time(20);
             self.actually_hurt(source, amount);
             true
         };
@@ -2536,7 +2536,7 @@ impl Player {
             );
         }
 
-        if self.get_health() <= 0.0 {
+        if *self.entity_data.lock().health.get() <= 0.0 {
             self.die(source);
         }
 
@@ -2553,16 +2553,17 @@ impl Player {
             return;
         }
 
-        let new_health = (self.get_health() - amount).max(0.0);
-        self.entity_data.lock().health.set(new_health);
+        let mut entity_data = self.entity_data.lock();
+        let new_health = (*entity_data.health.get() - amount).max(0.0);
+        entity_data.health.set(new_health);
     }
 
     fn die(&self, source: &DamageSource) {
-        if self.removed.load(Ordering::Relaxed) || self.is_dead() {
+        if self.removed.load(Ordering::Relaxed) || self.living_base.is_dead() {
             return;
         }
 
-        self.set_dead(true);
+        self.living_base.set_dead(true);
         self.entity_data.lock().pose.set(EntityPose::Dying);
 
         // Broadcast entity event 3 (death sound) to all nearby players.
@@ -2638,7 +2639,7 @@ impl Player {
     /// If the player dies in a dimension that doesn't exist.
     #[allow(clippy::too_many_lines)]
     pub fn respawn(&self) {
-        if !self.is_dead() {
+        if !self.living_base.is_dead() {
             return;
         }
 
