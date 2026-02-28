@@ -326,7 +326,7 @@ pub struct Player {
 
     /// Shared living-entity fields (`dead`, `invulnerable_time`, `last_hurt`).
     /// Vanilla: `LivingEntity` (L230-232) + `Entity.invulnerableTime` (L256).
-    living_base: LivingEntityBase,
+    living_base: SyncMutex<LivingEntityBase>,
 
     /// Last health value sent to the client via `CSetHealth`.
     last_sent_health: AtomicCell<f32>,
@@ -414,7 +414,7 @@ impl Player {
             block_breaking: SyncMutex::new(BlockBreakingManager::new()),
             position_sync_delay: AtomicI32::new(0),
             last_sent_on_ground: AtomicBool::new(false),
-            living_base: LivingEntityBase::new(),
+            living_base: SyncMutex::new(LivingEntityBase::new()),
             last_sent_health: AtomicCell::new(-1.0_f32),
             last_sent_food: AtomicI32::new(-1),
             last_food_saturation_zero: AtomicBool::new(true),
@@ -503,9 +503,12 @@ impl Player {
             .send_next_chunks(self.connection.clone(), &self.world, chunk_pos);
 
         // Decrement invulnerability timer each tick (Vanilla: ServerPlayer.doTick)
-        let inv_time = self.living_base.get_invulnerable_time();
-        if inv_time > 0 {
-            self.living_base.set_invulnerable_time(inv_time - 1);
+        {
+            let mut living_base = self.living_base.lock();
+            let inv_time = living_base.get_invulnerable_time();
+            if inv_time > 0 {
+                living_base.set_invulnerable_time(inv_time - 1);
+            }
         }
 
         if *self.entity_data.lock().health.get() <= 0.0 {
@@ -558,7 +561,10 @@ impl Player {
 
     /// Ticks the death animation timer.
     fn tick_death(&self) {
-        let death_time = self.living_base.increment_death_time();
+        let death_time = {
+            let mut living_base = self.living_base.lock();
+            living_base.increment_death_time()
+        };
 
         if death_time >= DEATH_DURATION && !self.is_removed() {
             let chunk_pos = *self.last_chunk_pos.lock();
@@ -1374,7 +1380,10 @@ impl Player {
         let health = *entity_data.health.get();
         if health <= 0.0 {
             entity_data.health.set(20.0);
-            self.living_base.reset_death_state();
+            drop(entity_data);
+
+            let mut living_base = self.living_base.lock();
+            living_base.reset_death_state();
             true
         } else {
             false
@@ -2472,15 +2481,13 @@ impl Player {
 
     /// Main entry point for dealing damage. Returns `true` if damage was applied.
     pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
-        if self.living_base.is_dead() {
-            return false;
+        // --- Phase 1: Check abilities (separate lock, dropped before living_base) ---
+        {
+            let abilities = self.abilities.lock();
+            if abilities.invulnerable && !source.bypasses_invulnerability() {
+                return false;
+            }
         }
-
-        let abilities = self.abilities.lock();
-        if abilities.invulnerable && !source.bypasses_invulnerability() {
-            return false;
-        }
-        drop(abilities);
 
         // TODO: gamerule damage-type checks (drowningDamage, fallDamage, etc.)
         // TODO: difficulty scaling (Peaceful/Easy/Hard)
@@ -2492,22 +2499,30 @@ impl Player {
             return false;
         }
 
-        let inv_time = self.living_base.get_invulnerable_time();
-
-        let took_full_damage = if inv_time > 10 && !source.bypasses_cooldown() {
-            let last = self.living_base.get_last_hurt();
-            if amount <= last {
+        // --- Phase 2: Invulnerability frame logic (living_base locked, then dropped) ---
+        let (took_full_damage, effective_amount) = {
+            let mut living_base = self.living_base.lock();
+            if living_base.is_dead() {
                 return false;
             }
-            self.living_base.set_last_hurt(amount);
-            self.actually_hurt(source, amount - last);
-            false
-        } else {
-            self.living_base.set_last_hurt(amount);
-            self.living_base.set_invulnerable_time(20);
-            self.actually_hurt(source, amount);
-            true
+
+            let inv_time = living_base.get_invulnerable_time();
+
+            if inv_time > 10 && !source.bypasses_cooldown() {
+                let last = living_base.get_last_hurt();
+                if amount <= last {
+                    return false;
+                }
+                living_base.set_last_hurt(amount);
+                (false, amount - last)
+            } else {
+                living_base.set_last_hurt(amount);
+                living_base.set_invulnerable_time(20);
+                (true, amount)
+            }
         };
+
+        self.actually_hurt(source, effective_amount);
 
         if took_full_damage {
             let type_id = *REGISTRY.damage_types.get_id(source.damage_type) as i32;
@@ -2536,6 +2551,7 @@ impl Player {
             );
         }
 
+        // --- Phase 5: Check for death (living_base not held, die() can lock it) ---
         if *self.entity_data.lock().health.get() <= 0.0 {
             self.die(source);
         }
@@ -2559,11 +2575,15 @@ impl Player {
     }
 
     fn die(&self, source: &DamageSource) {
-        if self.removed.load(Ordering::Relaxed) || self.living_base.is_dead() {
-            return;
+        {
+            let mut living_base = self.living_base.lock();
+            if self.removed.load(Ordering::Relaxed) || living_base.is_dead() {
+                return;
+            }
+
+            living_base.set_dead(true);
         }
 
-        self.living_base.set_dead(true);
         self.entity_data.lock().pose.set(EntityPose::Dying);
 
         // Broadcast entity event 3 (death sound) to all nearby players.
@@ -2639,16 +2659,19 @@ impl Player {
     /// If the player dies in a dimension that doesn't exist.
     #[allow(clippy::too_many_lines)]
     pub fn respawn(&self) {
-        if !self.living_base.is_dead() {
-            return;
-        }
+        {
+            let mut living_base = self.living_base.lock();
+            if !living_base.is_dead() {
+                return;
+            }
+            living_base.reset_death_state();
+        };
 
         let world = &self.world;
 
         // Despawn the dead player entity for all other clients.
         world.broadcast_to_all(CRemoveEntities::single(self.id));
 
-        self.living_base.reset_death_state();
         self.entity_data.lock().health.set(20.0);
 
         self.last_sent_health.store(-1.0);
@@ -2908,7 +2931,7 @@ impl LivingEntity for Player {
         20.0
     }
 
-    fn living_base(&self) -> &LivingEntityBase {
+    fn living_base(&self) -> &SyncMutex<LivingEntityBase> {
         &self.living_base
     }
 
