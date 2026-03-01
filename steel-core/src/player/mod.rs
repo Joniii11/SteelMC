@@ -558,6 +558,7 @@ impl Player {
     }
 
     /// Ticks the death animation timer.
+    /// Vanilla: `LivingEntity.tickDeath()` (not overridden by `ServerPlayer`).
     fn tick_death(&self) {
         let death_time = {
             let mut living_base = self.living_base.lock();
@@ -2479,6 +2480,10 @@ impl Player {
     }
 
     /// Main entry point for dealing damage. Returns `true` if damage was applied.
+    ///
+    /// Vanilla: `LivingEntity.hurtServer()` (with `ServerPlayer` override adding
+    /// PvP checks before delegating to super). When other living entities are
+    /// added, the core logic here should move to a `LivingEntity` trait method.
     pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
         {
             let abilities = self.abilities.lock();
@@ -2557,7 +2562,9 @@ impl Player {
         true
     }
 
-    /// Applies damage after reductions. TODO: armor, enchantment, absorption, food exhaustion
+    /// Applies damage after reductions.
+    /// Vanilla: `LivingEntity.actuallyHurt()`
+    /// TODO: armor, enchantment, absorption, food exhaustion
     fn actually_hurt(&self, _source: &DamageSource, amount: f32) {
         // TODO: apply armor/enchant/absorption reductions here (vanilla: getDamageAfterArmorAbsorb, getDamageAfterMagicAbsorb)
         // TODO: absorption amount handling
@@ -2572,6 +2579,7 @@ impl Player {
         entity_data.health.set(new_health);
     }
 
+    /// Vanilla: `ServerPlayer.die()` (does NOT call `super.die()`).
     fn die(&self, source: &DamageSource) {
         {
             let mut living_base = self.living_base.lock();
@@ -2582,7 +2590,9 @@ impl Player {
             living_base.dead = true;
         }
 
-        self.entity_data.lock().pose.set(EntityPose::Dying);
+        // NOTE: Vanilla `ServerPlayer.die()` does NOT set Pose::Dying — only
+        // `LivingEntity.die()` does (which ServerPlayer never calls via super).
+        // The death screen covers the player model, so the pose is irrelevant.
 
         // Broadcast entity event 3 (death sound) to all nearby players.
         let chunk_pos = *self.last_chunk_pos.lock();
@@ -2665,12 +2675,29 @@ impl Player {
             living_base.reset_death_state();
         };
 
-        self.removed.store(false, Ordering::Relaxed);
+        let was_removed = self.removed.swap(false, Ordering::AcqRel);
 
         let world = &self.world;
 
-        // Despawn the dead player entity for all other clients.
-        world.broadcast_to_all(CRemoveEntities::single(self.id));
+        // Only send CRemoveEntities if tick_death() hasn't already removed us
+        // (tick_death sends CRemoveEntities + set_removed at DEATH_DURATION).
+        // NOTE: Since we reuse the same entity ID (unlike vanilla which creates a
+        // fresh ServerPlayer), clients may briefly see remove+re-add in the same
+        // frame if respawn races with tick_death's DEATH_DURATION removal.
+        if !was_removed {
+            world.broadcast_to_all(CRemoveEntities::single(self.id));
+        }
+
+        // Reset transient state. Vanilla creates a fresh ServerPlayer so all state
+        // is naturally zeroed; we reuse the same Player, so we must reset manually.
+        // TODO: as new transient fields are added (effects, fire ticks, frozen
+        // ticks, etc.), they must be reset here too.
+        *self.delta_movement.lock() = Vector3::default();
+        self.on_ground.store(false, Ordering::Relaxed);
+        self.fall_flying.store(false, Ordering::Relaxed);
+        self.sleeping.store(false, Ordering::Relaxed);
+        self.shift_key_down.store(false, Ordering::Relaxed);
+        *self.block_breaking.lock() = BlockBreakingManager::new();
 
         {
             let mut entity_data = self.entity_data.lock();
@@ -2696,13 +2723,14 @@ impl Player {
             dimension_name: dimension_key.clone(),
             hashed_seed: world.obfuscated_seed(),
             gamemode: self.game_mode.load() as u8,
-            previous_gamemode: -1,
+            previous_gamemode: self.prev_game_mode.load() as i8,
             is_debug: false,
             is_flat: matches!(STEEL_CONFIG.world_generator, WorldGeneratorTypes::Flat),
             has_death_location: false,
             death_dimension_name: None,
             death_location: None,
             portal_cooldown_ticks: 0,
+            // TODO: read from dimension's noise_settings (varies per dimension, e.g. nether=32, end=0)
             sea_level: 63,
             data_kept: 0,
         });
@@ -2925,7 +2953,7 @@ impl LivingEntity for Player {
         *self.entity_data.lock().health.get()
     }
 
-    fn set_health(&mut self, health: f32) {
+    fn set_health(&self, health: f32) {
         let max_health = self.get_max_health();
         let clamped = health.clamp(0.0, max_health);
         self.entity_data.lock().health.set(clamped);
@@ -2940,15 +2968,11 @@ impl LivingEntity for Player {
         &self.living_base
     }
 
-    fn get_position(&self) -> Vector3<f64> {
-        *self.position.lock()
-    }
-
     fn get_absorption_amount(&self) -> f32 {
         *self.entity_data.lock().player_absorption.get()
     }
 
-    fn set_absorption_amount(&mut self, amount: f32) {
+    fn set_absorption_amount(&self, amount: f32) {
         self.entity_data
             .lock()
             .player_absorption
@@ -2966,7 +2990,7 @@ impl LivingEntity for Player {
         self.sprinting.load(Ordering::Relaxed)
     }
 
-    fn set_sprinting(&mut self, sprinting: bool) {
+    fn set_sprinting(&self, sprinting: bool) {
         self.sprinting.store(sprinting, Ordering::Relaxed);
         // TODO: Apply speed modifiers when attribute system is implemented
     }
@@ -2975,7 +2999,7 @@ impl LivingEntity for Player {
         self.speed.load()
     }
 
-    fn set_speed(&mut self, speed: f32) {
+    fn set_speed(&self, speed: f32) {
         self.speed.store(speed);
     }
 }

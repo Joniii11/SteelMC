@@ -9,8 +9,16 @@
 pub const DEATH_DURATION: i32 = 20;
 
 /// Common fields shared by all living entities.
+///
+/// **Deviation from vanilla:** In vanilla, `LivingEntity.dead` is only used by
+/// non-player entities as a guard in `LivingEntity.die()`. `ServerPlayer.die()`
+/// does NOT call `super.die()` and never sets `dead = true`. We use `dead` for
+/// all living entities (including players) as a unified guard against duplicate
+/// death processing, since it's cleaner than relying solely on `isRemoved()`.
 pub struct LivingEntityBase {
     /// Whether the entity has been killed.
+    ///
+    /// See struct-level doc for vanilla deviation details.
     pub dead: bool,
     /// Remaining invulnerability ticks.
     pub invulnerable_time: i32,
