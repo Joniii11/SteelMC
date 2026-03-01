@@ -972,7 +972,8 @@ impl World {
             // This matches vanilla's order: pack() then push()
             let previous_messages = {
                 let chat = recipient.chat.lock();
-                chat.signature_cache.index_previous_messages(&sender_last_seen)
+                chat.signature_cache
+                    .index_previous_messages(&sender_last_seen)
             };
 
             log::debug!(

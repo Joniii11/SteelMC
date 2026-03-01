@@ -5,6 +5,7 @@ mod chat_state;
 pub mod chunk_sender;
 /// This module contains the `PlayerConnection` trait that abstracts network connections.
 pub mod connection;
+mod entity_state;
 /// Game mode specific logic for player interactions.
 pub mod game_mode;
 mod game_profile;
@@ -12,6 +13,7 @@ mod health_sync;
 pub mod message_chain;
 mod message_validator;
 pub mod movement;
+mod movement_state;
 /// This module contains the networking implementation for the player.
 pub mod networking;
 pub mod player_data;
@@ -23,11 +25,13 @@ mod teleport_state;
 
 pub use abilities::Abilities;
 use chat_state::ChatState;
+use entity_state::EntityState;
 use health_sync::HealthSyncState;
 pub use message_validator::LastSeenMessagesValidator;
+use movement_state::MovementState;
 pub use signature_cache::{LastSeen, MessageCache};
-use teleport_state::TeleportState;
 use steel_protocol::packet_traits::CompressionInfo;
+use teleport_state::TeleportState;
 
 use block_breaking::BlockBreakingManager;
 use crossbeam::atomic::AtomicCell;
@@ -209,18 +213,14 @@ pub struct Player {
     pub position: SyncMutex<Vector3<f64>>,
     /// The player's rotation (yaw, pitch).
     pub rotation: AtomicCell<(f32, f32)>,
-    /// The previous position for delta movement calculations.
-    prev_position: SyncMutex<Vector3<f64>>,
-    /// The previous rotation for movement broadcasts.
-    prev_rotation: AtomicCell<(f32, f32)>,
+    /// Movement tracking state (prev position/rotation, velocity, validation, broadcast sync).
+    pub(crate) movement: SyncMutex<MovementState>,
 
     /// Synchronized entity data (health, pose, flags, etc.) for network sync.
     entity_data: SyncMutex<PlayerEntityData>,
 
     /// The player's movement speed.
     speed: AtomicCell<f32>,
-    /// Whether the player is sprinting.
-    sprinting: AtomicBool,
 
     /// The last chunk position of the player.
     pub last_chunk_pos: SyncMutex<ChunkPos>,
@@ -258,56 +258,20 @@ pub struct Player {
     /// Tracks the last acknowledged block change sequence number.
     ack_block_changes_up_to: AtomicI32,
 
-    /// Whether the player is sneaking (shift key down).
-    shift_key_down: AtomicBool,
-
     /// Pending server-initiated teleport state (ID, position, timeout).
     teleport_state: SyncMutex<TeleportState>,
 
     /// Local tick counter (incremented each tick).
     tick_count: AtomicI32,
 
-    /// Last known good position (for collision rollback).
-    last_good_position: SyncMutex<Vector3<f64>>,
-
-    /// Position at start of tick (for speed validation).
-    /// Matches vanilla `firstGoodX/Y/Z`.
-    first_good_position: SyncMutex<Vector3<f64>>,
-
-    /// Number of move packets received since connection started.
-    received_move_packet_count: AtomicI32,
-
-    /// Number of move packets at the last tick (for rate limiting).
-    known_move_packet_count: AtomicI32,
-
-    /// Player's current velocity (delta movement per tick).
-    /// Used for speed validation in movement checks.
-    delta_movement: SyncMutex<Vector3<f64>>,
-
-    /// Whether the player is currently sleeping in a bed.
-    sleeping: AtomicBool,
+    /// Physical state flags (sleeping, fall flying, on ground).
+    pub(crate) entity_state: SyncMutex<EntityState>,
 
     /// Player abilities (flight, invulnerability, build permissions, speeds, etc.)
     pub abilities: SyncMutex<Abilities>,
 
-    /// Whether the player is currently fall flying (elytra gliding).
-    fall_flying: AtomicBool,
-
-    /// Whether the player is on the ground.
-    on_ground: AtomicBool,
-
-    /// Tick when last impulse was applied (knockback, etc.).
-    /// Used for post-impulse grace period during movement validation.
-    last_impulse_tick: AtomicI32,
-
     /// Block breaking state machine.
     pub block_breaking: SyncMutex<BlockBreakingManager>,
-
-    /// Tick counter for forced position sync (resets to 0 after sync, like vanilla teleportDelay).
-    position_sync_delay: AtomicI32,
-
-    /// Last `on_ground` state sent to tracking players (for detecting changes).
-    last_sent_on_ground: AtomicBool,
 
     /// Shared living-entity fields (`dead`, `invulnerable_time`, `last_hurt`).
     /// Vanilla: `LivingEntity` (L230-232) + `Entity.invulnerableTime` (L256).
@@ -349,15 +313,13 @@ impl Player {
             client_loaded: AtomicBool::new(false),
             position: SyncMutex::new(pos),
             rotation: AtomicCell::new((0.0, 0.0)),
-            prev_position: SyncMutex::new(pos),
-            prev_rotation: AtomicCell::new((0.0, 0.0)),
+            movement: SyncMutex::new(MovementState::new()),
             entity_data: SyncMutex::new({
                 let mut data = PlayerEntityData::new();
                 data.health.set(20.0);
                 data
             }),
             speed: AtomicCell::new(0.1), // Default walking speed
-            sprinting: AtomicBool::new(false),
             last_chunk_pos: SyncMutex::new(ChunkPos::new(0, 0)),
             last_tracking_view: SyncMutex::new(None),
             chunk_sender: SyncMutex::new(ChunkSender::default()),
@@ -370,22 +332,11 @@ impl Player {
             open_menu: SyncMutex::new(None),
             container_counter: AtomicU8::new(0),
             ack_block_changes_up_to: AtomicI32::new(-1),
-            shift_key_down: AtomicBool::new(false),
             teleport_state: SyncMutex::new(TeleportState::new()),
             tick_count: AtomicI32::new(0),
-            last_good_position: SyncMutex::new(Vector3::default()),
-            first_good_position: SyncMutex::new(Vector3::default()),
-            received_move_packet_count: AtomicI32::new(0),
-            known_move_packet_count: AtomicI32::new(0),
-            delta_movement: SyncMutex::new(Vector3::default()),
-            sleeping: AtomicBool::new(false),
+            entity_state: SyncMutex::new(EntityState::new()),
             abilities: SyncMutex::new(Abilities::default()),
-            fall_flying: AtomicBool::new(false),
-            on_ground: AtomicBool::new(false),
-            last_impulse_tick: AtomicI32::new(0),
             block_breaking: SyncMutex::new(BlockBreakingManager::new()),
-            position_sync_delay: AtomicI32::new(0),
-            last_sent_on_ground: AtomicBool::new(false),
             living_base: SyncMutex::new(LivingEntityBase::new()),
             health_sync: SyncMutex::new(HealthSyncState::new()),
             removed: AtomicBool::new(false),
@@ -440,17 +391,16 @@ impl Player {
         self.tick_count.fetch_add(1, Ordering::Relaxed);
 
         // Reset first_good_position to current position at start of tick (vanilla: resetPosition)
-        *self.first_good_position.lock() = *self.position.lock();
+        {
+            let mut mv = self.movement.lock();
+            mv.first_good_position = *self.position.lock();
+            // Sync packet counts for rate limiting (vanilla: knownMovePacketCount = receivedMovePacketCount)
+            mv.known_move_packet_count = mv.received_move_packet_count;
+        }
 
         // Apply gravity to delta_movement (vanilla: applyGravity in Entity.tick/LivingEntity.travel)
         // This must happen after resetPosition so the speed check has the correct expected velocity
         self.apply_gravity();
-
-        // Sync packet counts for rate limiting (vanilla: knownMovePacketCount = receivedMovePacketCount)
-        self.known_move_packet_count.store(
-            self.received_move_packet_count.load(Ordering::Relaxed),
-            Ordering::Relaxed,
-        );
 
         // Send pending block change acks (batched, once per tick like vanilla)
         self.tick_ack_block_changes();
@@ -851,29 +801,20 @@ impl Player {
 
             let (yaw, pitch) = self.rotation.load();
             self.send_packet(CPlayerPosition::absolute(
-                teleport_id, pos.x, pos.y, pos.z, yaw, pitch,
+                teleport_id,
+                pos.x,
+                pos.y,
+                pos.z,
+                yaw,
+                pitch,
             ));
         }
         true // Still awaiting, reject movement
     }
 
-    /// Returns true if the player is in post-impulse grace period.
-    fn is_in_post_impulse_grace_time(&self) -> bool {
-        let current_tick = self.tick_count.load(Ordering::Relaxed);
-        let last_impulse = self.last_impulse_tick.load(Ordering::Relaxed);
-        current_tick.wrapping_sub(last_impulse) < movement::IMPULSE_GRACE_TICKS
-    }
-
     /// Marks that an impulse (knockback, etc.) was applied to the player.
     pub fn apply_impulse(&self) {
-        self.last_impulse_tick
-            .store(self.tick_count.load(Ordering::Relaxed), Ordering::Relaxed);
-    }
-
-    /// Returns the squared length of the player's current velocity.
-    fn get_delta_movement_length_sq(&self) -> f64 {
-        let dm = self.delta_movement.lock();
-        dm.x * dm.x + dm.y * dm.y + dm.z * dm.z
+        self.movement.lock().last_impulse_tick = self.tick_count.load(Ordering::Relaxed);
     }
 
     /// Checks if movement validation should be performed for this player.
@@ -927,15 +868,18 @@ impl Player {
             return;
         }
 
-        let prev_pos = *self.prev_position.lock();
-        let prev_rot = self.prev_rotation.load();
+        let (prev_pos, prev_rot) = {
+            let mv = self.movement.lock();
+            (mv.prev_position, mv.prev_rotation)
+        };
         let start_pos = *self.position.lock();
         let game_mode = self.game_mode.load();
         let is_spectator = game_mode == GameType::Spectator;
         let is_creative = game_mode == GameType::Creative;
-        let is_sleeping = self.sleeping.load(Ordering::Relaxed);
-        let is_fall_flying = self.fall_flying.load(Ordering::Relaxed);
-        let was_on_ground = self.on_ground.load(Ordering::Relaxed);
+        let (is_sleeping, is_fall_flying, was_on_ground, is_crouching) = {
+            let es = self.entity_state.lock();
+            (es.sleeping, es.fall_flying, es.on_ground, es.crouching)
+        };
         // Skip movement checks when tick rate is frozen (vanilla: tickRateManager().runsNormally())
         let tick_frozen = !self.world.tick_runs_normally();
 
@@ -947,8 +891,10 @@ impl Player {
                 movement::clamp_vertical(packet.position.y),
                 movement::clamp_horizontal(packet.position.z),
             );
-            let first_good = *self.first_good_position.lock();
-            let last_good = *self.last_good_position.lock();
+            let (first_good, last_good) = {
+                let mv = self.movement.lock();
+                (mv.first_good_position, mv.last_good_position)
+            };
 
             // Sleeping check - only allow small movements when sleeping
             if is_sleeping {
@@ -963,14 +909,12 @@ impl Player {
                     return;
                 }
             } else {
-                // Increment received packet count
-                self.received_move_packet_count
-                    .fetch_add(1, Ordering::Relaxed);
-
-                // Calculate delta packets since last tick (for rate limiting)
-                let received = self.received_move_packet_count.load(Ordering::Relaxed);
-                let known = self.known_move_packet_count.load(Ordering::Relaxed);
-                let mut delta_packets = received - known;
+                // Increment received packet count and calculate delta for rate limiting
+                let mut delta_packets = {
+                    let mut mv = self.movement.lock();
+                    mv.received_move_packet_count += 1;
+                    mv.received_move_packet_count - mv.known_move_packet_count
+                };
 
                 // Cap delta packets to prevent abuse (vanilla caps at 5)
                 if delta_packets > 5 {
@@ -982,6 +926,17 @@ impl Player {
                 let gamerule_skip = !self.should_validate_movement(is_fall_flying);
                 let skip_checks = is_spectator || is_creative || tick_frozen || gamerule_skip;
 
+                // Read movement state before building the input struct to avoid
+                // holding the lock across the struct literal expression.
+                let (expected_velocity_sq, in_impulse_grace) = {
+                    let mv = self.movement.lock();
+                    let vel_sq = mv.delta_movement_length_sq();
+                    let current_tick = self.tick_count.load(Ordering::Relaxed);
+                    let grace = current_tick.wrapping_sub(mv.last_impulse_tick)
+                        < movement::IMPULSE_GRACE_TICKS;
+                    (vel_sq, grace)
+                };
+
                 // Validate movement using physics simulation
                 let mut validation = movement::validate_movement(
                     &self.world,
@@ -989,12 +944,12 @@ impl Player {
                         target_pos,
                         first_good_pos: first_good,
                         last_good_pos: last_good,
-                        expected_velocity_sq: self.get_delta_movement_length_sq(),
+                        expected_velocity_sq,
                         delta_packets,
                         is_fall_flying,
                         skip_checks,
-                        in_impulse_grace: self.is_in_post_impulse_grace_time(),
-                        is_crouching: self.shift_key_down.load(Ordering::Relaxed),
+                        in_impulse_grace,
+                        is_crouching,
                         on_ground: was_on_ground,
                     },
                 );
@@ -1007,7 +962,7 @@ impl Player {
                 }
 
                 // Movement accepted - update last good position
-                *self.last_good_position.lock() = target_pos;
+                self.movement.lock().last_good_position = target_pos;
 
                 // Zero Y velocity when landing (vanilla: Block.updateEntityMovementAfterFallOn)
                 // This prevents gravity from accumulating while on the ground
@@ -1027,7 +982,7 @@ impl Player {
         }
 
         // Update on_ground state from packet
-        self.on_ground.store(packet.on_ground, Ordering::Relaxed);
+        self.entity_state.lock().on_ground = packet.on_ground;
 
         // Update current state
         if packet.has_pos {
@@ -1065,17 +1020,23 @@ impl Player {
                 let dz = calc_delta(pos.z, prev_pos.z);
 
                 // Vanilla sync conditions (ServerEntity.java:148)
-                let sync_delay = self.position_sync_delay.fetch_add(1, Ordering::Relaxed);
-                let last_on_ground = self.last_sent_on_ground.load(Ordering::Relaxed);
+                let (sync_delay, last_on_ground) = {
+                    let mut mv = self.movement.lock();
+                    let d = mv.position_sync_delay;
+                    mv.position_sync_delay += 1;
+                    (d, mv.last_sent_on_ground)
+                };
                 let on_ground_changed = last_on_ground != packet.on_ground;
                 let force_sync = sync_delay > 400 || on_ground_changed;
 
                 if let (Some(dx), Some(dy), Some(dz)) = (dx, dy, dz) {
                     if force_sync {
                         // Send absolute position sync (forced by timer or on_ground change)
-                        self.position_sync_delay.store(0, Ordering::Relaxed);
-                        self.last_sent_on_ground
-                            .store(packet.on_ground, Ordering::Relaxed);
+                        {
+                            let mut mv = self.movement.lock();
+                            mv.position_sync_delay = 0;
+                            mv.last_sent_on_ground = packet.on_ground;
+                        }
 
                         let delta = self.get_delta_movement();
                         let sync_packet = CEntityPositionSync {
@@ -1107,9 +1068,11 @@ impl Player {
                     }
                 } else {
                     // Send absolute position sync (delta too big)
-                    self.position_sync_delay.store(0, Ordering::Relaxed);
-                    self.last_sent_on_ground
-                        .store(packet.on_ground, Ordering::Relaxed);
+                    {
+                        let mut mv = self.movement.lock();
+                        mv.position_sync_delay = 0;
+                        mv.last_sent_on_ground = packet.on_ground;
+                    }
 
                     let delta = self.get_delta_movement();
                     let sync_packet = CEntityPositionSync {
@@ -1147,8 +1110,9 @@ impl Player {
                     .broadcast_to_nearby(new_chunk, head_packet, Some(self.id));
             }
 
-            *self.prev_position.lock() = pos;
-            self.prev_rotation.store((yaw, pitch));
+            let mut mv = self.movement.lock();
+            mv.prev_position = pos;
+            mv.prev_rotation = (yaw, pitch);
         }
     }
 
@@ -1260,7 +1224,12 @@ impl Player {
 
     /// Handles a chat acknowledgment packet from the client.
     pub fn handle_chat_ack(&self, packet: SChatAck) {
-        if let Err(err) = self.chat.lock().message_validator.apply_offset(packet.offset.0) {
+        if let Err(err) = self
+            .chat
+            .lock()
+            .message_validator
+            .apply_offset(packet.offset.0)
+        {
             log::warn!(
                 "Player {} sent invalid chat acknowledgment: {err}",
                 self.gameprofile.name
@@ -1599,7 +1568,7 @@ impl Player {
     /// Returns true if player is sneaking (secondary use active).
     #[must_use]
     pub fn is_secondary_use_active(&self) -> bool {
-        self.shift_key_down.load(Ordering::Relaxed)
+        self.entity_state.lock().crouching
     }
 
     /// Returns true if player has infinite materials (Creative mode).
@@ -1611,23 +1580,23 @@ impl Player {
     /// Returns true if the player is currently sleeping.
     #[must_use]
     pub fn is_sleeping(&self) -> bool {
-        self.sleeping.load(Ordering::Relaxed)
+        self.entity_state.lock().sleeping
     }
 
     /// Sets the player's sleeping state.
     pub fn set_sleeping(&self, sleeping: bool) {
-        self.sleeping.store(sleeping, Ordering::Relaxed);
+        self.entity_state.lock().sleeping = sleeping;
     }
 
     /// Returns true if the player is currently fall flying (elytra).
     #[must_use]
     pub fn is_fall_flying(&self) -> bool {
-        self.fall_flying.load(Ordering::Relaxed)
+        self.entity_state.lock().fall_flying
     }
 
     /// Sets the player's fall flying state.
     pub fn set_fall_flying(&self, fall_flying: bool) {
-        self.fall_flying.store(fall_flying, Ordering::Relaxed);
+        self.entity_state.lock().fall_flying = fall_flying;
     }
 
     /// Returns true if the player is flying (creative/spectator flight).
@@ -1675,7 +1644,7 @@ impl Player {
     /// Returns true if the player is on the ground.
     #[must_use]
     pub fn is_on_ground(&self) -> bool {
-        self.on_ground.load(Ordering::Relaxed)
+        self.entity_state.lock().on_ground
     }
 
     /// Determines the desired pose based on current player state.
@@ -1684,11 +1653,12 @@ impl Player {
     // TODO: Add SpinAttack pose (requires riptide trident)
     // TODO: Add pose collision checks (force crouch in low ceilings)
     fn get_desired_pose(&self) -> EntityPose {
-        if self.sleeping.load(Ordering::Relaxed) {
+        let es = self.entity_state.lock();
+        if es.sleeping {
             EntityPose::Sleeping
-        } else if self.fall_flying.load(Ordering::Relaxed) {
+        } else if es.fall_flying {
             EntityPose::FallFlying
-        } else if self.shift_key_down.load(Ordering::Relaxed) && !self.abilities.lock().flying {
+        } else if es.crouching && !self.abilities.lock().flying {
             EntityPose::Sneaking
         } else {
             EntityPose::Standing
@@ -1725,12 +1695,12 @@ impl Player {
     /// Returns the player's current velocity.
     #[must_use]
     pub fn get_delta_movement(&self) -> Vector3<f64> {
-        *self.delta_movement.lock()
+        self.movement.lock().delta_movement
     }
 
     /// Sets the player's velocity.
     pub fn set_delta_movement(&self, velocity: Vector3<f64>) {
-        *self.delta_movement.lock() = velocity;
+        self.movement.lock().delta_movement = velocity;
     }
 
     /// Returns the player's current gravity value.
@@ -1752,11 +1722,13 @@ impl Player {
     /// - Player is in creative mode and flying
     /// - Player is fall flying (elytra - uses different physics)
     fn apply_gravity(&self) {
-        let on_ground = self.on_ground.load(Ordering::Relaxed);
+        let (on_ground, is_fall_flying) = {
+            let es = self.entity_state.lock();
+            (es.on_ground, es.fall_flying)
+        };
         let game_mode = self.game_mode.load();
         let is_spectator = game_mode == GameType::Spectator;
         let is_creative_flying = game_mode == GameType::Creative; // TODO: check actual flying state
-        let is_fall_flying = self.fall_flying.load(Ordering::Relaxed);
 
         // Skip gravity when on ground, spectating, creative flying, or elytra flying
         if on_ground || is_spectator || is_creative_flying || is_fall_flying {
@@ -1765,8 +1737,7 @@ impl Player {
 
         let gravity = self.get_gravity();
         if gravity != 0.0 {
-            let mut dm = self.delta_movement.lock();
-            dm.y -= gravity;
+            self.movement.lock().delta_movement.y -= gravity;
         }
     }
 
@@ -1810,7 +1781,7 @@ impl Player {
         if let Some(pos) = tp.try_accept(packet.teleport_id) {
             // Snap player to awaited position (vanilla: player.absSnapTo)
             *self.position.lock() = pos;
-            *self.last_good_position.lock() = pos;
+            self.movement.lock().last_good_position = pos;
         } else if packet.teleport_id == tp.teleport_id && tp.awaiting_position.is_none() {
             // Client sent confirmation without server sending teleport
             drop(tp);
@@ -1850,7 +1821,7 @@ impl Player {
 
     /// Handles a player input packet (movement keys, sneaking, sprinting).
     pub fn handle_player_input(&self, packet: SPlayerInput) {
-        self.shift_key_down.store(packet.shift(), Ordering::Relaxed);
+        self.entity_state.lock().crouching = packet.shift();
         // Note: sprinting is handled via SPlayerCommand packet
     }
 
@@ -2434,7 +2405,7 @@ impl Player {
     /// Main entry point for dealing damage. Returns `true` if damage was applied.
     ///
     /// Vanilla: `LivingEntity.hurtServer()` (with `ServerPlayer` override adding
-    /// PvP checks before delegating to super). When other living entities are
+    /// `PvP` checks before delegating to super). When other living entities are
     /// added, the core logic here should move to a `LivingEntity` trait method.
     pub fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
         {
@@ -2644,11 +2615,14 @@ impl Player {
         // is naturally zeroed; we reuse the same Player, so we must reset manually.
         // TODO: as new transient fields are added (effects, fire ticks, frozen
         // ticks, etc.), they must be reset here too.
-        *self.delta_movement.lock() = Vector3::default();
-        self.on_ground.store(false, Ordering::Relaxed);
-        self.fall_flying.store(false, Ordering::Relaxed);
-        self.sleeping.store(false, Ordering::Relaxed);
-        self.shift_key_down.store(false, Ordering::Relaxed);
+        self.movement.lock().delta_movement = Vector3::default();
+        {
+            let mut es = self.entity_state.lock();
+            es.on_ground = false;
+            es.fall_flying = false;
+            es.sleeping = false;
+            es.crouching = false;
+        }
         *self.block_breaking.lock() = BlockBreakingManager::new();
 
         {
@@ -2693,9 +2667,12 @@ impl Player {
             f64::from(spawn_pos.z()) + 0.5,
         );
         *self.position.lock() = spawn;
-        *self.prev_position.lock() = spawn;
-        *self.last_good_position.lock() = spawn;
-        *self.first_good_position.lock() = spawn;
+        {
+            let mut mv = self.movement.lock();
+            mv.prev_position = spawn;
+            mv.last_good_position = spawn;
+            mv.first_good_position = spawn;
+        }
         self.rotation.store((0.0, 0.0));
         self.teleport(spawn.x, spawn.y, spawn.z, 0.0, 0.0);
 
@@ -2874,11 +2851,11 @@ impl Entity for Player {
     }
 
     fn velocity(&self) -> Vector3<f64> {
-        *self.delta_movement.lock()
+        self.movement.lock().delta_movement
     }
 
     fn on_ground(&self) -> bool {
-        self.on_ground.load(Ordering::Relaxed)
+        self.entity_state.lock().on_ground
     }
 
     /// Returns the eye height for the current pose.
@@ -2938,11 +2915,11 @@ impl LivingEntity for Player {
     }
 
     fn is_sprinting(&self) -> bool {
-        self.sprinting.load(Ordering::Relaxed)
+        self.entity_state.lock().sprinting
     }
 
     fn set_sprinting(&self, sprinting: bool) {
-        self.sprinting.store(sprinting, Ordering::Relaxed);
+        self.entity_state.lock().sprinting = sprinting;
         // TODO: Apply speed modifiers when attribute system is implemented
     }
 

@@ -3,10 +3,10 @@
 //! Groups the fields related to secure chat: message counters, signature cache,
 //! message validator, chat session, and message chain.
 
-use super::message_chain::SignedMessageChain;
-use super::profile_key::RemoteChatSession;
 use super::LastSeenMessagesValidator;
 use super::MessageCache;
+use super::message_chain::SignedMessageChain;
+use super::profile_key::RemoteChatSession;
 
 /// All chat-related state for a player.
 ///

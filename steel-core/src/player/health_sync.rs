@@ -30,7 +30,9 @@ impl HealthSyncState {
     #[allow(clippy::float_cmp)]
     #[must_use]
     pub fn needs_update(&self, health: f32, food: i32, saturation_zero: bool) -> bool {
-        self.last_health != health || self.last_food != food || self.saturation_zero != saturation_zero
+        self.last_health != health
+            || self.last_food != food
+            || self.saturation_zero != saturation_zero
     }
 
     /// Records that we just sent the given values to the client.
