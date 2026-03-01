@@ -1,12 +1,14 @@
 //! This module contains all things player-related.
 mod abilities;
 pub mod block_breaking;
+mod chat_state;
 pub mod chunk_sender;
 /// This module contains the `PlayerConnection` trait that abstracts network connections.
 pub mod connection;
 /// Game mode specific logic for player interactions.
 pub mod game_mode;
 mod game_profile;
+mod health_sync;
 pub mod message_chain;
 mod message_validator;
 pub mod movement;
@@ -17,8 +19,14 @@ pub mod player_data_storage;
 pub mod player_inventory;
 pub mod profile_key;
 mod signature_cache;
+mod teleport_state;
 
 pub use abilities::Abilities;
+use chat_state::ChatState;
+use health_sync::HealthSyncState;
+pub use message_validator::LastSeenMessagesValidator;
+pub use signature_cache::{LastSeen, MessageCache};
+use teleport_state::TeleportState;
 use steel_protocol::packet_traits::CompressionInfo;
 
 use block_breaking::BlockBreakingManager;
@@ -26,9 +34,7 @@ use crossbeam::atomic::AtomicCell;
 use enum_dispatch::enum_dispatch;
 pub use game_profile::{GameProfile, GameProfileAction};
 use message_chain::SignedMessageChain;
-use message_validator::LastSeenMessagesValidator;
 use profile_key::RemoteChatSession;
-pub use signature_cache::{LastSeen, MessageCache};
 use std::{
     sync::{
         Arc, Weak,
@@ -227,22 +233,8 @@ pub struct Player {
     /// Updated when the client sends `SClientInformation` during config or play phase.
     client_information: SyncMutex<ClientInformation>,
 
-    /// Counter for chat messages sent BY this player
-    messages_sent: AtomicI32,
-    /// Counter for chat messages received BY this player
-    messages_received: AtomicI32,
-
-    /// Message signature cache for tracking chat messages
-    pub signature_cache: SyncMutex<MessageCache>,
-
-    /// Validator for client acknowledgements of messages we've sent
-    pub message_validator: SyncMutex<LastSeenMessagesValidator>,
-
-    /// Remote chat session containing the player's public key (if signed chat is enabled)
-    pub chat_session: SyncMutex<Option<RemoteChatSession>>,
-
-    /// Message chain state for tracking signed message sequence
-    pub message_chain: SyncMutex<Option<SignedMessageChain>>,
+    /// Chat state: message counters, signature cache, validator, session, chain.
+    pub chat: SyncMutex<ChatState>,
 
     /// The player's current game mode (Survival, Creative, Adventure, Spectator)
     pub game_mode: AtomicCell<GameType>,
@@ -269,15 +261,8 @@ pub struct Player {
     /// Whether the player is sneaking (shift key down).
     shift_key_down: AtomicBool,
 
-    /// Position we're waiting for the client to confirm via teleport ack.
-    /// If Some, we should reject interaction packets until confirmed.
-    awaiting_position_from_client: SyncMutex<Option<Vector3<f64>>>,
-
-    /// Incrementing teleport ID counter (wraps at `i32::MAX`).
-    awaiting_teleport_id: AtomicI32,
-
-    /// Tick count when last teleport was sent (for timeout/resend).
-    awaiting_teleport_time: AtomicI32,
+    /// Pending server-initiated teleport state (ID, position, timeout).
+    teleport_state: SyncMutex<TeleportState>,
 
     /// Local tick counter (incremented each tick).
     tick_count: AtomicI32,
@@ -328,14 +313,8 @@ pub struct Player {
     /// Vanilla: `LivingEntity` (L230-232) + `Entity.invulnerableTime` (L256).
     living_base: SyncMutex<LivingEntityBase>,
 
-    /// Last health value sent to the client via `CSetHealth`.
-    last_sent_health: AtomicCell<f32>,
-
-    /// Last food level sent to the client via `CSetHealth`.
-    last_sent_food: AtomicI32,
-
-    /// Whether saturation was zero last time we sent `CSetHealth`.
-    last_food_saturation_zero: AtomicBool,
+    /// Delta-tracking state for `CSetHealth` deduplication.
+    health_sync: SyncMutex<HealthSyncState>,
 
     /// Whether the player has been removed from the world.
     removed: AtomicBool,
@@ -383,12 +362,7 @@ impl Player {
             last_tracking_view: SyncMutex::new(None),
             chunk_sender: SyncMutex::new(ChunkSender::default()),
             client_information: SyncMutex::new(client_information),
-            messages_sent: AtomicI32::new(0),
-            messages_received: AtomicI32::new(0),
-            signature_cache: SyncMutex::new(MessageCache::new()),
-            message_validator: SyncMutex::new(LastSeenMessagesValidator::new()),
-            chat_session: SyncMutex::new(None),
-            message_chain: SyncMutex::new(None),
+            chat: SyncMutex::new(ChatState::new()),
             game_mode: AtomicCell::new(GameType::Survival),
             prev_game_mode: AtomicCell::new(GameType::Survival),
             inventory: inventory.clone(),
@@ -397,9 +371,7 @@ impl Player {
             container_counter: AtomicU8::new(0),
             ack_block_changes_up_to: AtomicI32::new(-1),
             shift_key_down: AtomicBool::new(false),
-            awaiting_position_from_client: SyncMutex::new(None),
-            awaiting_teleport_id: AtomicI32::new(0),
-            awaiting_teleport_time: AtomicI32::new(0),
+            teleport_state: SyncMutex::new(TeleportState::new()),
             tick_count: AtomicI32::new(0),
             last_good_position: SyncMutex::new(Vector3::default()),
             first_good_position: SyncMutex::new(Vector3::default()),
@@ -415,9 +387,7 @@ impl Player {
             position_sync_delay: AtomicI32::new(0),
             last_sent_on_ground: AtomicBool::new(false),
             living_base: SyncMutex::new(LivingEntityBase::new()),
-            last_sent_health: AtomicCell::new(-1.0_f32),
-            last_sent_food: AtomicI32::new(-1),
-            last_food_saturation_zero: AtomicBool::new(true),
+            health_sync: SyncMutex::new(HealthSyncState::new()),
             removed: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
         }
@@ -530,27 +500,20 @@ impl Player {
 
         // Only send CSetHealth when a value actually changed, matching vanilla's
         // `lastSentHealth` / `lastSentFood` / `lastFoodSaturationZero` pattern.
-        #[allow(clippy::float_cmp)]
         {
             let health = *self.entity_data.lock().health.get();
             let food: i32 = 20; // TODO: use actual food level once hunger is implemented
             let saturation: f32 = 5.0; // TODO: use actual saturation once hunger is implemented
             let saturation_zero = saturation == 0.0;
 
-            let prev_health = self.last_sent_health.load();
-            let prev_food = self.last_sent_food.load(Ordering::Relaxed);
-            let prev_sat_zero = self.last_food_saturation_zero.load(Ordering::Relaxed);
-
-            if health != prev_health || food != prev_food || saturation_zero != prev_sat_zero {
+            let mut sync = self.health_sync.lock();
+            if sync.needs_update(health, food, saturation_zero) {
                 self.send_packet(CSetHealth {
                     health,
                     food,
                     food_saturation: saturation,
                 });
-                self.last_sent_health.store(health);
-                self.last_sent_food.store(food, Ordering::Relaxed);
-                self.last_food_saturation_zero
-                    .store(saturation_zero, Ordering::Relaxed);
+                sync.record_sent(health, food, saturation_zero);
             }
         }
 
@@ -645,7 +608,10 @@ impl Player {
 
     /// Gets the next `messages_received` counter and increments it
     pub fn get_and_increment_messages_received(&self) -> i32 {
-        self.messages_received.fetch_add(1, Ordering::Relaxed)
+        let mut chat = self.chat.lock();
+        let val = chat.messages_received;
+        chat.messages_received += 1;
+        val
     }
 
     fn verify_chat_signature(
@@ -654,7 +620,8 @@ impl Player {
     ) -> Result<(message_chain::SignedMessageLink, LastSeen), String> {
         const MESSAGE_EXPIRES_AFTER: Duration = Duration::from_mins(5);
 
-        let session = self.chat_session.lock().clone().ok_or("No chat session")?;
+        let mut chat = self.chat.lock();
+        let session = chat.chat_session.clone().ok_or("No chat session")?;
         let signature = packet.signature.as_ref().ok_or("No signature present")?;
 
         if session
@@ -665,8 +632,7 @@ impl Player {
             return Err("Profile key has expired".to_string());
         }
 
-        let mut chain_guard = self.message_chain.lock();
-        let chain = chain_guard.as_mut().ok_or("No message chain")?;
+        let chain = chat.message_chain.as_mut().ok_or("No message chain")?;
 
         if chain.is_broken() {
             return Err("Message chain is broken".to_string());
@@ -687,9 +653,8 @@ impl Player {
             ));
         }
 
-        let last_seen_signatures = self
+        let last_seen_signatures = chat
             .message_validator
-            .lock()
             .apply_update(packet.acknowledged, packet.offset, packet.checksum)
             .map_err(|e| {
                 log::error!("Message acknowledgment validation failed: {e}");
@@ -705,6 +670,7 @@ impl Player {
             last_seen,
         );
 
+        let chain = chat.message_chain.as_mut().ok_or("No message chain")?;
         let link = chain
             .validate_and_advance(&body)
             .map_err(|e| format!("Chain validation failed: {e}"))?;
@@ -768,7 +734,12 @@ impl Player {
             None
         };
 
-        let sender_index = player.messages_sent.fetch_add(1, Ordering::SeqCst);
+        let sender_index = {
+            let mut chat = player.chat.lock();
+            let idx = chat.messages_sent;
+            chat.messages_sent += 1;
+            idx
+        };
 
         let registry_id = *REGISTRY.chat_types.get_id(vanilla_chat_types::CHAT) as i32;
 
@@ -864,35 +835,26 @@ impl Player {
     /// Returns `true` if awaiting teleport (movement should be rejected),
     /// `false` if normal movement processing should continue.
     fn update_awaiting_teleport(&self) -> bool {
-        let awaiting = self.awaiting_position_from_client.lock();
-        if let Some(pos) = *awaiting {
-            let current_tick = self.tick_count.load(Ordering::Relaxed);
-            let last_time = self.awaiting_teleport_time.load(Ordering::Relaxed);
+        let mut tp = self.teleport_state.lock();
+        let Some(pos) = tp.awaiting_position else {
+            tp.teleport_time = self.tick_count.load(Ordering::Relaxed);
+            return false;
+        };
 
-            // Resend teleport after 20 ticks (~1 second) timeout
-            if current_tick.wrapping_sub(last_time) > 20 {
-                self.awaiting_teleport_time
-                    .store(current_tick, Ordering::Relaxed);
-                drop(awaiting);
+        let current_tick = self.tick_count.load(Ordering::Relaxed);
 
-                // Resend the teleport packet
-                let (yaw, pitch) = self.rotation.load();
-                let teleport_id = self.awaiting_teleport_id.load(Ordering::Relaxed);
-                self.send_packet(CPlayerPosition::absolute(
-                    teleport_id,
-                    pos.x,
-                    pos.y,
-                    pos.z,
-                    yaw,
-                    pitch,
-                ));
-            }
-            return true; // Still awaiting, reject movement
+        // Resend teleport after 20 ticks (~1 second) timeout
+        if current_tick.wrapping_sub(tp.teleport_time) > 20 {
+            tp.teleport_time = current_tick;
+            let teleport_id = tp.teleport_id;
+            drop(tp);
+
+            let (yaw, pitch) = self.rotation.load();
+            self.send_packet(CPlayerPosition::absolute(
+                teleport_id, pos.x, pos.y, pos.z, yaw, pitch,
+            ));
         }
-
-        self.awaiting_teleport_time
-            .store(self.tick_count.load(Ordering::Relaxed), Ordering::Relaxed);
-        false
+        true // Still awaiting, reject movement
     }
 
     /// Returns true if the player is in post-impulse grace period.
@@ -1207,14 +1169,18 @@ impl Player {
                     self.gameprofile.name,
                     err
                 );
-                *self.chat_session.lock() = Some(session);
-                *self.message_chain.lock() = Some(chain);
+                let mut chat = self.chat.lock();
+                chat.chat_session = Some(session);
+                chat.message_chain = Some(chain);
                 return;
             }
         };
 
-        *self.chat_session.lock() = Some(session);
-        *self.message_chain.lock() = Some(chain);
+        {
+            let mut chat = self.chat.lock();
+            chat.chat_session = Some(session);
+            chat.message_chain = Some(chain);
+        }
 
         log::info!(
             "Player {} initialized signed chat session",
@@ -1229,12 +1195,12 @@ impl Player {
 
     /// Gets a reference to the player's chat session if present
     pub fn chat_session(&self) -> Option<RemoteChatSession> {
-        self.chat_session.lock().clone()
+        self.chat.lock().chat_session.clone()
     }
 
     /// Checks if the player has a valid chat session
     pub fn has_chat_session(&self) -> bool {
-        self.chat_session.lock().is_some()
+        self.chat.lock().chat_session.is_some()
     }
 
     /// Handles a chat session update packet from the client.
@@ -1294,7 +1260,7 @@ impl Player {
 
     /// Handles a chat acknowledgment packet from the client.
     pub fn handle_chat_ack(&self, packet: SChatAck) {
-        if let Err(err) = self.message_validator.lock().apply_offset(packet.offset.0) {
+        if let Err(err) = self.chat.lock().message_validator.apply_offset(packet.offset.0) {
             log::warn!(
                 "Player {} sent invalid chat acknowledgment: {err}",
                 self.gameprofile.name
@@ -1393,7 +1359,7 @@ impl Player {
     /// Invalidates the delta-tracking state so that the next `tick()` will send
     /// `CSetHealth` to the client (vanilla: `resetSentInfo`).
     pub fn reset_sent_info(&self) {
-        self.last_sent_health.store(-1.0e8);
+        self.health_sync.lock().invalidate();
     }
 
     /// Handles a container button click packet (e.g., enchanting table buttons).
@@ -1807,7 +1773,7 @@ impl Player {
     /// Returns true if we're waiting for a teleport confirmation.
     #[must_use]
     pub fn is_awaiting_teleport(&self) -> bool {
-        self.awaiting_position_from_client.lock().is_some()
+        self.teleport_state.lock().is_awaiting()
     }
 
     /// Teleports the player to a new position.
@@ -1817,25 +1783,19 @@ impl Player {
     ///
     /// Matches vanilla `ServerGamePacketListenerImpl.teleport()`.
     pub fn teleport(&self, x: f64, y: f64, z: f64, yaw: f32, pitch: f32) {
-        let current_tick = self.tick_count.load(Ordering::Relaxed);
-        self.awaiting_teleport_time
-            .store(current_tick, Ordering::Relaxed);
+        let pos = Vector3::new(x, y, z);
 
-        // Pre-increment teleport ID, wrapping at i32::MAX (matches vanilla: ++awaitingTeleport)
-        let new_id = self
-            .awaiting_teleport_id
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| {
-                Some(if id == i32::MAX { 0 } else { id + 1 })
-            })
-            .map_or(1, |old| if old == i32::MAX { 0 } else { old + 1 });
+        let new_id = {
+            let mut tp = self.teleport_state.lock();
+            tp.teleport_time = self.tick_count.load(Ordering::Relaxed);
+            let id = tp.next_id();
+            tp.awaiting_position = Some(pos);
+            id
+        };
 
         // Update player position (vanilla: player.teleportSetPosition)
-        *self.position.lock() = Vector3::new(x, y, z);
+        *self.position.lock() = pos;
         self.rotation.store((yaw, pitch));
-
-        // Store the position we're waiting for confirmation of
-        // (vanilla stores player.position() after teleportSetPosition)
-        *self.awaiting_position_from_client.lock() = Some(Vector3::new(x, y, z));
 
         // Send the teleport packet with the new ID
         self.send_packet(CPlayerPosition::absolute(new_id, x, y, z, yaw, pitch));
@@ -1845,24 +1805,16 @@ impl Player {
     ///
     /// Matches vanilla `ServerGamePacketListenerImpl.handleAcceptTeleportPacket()`.
     pub fn handle_accept_teleportation(&self, packet: SAcceptTeleportation) {
-        let expected_id = self.awaiting_teleport_id.load(Ordering::Relaxed);
+        let mut tp = self.teleport_state.lock();
 
-        if packet.teleport_id == expected_id {
-            let mut awaiting = self.awaiting_position_from_client.lock();
-            if awaiting.is_none() {
-                // Client sent confirmation without server sending teleport
-                self.disconnect(translations::MULTIPLAYER_DISCONNECT_INVALID_PLAYER_MOVEMENT.msg());
-                return;
-            }
-
+        if let Some(pos) = tp.try_accept(packet.teleport_id) {
             // Snap player to awaited position (vanilla: player.absSnapTo)
-            if let Some(pos) = *awaiting {
-                *self.position.lock() = pos;
-                *self.last_good_position.lock() = pos;
-            }
-
-            // Clear awaiting state
-            *awaiting = None;
+            *self.position.lock() = pos;
+            *self.last_good_position.lock() = pos;
+        } else if packet.teleport_id == tp.teleport_id && tp.awaiting_position.is_none() {
+            // Client sent confirmation without server sending teleport
+            drop(tp);
+            self.disconnect(translations::MULTIPLAYER_DISCONNECT_INVALID_PLAYER_MOVEMENT.msg());
         }
         // If ID doesn't match, silently ignore (could be old/delayed packet)
     }
@@ -2705,8 +2657,7 @@ impl Player {
             entity_data.pose.set(EntityPose::Standing);
         }
 
-        self.last_sent_health.store(-1.0);
-        self.last_sent_food.store(-1, Ordering::Relaxed);
+        self.health_sync.lock().reset_for_respawn();
 
         let dimension_key = world.dimension.key.clone();
         let dimension_type_id = *(REGISTRY.dimension_types.get_id(
