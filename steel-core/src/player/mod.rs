@@ -504,9 +504,8 @@ impl Player {
 
         {
             let mut living_base = self.living_base.lock();
-            let inv_time = living_base.get_invulnerable_time();
-            if inv_time > 0 {
-                living_base.set_invulnerable_time(inv_time - 1);
+            if living_base.invulnerable_time > 0 {
+                living_base.invulnerable_time -= 1;
             }
         }
 
@@ -2504,22 +2503,20 @@ impl Player {
 
         let (took_full_damage, effective_amount) = {
             let mut living_base = self.living_base.lock();
-            if living_base.is_dead() {
+            if living_base.dead {
                 return false;
             }
 
-            let inv_time = living_base.get_invulnerable_time();
-
-            if inv_time > 10 && !source.bypasses_cooldown() {
-                let last = living_base.get_last_hurt();
-                if amount <= last {
+            if living_base.invulnerable_time > 10 && !source.bypasses_cooldown() {
+                if amount <= living_base.last_hurt {
                     return false;
                 }
-                living_base.set_last_hurt(amount);
-                (false, amount - last)
+                let effective = amount - living_base.last_hurt;
+                living_base.last_hurt = amount;
+                (false, effective)
             } else {
-                living_base.set_last_hurt(amount);
-                living_base.set_invulnerable_time(20);
+                living_base.last_hurt = amount;
+                living_base.invulnerable_time = 20;
                 (true, amount)
             }
         };
@@ -2578,11 +2575,11 @@ impl Player {
     fn die(&self, source: &DamageSource) {
         {
             let mut living_base = self.living_base.lock();
-            if self.removed.load(Ordering::Relaxed) || living_base.is_dead() {
+            if self.removed.load(Ordering::Relaxed) || living_base.dead {
                 return;
             }
 
-            living_base.set_dead(true);
+            living_base.dead = true;
         }
 
         self.entity_data.lock().pose.set(EntityPose::Dying);
@@ -2662,7 +2659,7 @@ impl Player {
     pub fn respawn(&self) {
         {
             let mut living_base = self.living_base.lock();
-            if !living_base.is_dead() {
+            if !living_base.dead {
                 return;
             }
             living_base.reset_death_state();
