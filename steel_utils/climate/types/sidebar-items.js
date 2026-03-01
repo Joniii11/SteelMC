@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CHILDREN_PER_NODE"],"enum":["RTreeNode"],"fn":["build_parameter_space","build_tree","compute_bucket_cost","compute_bucket_ranges","cost","expected_children_count","sort_entries","sort_subtrees"],"struct":["BuildEntry","Parameter","ParameterList","ParameterPoint","TargetPoint"]};

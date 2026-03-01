@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/chunk_saver/storage.rs`."><title>storage.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (6a979b3e3 2026-02-26)" data-channel="nightly" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/chunk_saver/</div>storage.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">crate</span>::block_entity::{BLOCK_ENTITIES, SharedBlockEntity};
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `steel-core/src/chunk_saver/storage.rs`."><title>storage.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="steel_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.0-nightly (38c0de8dc 2026-02-28)" data-channel="nightly" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">steel_core/chunk_saver/</div>storage.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">crate</span>::block_entity::{BLOCK_ENTITIES, SharedBlockEntity};
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span><span class="kw">crate</span>::chunk::chunk_access::{ChunkAccess, ChunkStatus};
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::chunk::level_chunk::LevelChunk;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::chunk::paletted_container::PalettedContainer;
@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>std::sync::atomic::Ordering;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>std::{io, sync::Weak};
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>steel_registry::{REGISTRY, Registry};
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>steel_registry::{REGISTRY, Registry, vanilla_biomes};
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>steel_utils::{BlockPos, BlockStateId, ChunkPos, Identifier};
 <a href=#19 id=19 data-nosnippet>19</a>
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">super</span>::ram_only::RamOnlyStorage;
@@ -68,7 +68,7 @@
 <a href=#68 id=68 data-nosnippet>68</a>    }
 <a href=#69 id=69 data-nosnippet>69</a>
 <a href=#70 id=70 data-nosnippet>70</a>    <span class="doccomment">/// Ensures a biome exists in the chunk's palette, returning its index.
-<a href=#71 id=71 data-nosnippet>71</a>    </span><span class="kw">fn </span>ensure_biome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, biome_id: u8) -&gt; u16 {
+<a href=#71 id=71 data-nosnippet>71</a>    </span><span class="kw">fn </span>ensure_biome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, biome_id: u16) -&gt; u16 {
 <a href=#72 id=72 data-nosnippet>72</a>        <span class="comment">// Get biome identifier from registry
 <a href=#73 id=73 data-nosnippet>73</a>        </span><span class="kw">let </span>biome = <span class="self">self
 <a href=#74 id=74 data-nosnippet>74</a>            </span>.registry
@@ -371,7 +371,7 @@
 <a href=#371 id=371 data-nosnippet>371</a>
 <a href=#372 id=372 data-nosnippet>372</a>    <span class="doccomment">/// Converts runtime biome data to persistent format.
 <a href=#373 id=373 data-nosnippet>373</a>    </span><span class="kw">fn </span>biomes_to_persistent(
-<a href=#374 id=374 data-nosnippet>374</a>        biomes: <span class="kw-2">&amp;</span>PalettedContainer&lt;u8, <span class="number">4</span>&gt;,
+<a href=#374 id=374 data-nosnippet>374</a>        biomes: <span class="kw-2">&amp;</span>PalettedContainer&lt;u16, <span class="number">4</span>&gt;,
 <a href=#375 id=375 data-nosnippet>375</a>        builder: <span class="kw-2">&amp;mut </span>ChunkBuilder,
 <a href=#376 id=376 data-nosnippet>376</a>    ) -&gt; PersistentBiomeData {
 <a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">match </span>biomes {
@@ -760,7 +760,7 @@
 <a href=#760 id=760 data-nosnippet>760</a>    </span><span class="kw">fn </span>persistent_to_biomes(
 <a href=#761 id=761 data-nosnippet>761</a>        persistent: <span class="kw-2">&amp;</span>PersistentBiomeData,
 <a href=#762 id=762 data-nosnippet>762</a>        chunk: <span class="kw-2">&amp;</span>PersistentChunk,
-<a href=#763 id=763 data-nosnippet>763</a>    ) -&gt; PalettedContainer&lt;u8, <span class="number">4</span>&gt; {
+<a href=#763 id=763 data-nosnippet>763</a>    ) -&gt; PalettedContainer&lt;u16, <span class="number">4</span>&gt; {
 <a href=#764 id=764 data-nosnippet>764</a>        <span class="kw">match </span>persistent {
 <a href=#765 id=765 data-nosnippet>765</a>            PersistentBiomeData::Homogeneous { biome } =&gt; {
 <a href=#766 id=766 data-nosnippet>766</a>                <span class="kw">let </span>biome_id = <span class="self">Self</span>::resolve_biome(chunk, <span class="kw-2">*</span>biome);
@@ -774,12 +774,12 @@
 <a href=#774 id=774 data-nosnippet>774</a>                <span class="kw">let </span>indices = unpack_indices(biome_data, <span class="kw-2">*</span>bits_per_entry, BIOMES_PER_SECTION);
 <a href=#775 id=775 data-nosnippet>775</a>
 <a href=#776 id=776 data-nosnippet>776</a>                <span class="comment">// Resolve section-local palette -&gt; chunk palette -&gt; runtime
-<a href=#777 id=777 data-nosnippet>777</a>                </span><span class="kw">let </span>runtime_palette: Vec&lt;u8&gt; = palette
+<a href=#777 id=777 data-nosnippet>777</a>                </span><span class="kw">let </span>runtime_palette: Vec&lt;u16&gt; = palette
 <a href=#778 id=778 data-nosnippet>778</a>                    .iter()
 <a href=#779 id=779 data-nosnippet>779</a>                    .map(|<span class="kw-2">&amp;</span>idx| <span class="self">Self</span>::resolve_biome(chunk, idx))
 <a href=#780 id=780 data-nosnippet>780</a>                    .collect();
 <a href=#781 id=781 data-nosnippet>781</a>
-<a href=#782 id=782 data-nosnippet>782</a>                <span class="kw">let </span><span class="kw-2">mut </span>cube = Box::new([[[<span class="number">0u8</span>; <span class="number">4</span>]; <span class="number">4</span>]; <span class="number">4</span>]);
+<a href=#782 id=782 data-nosnippet>782</a>                <span class="kw">let </span><span class="kw-2">mut </span>cube = Box::new([[[<span class="number">0u16</span>; <span class="number">4</span>]; <span class="number">4</span>]; <span class="number">4</span>]);
 <a href=#783 id=783 data-nosnippet>783</a>                <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>idx) <span class="kw">in </span>indices.iter().enumerate() {
 <a href=#784 id=784 data-nosnippet>784</a>                    <span class="kw">let </span>y = i / <span class="number">16</span>;
 <a href=#785 id=785 data-nosnippet>785</a>                    <span class="kw">let </span>z = (i / <span class="number">4</span>) % <span class="number">4</span>;
@@ -805,13 +805,13 @@
 <a href=#805 id=805 data-nosnippet>805</a>    </span>}
 <a href=#806 id=806 data-nosnippet>806</a>
 <a href=#807 id=807 data-nosnippet>807</a>    <span class="doccomment">/// Resolves a chunk palette index to a runtime biome ID.
-<a href=#808 id=808 data-nosnippet>808</a>    </span><span class="kw">fn </span>resolve_biome(chunk: <span class="kw-2">&amp;</span>PersistentChunk, index: u16) -&gt; u8 {
+<a href=#808 id=808 data-nosnippet>808</a>    </span><span class="kw">fn </span>resolve_biome(chunk: <span class="kw-2">&amp;</span>PersistentChunk, index: u16) -&gt; u16 {
 <a href=#809 id=809 data-nosnippet>809</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(biome_key) = chunk.biomes.get(index <span class="kw">as </span>usize)
 <a href=#810 id=810 data-nosnippet>810</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(id) = REGISTRY.biomes.id_from_key(biome_key)
 <a href=#811 id=811 data-nosnippet>811</a>        {
-<a href=#812 id=812 data-nosnippet>812</a>            <span class="kw">return </span>id <span class="kw">as </span>u8;
+<a href=#812 id=812 data-nosnippet>812</a>            <span class="kw">return </span>id <span class="kw">as </span>u16;
 <a href=#813 id=813 data-nosnippet>813</a>        }
-<a href=#814 id=814 data-nosnippet>814</a>        <span class="number">0 </span><span class="comment">// Plains fallback
-<a href=#815 id=815 data-nosnippet>815</a>    </span>}
+<a href=#814 id=814 data-nosnippet>814</a>        <span class="kw-2">*</span>REGISTRY.biomes.get_id(<span class="kw-2">&amp;</span>vanilla_biomes::PLAINS) <span class="kw">as </span>u16
+<a href=#815 id=815 data-nosnippet>815</a>    }
 <a href=#816 id=816 data-nosnippet>816</a>}
 </code></pre></div></section></main></body></html>

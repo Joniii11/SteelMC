@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["collect_references","collect_refs_inner","collect_spline_refs","is_flat_cached","named_fn_field_ident","named_fn_ident","noise_field_ident","router_cache_field_ident","router_compute_fn_ident","sanitize_name","transpile","unwrap_markers","uses_y","uses_y_spline"],"struct":["TranspileContext","TranspilerInput"]};

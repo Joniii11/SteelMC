@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["vector2","vector3"]};
+window.SIDEBAR_ITEMS = {"mod":["noise_math","vector2","vector3"]};

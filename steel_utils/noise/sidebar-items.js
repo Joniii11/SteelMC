@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["GRADIENT"],"mod":["improved_noise","normal_noise","perlin_noise","simplex_noise"],"struct":["ImprovedNoise","NormalNoise","PerlinNoise","SimplexNoise"]};
