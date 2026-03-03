@@ -893,7 +893,7 @@ impl<'de> Deserialize<'de> for Difficulty {
         D: serde::Deserializer<'de>,
     {
         let id = u8::deserialize(deserializer)?;
-        Ok(Self::from(id as u8))
+        Ok(Self::from(id))
     }
 }
 

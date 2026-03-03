@@ -143,7 +143,7 @@ const FLAG_FALL_FLYING: u8 = 7;
 const SPRINT_SPEED_MODIFIER_AMOUNT: f64 = 0.3;
 
 /// Vanilla base movement speed for players (from entities.json `movement_speed` attribute).
-const BASE_MOVEMENT_SPEED: f64 = 0.10000000149011612;
+const BASE_MOVEMENT_SPEED: f64 = 0.100_000_001_490_116_12;
 
 /// Vanilla attribute registry ID for `minecraft:movement_speed` (from attributes.json).
 const ATTRIBUTE_MOVEMENT_SPEED_ID: i32 = 22;
