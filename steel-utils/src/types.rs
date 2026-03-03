@@ -837,12 +837,13 @@ pub enum Difficulty {
     Hard = 3,
 }
 
-#[allow(missing_docs)]
+#[allow(missing_docs, clippy::match_same_arms)]
 impl From<u8> for Difficulty {
     fn from(value: u8) -> Self {
         match value {
             0 => Difficulty::Peaceful,
             1 => Difficulty::Easy,
+            2 => Difficulty::Normal,
             3 => Difficulty::Hard,
             _ => Difficulty::Normal,
         }

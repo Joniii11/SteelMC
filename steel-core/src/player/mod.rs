@@ -1015,8 +1015,8 @@ impl Player {
                 }
 
                 if self.is_sprinting() {
-                    let dx = packet.position.x - start_pos.x;
-                    let dz = packet.position.z - start_pos.z;
+                    let dx = validation.move_delta.x;
+                    let dz = validation.move_delta.z;
                     let horizontal_dist_sq = dx * dx + dz * dz;
                     if horizontal_dist_sq > 0.0 {
                         let distance = horizontal_dist_sq.sqrt() as f32;
@@ -1346,14 +1346,15 @@ impl Player {
 
     /// Handles a client request to change the world difficulty.
     pub fn handle_change_difficulty(&self, difficulty: Difficulty) {
+        // TODO: implement op-level permission check (vanilla requires op level 2).
+        //       Once permissions exist, replace this early-return with:
+        //         if !self.has_permission_level(2) { self.send_difficulty(); return; }
+        //       and re-enable the locked/broadcast logic below.
         if self.world.is_difficulty_locked() {
             self.send_difficulty();
             return;
         }
-
-        // TODO: check player permission level (vanilla requires op level 2)
         self.world.set_difficulty(difficulty);
-
         let locked = self.world.is_difficulty_locked();
         let packet = CChangeDifficulty { difficulty, locked };
         self.world.broadcast_to_all(packet);
@@ -1376,8 +1377,9 @@ impl Player {
                 }
 
                 let mut food = self.food_data.lock();
-                if food.saturation_level < food_data::MAX_SATURATION {
-                    food.saturation_level += 1.0;
+                let cap = food.food_level as f32;
+                if food.saturation_level < cap {
+                    food.saturation_level = (food.saturation_level + 1.0).min(cap);
                 }
             }
 
@@ -1392,23 +1394,27 @@ impl Player {
         let current_health = self.get_health();
         let max_health = self.get_max_health();
 
-        let result = {
+        let (heal_amount, starve) = {
             let mut food = self.food_data.lock();
-            food.tick(difficulty, natural_regen, current_health, max_health)
+            let result = food.tick(difficulty, natural_regen, current_health, max_health);
+            match result {
+                FoodTickResult::Heal { amount, exhaustion } => {
+                    food.add_exhaustion(exhaustion);
+                    (Some(amount), false)
+                }
+                FoodTickResult::Starve => (None, true),
+                FoodTickResult::None => (None, false),
+            }
         };
 
-        match result {
-            FoodTickResult::Heal { amount, exhaustion } => {
-                self.heal(amount);
-                self.food_data.lock().add_exhaustion(exhaustion);
-            }
-            FoodTickResult::Starve => {
-                self.hurt(
-                    &DamageSource::environment(vanilla_damage_types::STARVE),
-                    1.0,
-                );
-            }
-            FoodTickResult::None => {}
+        if let Some(amount) = heal_amount {
+            self.heal(amount);
+        }
+        if starve {
+            self.hurt(
+                &DamageSource::environment(vanilla_damage_types::STARVE),
+                1.0,
+            );
         }
     }
 
@@ -1950,10 +1956,6 @@ impl Player {
         // lastActionTime = Util.getMillis(), preventing idle-kick. Add when idle-kick system is implemented.
 
         self.entity_state.lock().crouching = packet.shift();
-        // Note: sprinting is handled via SPlayerCommand packet
-        // Immediately update shared flags so the dirty bit is set for the
-        // next sync_entity_data() call in tick().
-        self.update_shared_flags();
     }
 
     /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
@@ -1961,6 +1963,16 @@ impl Player {
     #[allow(clippy::match_same_arms)]
     pub fn handle_player_command(&self, packet: SPlayerCommand) {
         if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
+        if packet.entity_id != self.id {
+            log::warn!(
+                "Player {} (eid {}) sent SPlayerCommand with mismatched entity_id {}",
+                self.gameprofile.name,
+                self.id,
+                packet.entity_id
+            );
             return;
         }
 
@@ -1975,9 +1987,8 @@ impl Player {
                 self.set_sprinting(false);
             }
             PlayerCommandAction::StartFallFlying => {
-                // TODO: Validate elytra — needs canGlide() checks:
-                //   - not already fall flying
-                //   - not on ground, not in water, not a passenger
+                // TODO: Full canGlide() checks once the required systems exist:
+                //   - not in water, not a passenger
                 //   - no Levitation effect
                 //   - at least one equipped item has GLIDER component in correct slot
                 //     and won't break on next damage
@@ -2021,9 +2032,7 @@ impl Player {
             }
         }
 
-        // Update shared flags immediately after any state change so the
-        // dirty bit is set for the next sync_entity_data() call.
-        self.update_shared_flags();
+        // Shared flags are updated once per tick in tick() → update_shared_flags().
     }
 
     /// Applies or removes the sprint speed modifier and broadcasts the attribute
@@ -2772,11 +2781,19 @@ impl Player {
             return;
         }
 
-        // Food exhaustion from taking damage
-        self.cause_food_exhaustion(source.damage_type.exhaustion);
+        // TODO: Once absorption is implemented, compute post-absorption damage
+        // (final_damage = amount - absorption) and only apply food exhaustion
+        // when final_damage > 0. Vanilla calls causeFoodExhaustion inside
+        // the `if (var8 != 0.0F)` block in Player.actuallyHurt, meaning hits
+        // fully absorbed by golden hearts do NOT drain hunger.
+        let final_damage = amount; // will become: (amount - absorption).max(0.0)
+
+        if final_damage > 0.0 {
+            self.cause_food_exhaustion(source.damage_type.exhaustion);
+        }
 
         let mut entity_data = self.entity_data.lock();
-        let new_health = (*entity_data.health.get() - amount).max(0.0);
+        let new_health = (*entity_data.health.get() - final_damage).max(0.0);
         entity_data.health.set(new_health);
     }
 
@@ -2790,10 +2807,6 @@ impl Player {
 
             living_base.dead = true;
         }
-
-        // NOTE: Vanilla `ServerPlayer.die()` does NOT set Pose::Dying — only
-        // `LivingEntity.die()` does (which ServerPlayer never calls via super).
-        // The death screen covers the player model, so the pose is irrelevant.
 
         // Broadcast entity event 3 (death sound) to all nearby players.
         let chunk_pos = *self.last_chunk_pos.lock();
