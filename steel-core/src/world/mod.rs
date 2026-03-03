@@ -37,6 +37,7 @@ use steel_registry::{block_entity_type::BlockEntityTypeRef, vanilla_dimension_ty
 use steel_registry::{
     blocks::BlockRef, vanilla_game_rules::ADVANCE_TIME, vanilla_game_rules::ADVANCE_WEATHER,
 };
+use steel_utils::types::Difficulty;
 
 use steel_registry::blocks::shapes::{AABBd, VoxelShape};
 use steel_utils::locks::{SyncMutex, SyncRwLock};
@@ -367,6 +368,36 @@ impl World {
             .data_mut()
             .game_rules_values
             .set(rule, value, &REGISTRY.game_rules)
+    }
+
+    /// Gets the current world difficulty.
+    ///
+    /// WARNING: acquires a read lock on level data.
+    #[must_use]
+    pub fn get_difficulty(&self) -> Difficulty {
+        self.level_data.read().data().difficulty
+    }
+
+    /// Sets the world difficulty and marks level data as dirty.
+    ///
+    /// WARNING: acquires a write lock on level data.
+    pub fn set_difficulty(&self, difficulty: Difficulty) {
+        self.level_data.write().data_mut().difficulty = difficulty;
+    }
+
+    /// Returns whether the difficulty is locked.
+    ///
+    /// WARNING: acquires a read lock on level data.
+    #[must_use]
+    pub fn is_difficulty_locked(&self) -> bool {
+        self.level_data.read().data().difficulty_locked
+    }
+
+    /// Locks or unlocks the difficulty setting.
+    ///
+    /// WARNING: acquires a write lock on level data.
+    pub fn set_difficulty_locked(&self, locked: bool) {
+        self.level_data.write().data_mut().difficulty_locked = locked;
     }
 
     /// Gets the world seed.

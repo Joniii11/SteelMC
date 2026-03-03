@@ -216,6 +216,9 @@ impl Server {
         // Send player abilities (flight, invulnerability, etc.)
         player.send_abilities();
 
+        // Send current world difficulty to the client
+        player.send_difficulty();
+
         player.send_packet(CSetHeldSlot {
             slot: i32::from(player.inventory.lock().get_selected_slot()),
         });
