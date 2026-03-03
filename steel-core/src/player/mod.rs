@@ -6,6 +6,7 @@ pub mod chunk_sender;
 /// This module contains the `PlayerConnection` trait that abstracts network connections.
 pub mod connection;
 mod entity_state;
+pub mod food_data;
 /// Game mode specific logic for player interactions.
 pub mod game_mode;
 mod game_profile;
@@ -26,6 +27,7 @@ mod teleport_state;
 pub use abilities::Abilities;
 use chat_state::ChatState;
 use entity_state::EntityState;
+use food_data::{FoodData, FoodTickResult};
 use health_sync::HealthSyncState;
 pub use message_validator::LastSeenMessagesValidator;
 use movement_state::MovementState;
@@ -49,11 +51,12 @@ use std::{
 use steel_protocol::packet_traits::{ClientPacket, EncodedPacket};
 use steel_protocol::packets::game::CSystemChatMessage;
 use steel_protocol::packets::game::{
-    AnimateAction, CAddEntity, CAnimate, CDamageEvent, CEntityEvent, CEntityPositionSync,
+    AnimateAction, AttributeModifierData, AttributeModifierOperation, AttributeSnapshot,
+    CAddEntity, CAnimate, CChangeDifficulty, CDamageEvent, CEntityEvent, CEntityPositionSync,
     CHurtAnimation, COpenSignEditor, CPlayerCombatKill, CPlayerPosition, CRemoveEntities, CRespawn,
-    CSetEntityData, CSetHealth, CSetHeldSlot, CSetTime, ClientCommandAction, PlayerAction,
-    SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SSetCarriedItem,
-    SUseItem, SUseItemOn,
+    CSetEntityData, CSetHealth, CSetHeldSlot, CSetTime, CUpdateAttributes, ClientCommandAction,
+    PlayerAction, PlayerCommandAction, SAcceptTeleportation, SPickItemFromBlock, SPlayerAbilities,
+    SPlayerAction, SPlayerCommand, SSetCarriedItem, SUseItem, SUseItemOn,
 };
 use steel_protocol::utils::ConnectionProtocol;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
@@ -64,14 +67,15 @@ use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_entities;
 use steel_registry::vanilla_entity_data::PlayerEntityData;
 use steel_registry::vanilla_game_rules::{
-    ADVANCE_TIME, ELYTRA_MOVEMENT_CHECK, IMMEDIATE_RESPAWN, KEEP_INVENTORY, PLAYER_MOVEMENT_CHECK,
-    SHOW_DEATH_MESSAGES,
+    ADVANCE_TIME, ELYTRA_MOVEMENT_CHECK, IMMEDIATE_RESPAWN, KEEP_INVENTORY,
+    NATURAL_HEALTH_REGENERATION, PLAYER_MOVEMENT_CHECK, SHOW_DEATH_MESSAGES,
 };
 use steel_registry::{REGISTRY, vanilla_chat_types};
 use steel_utils::entity_events::EntityStatus;
 
+use steel_utils::Identifier;
 use steel_utils::locks::SyncMutex;
-use steel_utils::types::GameType;
+use steel_utils::types::{Difficulty, GameType};
 use text_components::resolving::TextResolutor;
 use text_components::translation::TranslatedMessage;
 use text_components::{Modifier, TextComponent};
@@ -116,6 +120,34 @@ use steel_utils::types::InteractionHand;
 use steel_utils::{ChunkPos, math::Vector3, translations};
 
 use crate::entity::LivingEntity;
+
+// Vanilla shared flags byte bit indices (Entity.java DATA_SHARED_FLAGS_ID, index 0).
+// Each constant is the bit INDEX; use `1 << FLAG_*` to get the mask.
+// Some flags are not yet used but are defined here for completeness and future phases.
+#[allow(dead_code)]
+const FLAG_ONFIRE: u8 = 0;
+const FLAG_SHIFT_KEY_DOWN: u8 = 1;
+const FLAG_SPRINTING: u8 = 3;
+#[allow(dead_code)]
+const FLAG_SWIMMING: u8 = 4;
+#[allow(dead_code)]
+const FLAG_INVISIBLE: u8 = 5;
+#[allow(dead_code)]
+const FLAG_GLOWING: u8 = 6;
+const FLAG_FALL_FLYING: u8 = 7;
+
+// Vanilla sprint speed modifier constants (LivingEntity.java).
+// Identifier: `minecraft:sprinting`
+// Operation: ADD_MULTIPLIED_TOTAL (result *= 1 + amount)
+// Amount: 0.3 (i.e., +30% speed while sprinting)
+const SPRINT_SPEED_MODIFIER_AMOUNT: f64 = 0.3;
+
+/// Vanilla base movement speed for players (from entities.json `movement_speed` attribute).
+const BASE_MOVEMENT_SPEED: f64 = 0.10000000149011612;
+
+/// Vanilla attribute registry ID for `minecraft:movement_speed` (from attributes.json).
+const ATTRIBUTE_MOVEMENT_SPEED_ID: i32 = 22;
+
 use crate::inventory::{
     MenuInstance, MenuProvider,
     container::Container,
@@ -277,6 +309,9 @@ pub struct Player {
     /// Vanilla: `LivingEntity` (L230-232) + `Entity.invulnerableTime` (L256).
     living_base: SyncMutex<LivingEntityBase>,
 
+    /// Player food/hunger state (food level, saturation, exhaustion).
+    food_data: SyncMutex<FoodData>,
+
     /// Delta-tracking state for `CSetHealth` deduplication.
     health_sync: SyncMutex<HealthSyncState>,
 
@@ -338,6 +373,7 @@ impl Player {
             abilities: SyncMutex::new(Abilities::default()),
             block_breaking: SyncMutex::new(BlockBreakingManager::new()),
             living_base: SyncMutex::new(LivingEntityBase::new()),
+            food_data: SyncMutex::new(FoodData::new()),
             health_sync: SyncMutex::new(HealthSyncState::new()),
             removed: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
@@ -437,23 +473,33 @@ impl Player {
             self.check_below_world();
 
             // TODO: Implement remaining player ticking logic here
-            // - Handling food/health regeneration
             // - Managing game mode specific logic
             // - Updating advancements
             // - Handling falling
+            // - Vanilla Player.aiStep() calls self.setSpeed(getAttributeValue(MOVEMENT_SPEED))
+            //   every tick to refresh speed from the attribute system. Add when attribute
+            //   system is implemented.
+
+            self.tick_regeneration();
         }
 
         // --- Post-tick (always runs, vanilla does not gate these behind isAlive) ---
         self.broadcast_inventory_changes();
         self.update_pose();
+        // Pack boolean states into the shared flags byte so other clients
+        // can render sprint/sneak/elytra animations correctly.
+        self.update_shared_flags();
         self.sync_entity_data();
 
         // Only send CSetHealth when a value actually changed, matching vanilla's
         // `lastSentHealth` / `lastSentFood` / `lastFoodSaturationZero` pattern.
         {
             let health = *self.entity_data.lock().health.get();
-            let food: i32 = 20; // TODO: use actual food level once hunger is implemented
-            let saturation: f32 = 5.0; // TODO: use actual saturation once hunger is implemented
+            let (food, saturation) = {
+                let food_data = self.food_data.lock();
+                (food_data.food_level, food_data.saturation_level)
+            };
+
             let saturation_zero = saturation == 0.0;
 
             let mut sync = self.health_sync.lock();
@@ -493,6 +539,54 @@ impl Player {
                 .broadcast_to_all(CRemoveEntities::single(self.id));
             self.set_removed(RemovalReason::Killed);
         }
+    }
+
+    /// Computes the vanilla shared flags byte from internal boolean states and
+    /// writes it into `entity_data.shared_flags`. The dirty-tracking in
+    /// [`SyncedValue`] ensures that a `SetEntityData` packet is only sent when
+    /// the value actually changes.
+    ///
+    /// Vanilla bit layout (Entity.java `DATA_SHARED_FLAGS_ID`, index 0):
+    /// - Bit 0: on fire
+    /// - Bit 1: shift key down (sneaking)
+    /// - Bit 3: sprinting
+    /// - Bit 4: swimming
+    /// - Bit 5: invisible
+    /// - Bit 6: glowing
+    /// - Bit 7: fall flying (elytra)
+    fn update_shared_flags(&self) {
+        let mut flags: u8 = 0;
+
+        // TODO: on_fire — set bit when fire/lava system is implemented
+        // if self.is_on_fire() { flags |= 1 << FLAG_ONFIRE; }
+
+        let state = self.entity_state.lock();
+
+        if state.crouching {
+            flags |= 1 << FLAG_SHIFT_KEY_DOWN;
+        }
+
+        if state.sprinting {
+            flags |= 1 << FLAG_SPRINTING;
+        }
+
+        // TODO: swimming — set bit when swimming system is implemented
+        // if self.is_swimming() { flags |= 1 << FLAG_SWIMMING; }
+
+        // TODO: invisible — set bit when potion/spectator invisibility is implemented
+        // if self.is_invisible() { flags |= 1 << FLAG_INVISIBLE; }
+
+        // TODO: glowing — set bit when glowing effect is implemented
+        // if self.is_glowing() { flags |= 1 << FLAG_GLOWING; }
+
+        if state.fall_flying {
+            flags |= 1 << FLAG_FALL_FLYING;
+        }
+
+        drop(state);
+
+        // Cast to i8 for the network Byte serializer (same bit pattern).
+        self.entity_data.lock().shared_flags.set(flags as i8);
     }
 
     /// Syncs dirty entity data to nearby players.
@@ -975,8 +1069,23 @@ impl Player {
                 // Jump detection (vanilla: jumpFromGround)
                 let moved_upwards = validation.move_delta.y > 0.0;
                 if was_on_ground && !packet.on_ground && moved_upwards {
-                    // Player jumped - could trigger jump-related mechanics here
-                    // For now, this is a placeholder for future jump handling
+                    // Jump exhaustion
+                    if self.is_sprinting() {
+                        self.cause_food_exhaustion(food_data::EXHAUSTION_SPRINT_JUMP);
+                    } else {
+                        self.cause_food_exhaustion(food_data::EXHAUSTION_JUMP);
+                    }
+                }
+
+                // Sprint exhaustion per meter moved
+                if self.is_sprinting() {
+                    let dx = packet.position.x - start_pos.x;
+                    let dz = packet.position.z - start_pos.z;
+                    let horizontal_dist_sq = dx * dx + dz * dz;
+                    if horizontal_dist_sq > 0.0 {
+                        let distance = horizontal_dist_sq.sqrt() as f32;
+                        self.cause_food_exhaustion(distance * food_data::EXHAUSTION_SPRINT);
+                    }
                 }
             }
         }
@@ -1305,6 +1414,93 @@ impl Player {
     pub fn send_abilities(&self) {
         let packet = self.abilities.lock().to_packet();
         self.send_packet(packet);
+    }
+
+    /// Sends the current world difficulty to the client.
+    pub fn send_difficulty(&self) {
+        let difficulty = self.world.get_difficulty();
+        let locked = self.world.is_difficulty_locked();
+        self.send_packet(CChangeDifficulty { difficulty, locked });
+    }
+
+    /// Handles a client request to change the world difficulty.
+    pub fn handle_change_difficulty(&self, difficulty: Difficulty) {
+        if self.world.is_difficulty_locked() {
+            log::debug!(
+                "Player {} tried to change difficulty but it is locked",
+                self.gameprofile.name
+            );
+            self.send_difficulty();
+            return;
+        }
+
+        // TODO: check player permission level (vanilla requires op level 2)
+
+        self.world.set_difficulty(difficulty);
+
+        // Broadcast the new difficulty to all players in this world
+        let locked = self.world.is_difficulty_locked();
+        let packet = CChangeDifficulty { difficulty, locked };
+        self.world.broadcast_to_all(packet);
+    }
+
+    /// Ticks food/hunger regeneration and starvation.
+    ///
+    /// Vanilla: `ServerPlayer.tickRegeneration()` which calls `FoodData.tick(this)`.
+    /// In Peaceful, also heals 1 HP every 20 ticks and refills food by 1 every 10 ticks.
+    fn tick_regeneration(&self) {
+        let difficulty = self.world.get_difficulty();
+        let natural_regen =
+            self.world.get_game_rule(NATURAL_HEALTH_REGENERATION) == GameRuleValue::Bool(true);
+        let tick = self.tick_count.load(Ordering::Relaxed);
+
+        if difficulty == Difficulty::Peaceful && natural_regen {
+            if self.is_hurt() && tick % 20 == 0 {
+                self.heal(1.0);
+            }
+
+            if tick % 10 == 0 {
+                let mut food = self.food_data.lock();
+                if food.needs_food() {
+                    food.food_level += 1;
+                }
+            }
+        }
+
+        let current_health = self.get_health();
+        let max_health = self.get_max_health();
+
+        let result = {
+            let mut food = self.food_data.lock();
+            food.tick(difficulty, natural_regen, current_health, max_health)
+        };
+
+        match result {
+            FoodTickResult::Heal { amount, exhaustion } => {
+                self.heal(amount);
+                self.food_data.lock().add_exhaustion(exhaustion);
+            }
+            FoodTickResult::Starve => {
+                self.hurt(
+                    &DamageSource::environment(vanilla_damage_types::STARVE),
+                    1.0,
+                );
+            }
+            FoodTickResult::None => {}
+        }
+    }
+
+    /// Adds food exhaustion, gated by invulnerability.
+    pub fn cause_food_exhaustion(&self, amount: f32) {
+        if !self.abilities.lock().invulnerable {
+            self.food_data.lock().add_exhaustion(amount);
+        }
+    }
+
+    /// Returns `true` if the player is alive but below max health.
+    pub fn is_hurt(&self) -> bool {
+        let health = self.get_health();
+        health > 0.0 && health < self.get_max_health()
     }
 
     /// If the player's health is at or below zero (e.g. they disconnected while dead),
@@ -1821,8 +2017,125 @@ impl Player {
 
     /// Handles a player input packet (movement keys, sneaking, sprinting).
     pub fn handle_player_input(&self, packet: SPlayerInput) {
+        // Vanilla stores the input unconditionally before the guard check.
+        // SteelMC doesn't have setLastClientInput yet, so we skip that.
+
+        if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
         self.entity_state.lock().crouching = packet.shift();
         // Note: sprinting is handled via SPlayerCommand packet
+        // Immediately update shared flags so the dirty bit is set for the
+        // next sync_entity_data() call in tick().
+        self.update_shared_flags();
+    }
+
+    /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
+    // this is just temporary there because the logic is not yet implemented complete for the other branches
+    #[allow(clippy::match_same_arms)]
+    pub fn handle_player_command(&self, packet: SPlayerCommand) {
+        if !self.client_loaded.load(Ordering::Relaxed) {
+            return;
+        }
+
+        // TODO: Vanilla calls this.player.resetLastActionTime() here which sets
+        // noActionTime = 0, preventing idle-kick. Add when idle-kick system is implemented.
+
+        match packet.action {
+            PlayerCommandAction::StartSprinting => {
+                self.set_sprinting(true);
+            }
+            PlayerCommandAction::StopSprinting => {
+                self.set_sprinting(false);
+            }
+            PlayerCommandAction::StartFallFlying => {
+                // TODO: Validate elytra — needs canGlide() checks:
+                //   - not already fall flying
+                //   - not on ground, not in water, not a passenger
+                //   - no Levitation effect
+                //   - at least one equipped item has GLIDER component in correct slot
+                //     and won't break on next damage
+                //   - not in creative flight
+                // If validation fails, call stop_fall_flying() (toggle shared flag 7)
+                // Also needs tick-based updateFallFlying():
+                //   - re-validate canGlide() every tick
+                //   - damage a random glider item every 20 ticks
+                //   - emit ELYTRA_GLIDE game event every 10 ticks
+                // Blocked on: equipment checks working end-to-end, potion effects,
+                //             fluid detection, passenger/vehicle system
+                self.entity_state.lock().fall_flying = true;
+            }
+            PlayerCommandAction::LeaveBed => {
+                let mut state = self.entity_state.lock();
+                if state.sleeping {
+                    state.sleeping = false;
+                    // TODO: Full bed wake-up logic:
+                    //   - set bed block OCCUPIED property to false
+                    //   - compute stand-up position via BedBlock::findStandUpPosition
+                    //   - teleport player + set rotation toward bed
+                    //   - set pose to Standing, clear sleeping pos entity data
+                    //   - update server sleeping player list (for sleep-skip)
+                    //   - set sleepCounter = 100
+                    //   - set awaiting_position_from_client
+                    // Blocked on: bed block properties, sleeping pos entity data
+                }
+            }
+            PlayerCommandAction::StartRidingJump => {
+                // TODO: horse jump — check getControlledVehicle() is PlayerRideableJumping,
+                //       validate canJump() && data > 0, call handleStartJump(data)
+                // Blocked on: vehicle/entity system
+            }
+            PlayerCommandAction::StopRidingJump => {
+                // TODO: stop horse jump — call handleStopJump() on controlled vehicle
+                // Blocked on: vehicle/entity system
+            }
+            PlayerCommandAction::OpenVehicleInventory => {
+                // TODO: open vehicle inventory — check getVehicle() is HasCustomInventoryScreen
+                // Blocked on: vehicle/entity system
+            }
+        }
+
+        // Update shared flags immediately after any state change so the
+        // dirty bit is set for the next sync_entity_data() call.
+        self.update_shared_flags();
+    }
+
+    /// Applies or removes the sprint speed modifier and broadcasts the attribute
+    /// change to nearby players via `CUpdateAttributes`.
+    ///
+    /// Matches vanilla `LivingEntity.setSprinting()` which adds/removes the
+    /// `SPEED_MODIFIER_SPRINTING` attribute modifier (+30% `ADD_MULTIPLIED_TOTAL`).
+    fn apply_sprint_speed_modifier(&self, sprinting: bool) {
+        // Compute effective speed server-side.
+        // Vanilla: base * (1 + modifier_sum) for ADD_MULTIPLIED_TOTAL
+        let effective_speed = if sprinting {
+            BASE_MOVEMENT_SPEED * (1.0 + SPRINT_SPEED_MODIFIER_AMOUNT)
+        } else {
+            BASE_MOVEMENT_SPEED
+        };
+        self.speed.store(effective_speed as f32);
+
+        // Build the attribute snapshot with or without the sprint modifier.
+        let modifiers = if sprinting {
+            vec![AttributeModifierData {
+                id: Identifier::vanilla_static("sprinting"),
+                amount: SPRINT_SPEED_MODIFIER_AMOUNT,
+                operation: AttributeModifierOperation::AddMultipliedTotal,
+            }]
+        } else {
+            Vec::new()
+        };
+
+        let snapshot = AttributeSnapshot {
+            attribute_id: ATTRIBUTE_MOVEMENT_SPEED_ID,
+            base_value: BASE_MOVEMENT_SPEED,
+            modifiers,
+        };
+
+        let packet = CUpdateAttributes::new(self.id, vec![snapshot]);
+        let chunk_pos = *self.last_chunk_pos.lock();
+        self.world.broadcast_to_nearby(chunk_pos, packet, None);
     }
 
     /// Handles the use of an item on a block.
@@ -2420,9 +2733,23 @@ impl Player {
         }
 
         // TODO: gamerule damage-type checks (drowningDamage, fallDamage, etc.)
-        // TODO: difficulty scaling (Peaceful/Easy/Hard)
+
+        // Difficulty scaling
+        let mut amount = amount;
         if source.scales_with_difficulty() {
-            // needs todo
+            let difficulty = self.world.get_difficulty();
+            match difficulty {
+                Difficulty::Peaceful => {
+                    amount = 0.0;
+                }
+                Difficulty::Easy => {
+                    amount = (amount / 2.0 + 1.0).min(amount);
+                }
+                Difficulty::Hard => {
+                    amount = amount * 3.0 / 2.0;
+                }
+                Difficulty::Normal => {}
+            }
         }
 
         if amount <= 0.0 {
@@ -2486,16 +2813,17 @@ impl Player {
     }
 
     /// Applies damage after reductions.
-    /// Vanilla: `LivingEntity.actuallyHurt()`
-    /// TODO: armor, enchantment, absorption, food exhaustion
-    fn actually_hurt(&self, _source: &DamageSource, amount: f32) {
+    /// TODO: armor, enchantment, absorption
+    fn actually_hurt(&self, source: &DamageSource, amount: f32) {
         // TODO: apply armor/enchant/absorption reductions here (vanilla: getDamageAfterArmorAbsorb, getDamageAfterMagicAbsorb)
         // TODO: absorption amount handling
-        // TODO: food exhaustion (source.getFoodExhaustion())
         // TODO: combat tracker (getCombatTracker().recordDamage)
         if amount <= 0.0 {
             return;
         }
+
+        // Food exhaustion from taking damage
+        self.cause_food_exhaustion(source.damage_type.exhaustion);
 
         let mut entity_data = self.entity_data.lock();
         let new_health = (*entity_data.health.get() - amount).max(0.0);
@@ -2631,6 +2959,9 @@ impl Player {
             entity_data.pose.set(EntityPose::Standing);
         }
 
+        // Reset food data to defaults
+        *self.food_data.lock() = FoodData::new();
+
         self.health_sync.lock().reset_for_respawn();
 
         let dimension_key = world.dimension.key.clone();
@@ -2678,7 +3009,7 @@ impl Player {
 
         // TODO: send CSetDefaultSpawnPosition (dimension, pos, yaw, pitch)
 
-        // TODO: send CChangeDifficulty (difficulty, locked)
+        self.send_difficulty();
 
         // TODO: send CSetExperience (progress, level, total)
 
@@ -2920,7 +3251,7 @@ impl LivingEntity for Player {
 
     fn set_sprinting(&self, sprinting: bool) {
         self.entity_state.lock().sprinting = sprinting;
-        // TODO: Apply speed modifiers when attribute system is implemented
+        self.apply_sprint_speed_modifier(sprinting);
     }
 
     fn get_speed(&self) -> f32 {

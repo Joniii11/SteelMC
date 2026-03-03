@@ -10,6 +10,7 @@ use steel_utils::{
     types::{GameType, InteractionHand, UpdateFlags},
 };
 
+use super::food_data;
 use crate::player::Player;
 use crate::world::World;
 
@@ -318,6 +319,9 @@ impl BlockBreakingManager {
                     }
                 }
             }
+
+            // Food exhaustion from mining
+            player.cause_food_exhaustion(food_data::EXHAUSTION_MINE);
 
             // Handle drops (skip for creative/spectator)
             let game_mode = player.game_mode.load();
