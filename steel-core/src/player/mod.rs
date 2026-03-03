@@ -1014,7 +1014,16 @@ impl Player {
                     }
                 }
 
-                if self.is_sprinting() {
+                // Vanilla: ServerPlayer.checkMovementStatistics() only applies
+                // sprint exhaustion inside the `else if (this.onGround())` branch.
+                // During sprint-jumping the player is airborne ~10 out of every
+                // ~12 ticks, so gating on on_ground dramatically reduces
+                // exhaustion rate — matching vanilla behaviour.
+                //
+                // Note: vanilla calls setOnGroundWithMovement(packet.isOnGround())
+                // BEFORE checkMovementStatistics, so we use `packet.on_ground`
+                // here (entity_state.on_ground is only updated after this block).
+                if packet.on_ground && self.is_sprinting() {
                     let dx = validation.move_delta.x;
                     let dz = validation.move_delta.z;
                     let horizontal_dist_sq = dx * dx + dz * dz;
@@ -1376,10 +1385,12 @@ impl Player {
                     self.heal(1.0);
                 }
 
+                // Vanilla: `if (saturation < 20.0F) setSaturation(saturation + 1.0F)`
+                // Note: vanilla does NOT clamp to food_level here — Peaceful
+                // mode can push saturation above the current food level.
                 let mut food = self.food_data.lock();
-                let cap = food.food_level as f32;
-                if food.saturation_level < cap {
-                    food.saturation_level = (food.saturation_level + 1.0).min(cap);
+                if food.saturation_level < food_data::MAX_SATURATION {
+                    food.saturation_level += 1.0;
                 }
             }
 
@@ -1419,6 +1430,8 @@ impl Player {
     }
 
     /// Adds food exhaustion, gated by invulnerability.
+    ///
+    /// Vanilla: `Player.causeFoodExhaustion()` — skips when `abilities.invulnerable`.
     pub fn cause_food_exhaustion(&self, amount: f32) {
         if !self.abilities.lock().invulnerable {
             self.food_data.lock().add_exhaustion(amount);
