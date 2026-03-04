@@ -2681,6 +2681,7 @@ impl Player {
         // For players it's not critical, but add for completeness when mob AI is implemented.
 
         // Difficulty scaling
+        // TODO: well so basically this isn't done in hurt but rather on the ATTACKER side (so Mob.doHurtTarget)
         let mut amount = amount;
         if source.scales_with_difficulty() {
             let difficulty = self.world.get_difficulty();
