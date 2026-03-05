@@ -1390,7 +1390,7 @@ impl Player {
                 food.add_exhaustion(exhaustion);
 
                 drop(food);
-                self.heal(amount)
+                self.heal(amount);
             }
             FoodTickResult::Starve => {
                 drop(food);
@@ -1400,7 +1400,7 @@ impl Player {
                     1.0,
                 );
             }
-            _ => {}
+            FoodTickResult::None => {}
         }
     }
 
