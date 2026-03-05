@@ -30,10 +30,10 @@ pub struct LevelData {
     pub spawn: SpawnPoint,
     /// Weather state.
     pub weather: WeatherState,
-    /// World difficulty (0 = Peaceful, 1 = Easy, 2 = Normal, 3 = Hard).
+    /// World difficulty.
     #[serde(default)]
     pub difficulty: Difficulty,
-    /// Whether the difficulty is locked (prevents players from changing it).
+    /// Whether the difficulty is locked.
     #[serde(default)]
     pub difficulty_locked: bool,
     /// Game rules (stored as name -> value pairs for serialization).

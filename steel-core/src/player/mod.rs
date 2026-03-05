@@ -121,8 +121,7 @@ use steel_utils::{ChunkPos, math::Vector3, translations};
 
 use crate::entity::LivingEntity;
 
-// Vanilla shared flags byte bit indices (Entity.java `DATA_SHARED_FLAGS_ID`, index 0).
-// Use `1 << FLAG_*` to get the mask.
+// Vanilla shared flags byte bit indices
 #[allow(dead_code)]
 const FLAG_ONFIRE: u8 = 0;
 const FLAG_SHIFT_KEY_DOWN: u8 = 1;
@@ -135,13 +134,13 @@ const FLAG_INVISIBLE: u8 = 5;
 const FLAG_GLOWING: u8 = 6;
 const FLAG_FALL_FLYING: u8 = 7;
 
-/// Vanilla sprint speed modifier: `+30%` via `ADD_MULTIPLIED_TOTAL`.
+/// Vanilla sprint speed modifier.
 const SPRINT_SPEED_MODIFIER_AMOUNT: f64 = 0.3;
 
-/// Vanilla base movement speed (`Player.createAttributes()`).
+/// Vanilla base movement speed
 const BASE_MOVEMENT_SPEED: f64 = 0.100_000_001_490_116_12;
 
-/// Vanilla attribute registry ID for `minecraft:movement_speed`.
+/// Vanilla attribute registry ID
 const ATTRIBUTE_MOVEMENT_SPEED_ID: i32 = 22;
 
 use crate::inventory::{
@@ -241,7 +240,7 @@ pub struct Player {
     pub position: SyncMutex<Vector3<f64>>,
     /// The player's rotation (yaw, pitch).
     pub rotation: AtomicCell<(f32, f32)>,
-    /// Movement tracking state (prev position/rotation, velocity, validation, broadcast sync).
+    /// Movement tracking state
     pub(crate) movement: SyncMutex<MovementState>,
 
     /// Synchronized entity data (health, pose, flags, etc.) for network sync.
@@ -428,7 +427,6 @@ impl Player {
             mv.known_move_packet_count = mv.received_move_packet_count;
         }
 
-        // Must happen after resetPosition so the speed check has the correct expected velocity
         self.apply_gravity();
         self.tick_ack_block_changes();
 
@@ -473,7 +471,6 @@ impl Player {
             self.tick_regeneration();
         }
 
-        // Post-tick (always runs, not gated behind isAlive)
         self.broadcast_inventory_changes();
         self.update_pose();
         self.update_shared_flags();
@@ -534,22 +531,13 @@ impl Player {
         let state = self.entity_state.lock();
         let mut flags: u8 = 0;
 
-        // TODO: on_fire, swimming, invisible, glowing — set bits when those systems exist
+        // TODO: on_fire, swimming, invisible, glowing
         if state.crouching {
             flags |= 1 << FLAG_SHIFT_KEY_DOWN;
         }
         if state.sprinting {
             flags |= 1 << FLAG_SPRINTING;
         }
-
-        // TODO: swimming — set bit when swimming system is implemented
-        // if self.is_swimming() { flags |= 1 << FLAG_SWIMMING; }
-
-        // TODO: invisible — set bit when potion/spectator invisibility is implemented
-        // if self.is_invisible() { flags |= 1 << FLAG_INVISIBLE; }
-
-        // TODO: glowing — set bit when glowing effect is implemented
-        // if self.is_glowing() { flags |= 1 << FLAG_GLOWING; }
 
         if state.fall_flying {
             flags |= 1 << FLAG_FALL_FLYING;
@@ -568,7 +556,11 @@ impl Player {
         }
     }
 
-    /// Picks up nearby item entities (vanilla `Player.aiStep()` item pickup).
+    /// Attempts to pick up nearby item entities.
+    ///
+    /// Mirrors vanilla's `Player.aiStep()` item pickup logic:
+    /// - Calculates pickup area as bounding box inflated by (1.0, 0.5, 1.0)
+    /// - Calls `playerTouch()` on each entity in range
     fn touch_nearby_items(&self) {
         if self.game_mode.load() == GameType::Spectator {
             return;
@@ -596,7 +588,7 @@ impl Player {
 
     /// Handles a custom payload packet.
     pub fn handle_custom_payload(&self, packet: SCustomPayload) {
-        log::debug!("Custom payload: {packet:?}");
+        log::info!("Hello from the other side! {packet:?}");
     }
 
     /// Handles the end of a client tick.
