@@ -1,13 +1,11 @@
 //! Clientbound update attributes packet - sent to sync entity attributes with modifiers.
 
-use std::io::{Result, Write};
-
-use steel_macros::ClientPacket;
+use steel_macros::{ClientPacket, WriteTo};
 use steel_registry::packets::play::C_UPDATE_ATTRIBUTES;
-use steel_utils::{Identifier, codec::VarInt, serial::WriteTo};
+use steel_utils::Identifier;
 
 /// Represents a single attribute modifier within an attribute snapshot.
-#[derive(Clone, Debug)]
+#[derive(WriteTo, Clone, Debug)]
 pub struct AttributeModifierData {
     /// The resource location identifier for this modifier (e.g. `minecraft:sprinting`).
     pub id: Identifier,
@@ -23,8 +21,9 @@ pub struct AttributeModifierData {
 /// - `AddValue` (0): `total += amount`
 /// - `AddMultipliedBase` (1): `total += base * amount`
 /// - `AddMultipliedTotal` (2): `total *= 1 + amount`
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(WriteTo, Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[write(as = VarInt)]
 pub enum AttributeModifierOperation {
     AddValue = 0,
     AddMultipliedBase = 1,
@@ -32,13 +31,15 @@ pub enum AttributeModifierOperation {
 }
 
 /// A snapshot of a single attribute's state, including its base value and active modifiers.
-#[derive(Clone, Debug)]
+#[derive(WriteTo, Clone, Debug)]
 pub struct AttributeSnapshot {
     /// The registry ID of the attribute (VarInt on the wire).
+    #[write(as = VarInt)]
     pub attribute_id: i32,
     /// The base value of the attribute.
     pub base_value: f64,
     /// Active modifiers on this attribute.
+    #[write(as = Prefixed(VarInt))]
     pub modifiers: Vec<AttributeModifierData>,
 }
 
@@ -46,12 +47,14 @@ pub struct AttributeSnapshot {
 ///
 /// Used for things like sprint speed modifiers, potion effects on speed/health, etc.
 /// Vanilla: `ClientboundUpdateAttributesPacket`
-#[derive(ClientPacket, Clone, Debug)]
+#[derive(ClientPacket, WriteTo, Clone, Debug)]
 #[packet_id(Play = C_UPDATE_ATTRIBUTES)]
 pub struct CUpdateAttributes {
     /// The entity ID whose attributes are being updated.
+    #[write(as = VarInt)]
     pub entity_id: i32,
     /// The attribute snapshots to sync.
+    #[write(as = Prefixed(VarInt))]
     pub attributes: Vec<AttributeSnapshot>,
 }
 
@@ -63,30 +66,5 @@ impl CUpdateAttributes {
             entity_id,
             attributes,
         }
-    }
-}
-
-impl WriteTo for CUpdateAttributes {
-    fn write(&self, writer: &mut impl Write) -> Result<()> {
-        VarInt(self.entity_id).write(writer)?;
-        // Number of attributes
-        VarInt(self.attributes.len() as i32).write(writer)?;
-        for attr in &self.attributes {
-            // Attribute registry ID
-            VarInt(attr.attribute_id).write(writer)?;
-            // Base value
-            attr.base_value.write(writer)?;
-            // Number of modifiers
-            VarInt(attr.modifiers.len() as i32).write(writer)?;
-            for modifier in &attr.modifiers {
-                // Modifier identifier
-                modifier.id.write(writer)?;
-                // Modifier amount
-                modifier.amount.write(writer)?;
-                // Modifier operation (VarInt enum)
-                VarInt(modifier.operation as i32).write(writer)?;
-            }
-        }
-        Ok(())
     }
 }
