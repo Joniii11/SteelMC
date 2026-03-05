@@ -1346,23 +1346,21 @@ impl Player {
 
     /// Handles a client request to change the world difficulty.
     pub fn handle_change_difficulty(&self, difficulty: Difficulty) {
-        // TODO: implement op-level permission check (vanilla requires op level 2).
-        //       Once permissions exist, replace this early-return with:
-        //         if !self.has_permission_level(2) { self.send_difficulty(); return; }
-        //       and re-enable the locked/broadcast logic below.
+        // TODO: implement op-level permission check
         if self.world.is_difficulty_locked() {
             self.send_difficulty();
             return;
         }
+
         self.world.set_difficulty(difficulty);
+
         let locked = self.world.is_difficulty_locked();
         let packet = CChangeDifficulty { difficulty, locked };
+
         self.world.broadcast_to_all(packet);
     }
 
     /// Ticks food/hunger regeneration and starvation.
-    ///
-    /// In Peaceful, also heals 1 HP every 20 ticks and refills food by 1 every 10 ticks.
     fn tick_regeneration(&self) {
         let difficulty = self.world.get_difficulty();
         let natural_regen =
@@ -1392,27 +1390,25 @@ impl Player {
         let current_health = self.get_health();
         let max_health = self.get_max_health();
 
-        let (heal_amount, starve) = {
-            let mut food = self.food_data.lock();
-            let result = food.tick(difficulty, natural_regen, current_health, max_health);
-            match result {
-                FoodTickResult::Heal { amount, exhaustion } => {
-                    food.add_exhaustion(exhaustion);
-                    (Some(amount), false)
-                }
-                FoodTickResult::Starve => (None, true),
-                FoodTickResult::None => (None, false),
-            }
-        };
+        let mut food = self.food_data.lock();
+        let result = food.tick(difficulty, natural_regen, current_health, max_health);
 
-        if let Some(amount) = heal_amount {
-            self.heal(amount);
-        }
-        if starve {
-            self.hurt(
-                &DamageSource::environment(vanilla_damage_types::STARVE),
-                1.0,
-            );
+        match result {
+            FoodTickResult::Heal { amount, exhaustion } => {
+                food.add_exhaustion(exhaustion);
+
+                drop(food);
+                self.heal(amount)
+            }
+            FoodTickResult::Starve => {
+                drop(food);
+
+                self.hurt(
+                    &DamageSource::environment(vanilla_damage_types::STARVE),
+                    1.0,
+                );
+            }
+            _ => {}
         }
     }
 
@@ -2780,19 +2776,13 @@ impl Player {
             return;
         }
 
-        // TODO: Once absorption is implemented, compute post-absorption damage
-        // (final_damage = amount - absorption) and only apply food exhaustion
-        // when final_damage > 0. Vanilla calls causeFoodExhaustion inside
-        // the `if (var8 != 0.0F)` block in Player.actuallyHurt, meaning hits
-        // fully absorbed by golden hearts do NOT drain hunger.
-        let final_damage = amount; // will become: (amount - absorption).max(0.0)
-
-        if final_damage > 0.0 {
+        // TODO: absorption handling
+        if amount > 0.0 {
             self.cause_food_exhaustion(source.damage_type.exhaustion);
         }
 
         let mut entity_data = self.entity_data.lock();
-        let new_health = (*entity_data.health.get() - final_damage).max(0.0);
+        let new_health = (*entity_data.health.get() - amount).max(0.0);
         entity_data.health.set(new_health);
     }
 

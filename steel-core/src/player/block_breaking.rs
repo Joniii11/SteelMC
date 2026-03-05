@@ -320,7 +320,6 @@ impl BlockBreakingManager {
                 }
             }
 
-            // Food exhaustion from mining
             player.cause_food_exhaustion(food_data::EXHAUSTION_MINE);
 
             // Handle drops (skip for creative/spectator)

@@ -13,7 +13,7 @@
 
 use steel_utils::types::Difficulty;
 
-/// Maximum food level a player can have
+/// Maximum food level of a player
 pub const MAX_FOOD_LEVEL: i32 = 20;
 
 /// Maximum saturation level
@@ -25,14 +25,13 @@ pub const DEFAULT_SATURATION: f32 = 5.0;
 /// Saturation floor used by some food items
 pub const SATURATION_FLOOR: f32 = 2.5;
 
-/// Exhaustion threshold — when exceeded, 4.0 is subtracted and one unit of
-/// saturation (or food) is consumed
+/// Exhaustion threshold
 pub const EXHAUSTION_DROP: f32 = 4.0;
 
-/// Interval (in ticks) between slow-regeneration heals and starvation ticks
+/// Slow regeneration interval ticks
 pub const HEALTH_TICK_COUNT: i32 = 80;
 
-/// Interval (in ticks) between fast-regeneration heals (saturation regen)
+/// Fast regeneration interval ticks
 pub const HEALTH_TICK_COUNT_SATURATED: i32 = 10;
 
 /// Minimum food level required for slow natural regeneration
@@ -40,9 +39,6 @@ pub const HEAL_LEVEL: i32 = 18;
 
 /// Food level at or above which the player can sprint
 pub const SPRINT_LEVEL: i32 = 6;
-
-/// Food level at which starvation begins
-pub const STARVE_LEVEL: i32 = 0;
 
 /// Poor saturation modifier
 pub const FOOD_SATURATION_POOR: f32 = 0.1;
@@ -89,14 +85,13 @@ pub const EXHAUSTION_SPRINT: f32 = 0.1;
 /// Exhaustion cost per meter swum
 pub const EXHAUSTION_SWIM: f32 = 0.01;
 
-/// Hard cap on accumulated exhaustion
-const MAX_EXHAUSTION: f32 = 40.0;
-
 /// Default food level for a freshly spawned player.
 pub const DEFAULT_FOOD_LEVEL: i32 = 20;
 
+/// Hard cap on accumulated exhaustion
+const MAX_EXHAUSTION: f32 = 40.0;
+
 /// Computes the absolute saturation value from a nutrition count and a
-/// saturation modifier, matching `FoodConstants.saturationByModifier`.
 #[must_use]
 pub fn saturation_by_modifier(nutrition: i32, modifier: f32) -> f32 {
     nutrition as f32 * modifier * 2.0
@@ -111,8 +106,6 @@ pub struct FoodData {
     /// Saturation buffer — consumed before the food level drops.
     pub saturation_level: f32,
     /// Accumulated exhaustion from actions (sprinting, jumping, damage, …).
-    /// When this exceeds [`EXHAUSTION_DROP`] (4.0), one point of
-    /// saturation or food is consumed.
     pub exhaustion_level: f32,
     /// Internal tick counter shared between regeneration and starvation logic.
     pub tick_timer: i32,
@@ -156,19 +149,14 @@ impl FoodData {
         self.exhaustion_level = (self.exhaustion_level + amount).min(MAX_EXHAUSTION);
     }
 
-    /// Internal `add` — applies nutrition and saturation with clamping.
-    fn add(&mut self, nutrition: i32, saturation: f32) {
-        self.food_level = (self.food_level + nutrition).clamp(0, MAX_FOOD_LEVEL);
+    /// Applies food and saturation
+    fn add(&mut self, food: i32, saturation: f32) {
+        self.food_level = (self.food_level + food).clamp(0, MAX_FOOD_LEVEL);
         self.saturation_level =
             (self.saturation_level + saturation).clamp(0.0, self.food_level as f32);
     }
 
     /// Applies the nutrition from eating food, given a **saturation modifier**.
-    ///
-    /// Internally computes the absolute saturation via
-    /// [`saturation_by_modifier`] and delegates to [`add`](Self::add).
-    ///
-    /// Matches vanilla `FoodData.eat(int, float)`.
     pub fn eat(&mut self, nutrition: i32, saturation_modifier: f32) {
         self.add(
             nutrition,
@@ -176,24 +164,9 @@ impl FoodData {
         );
     }
 
-    /// Applies nutrition and saturation from pre-computed absolute values.
-    ///
-    /// Matches vanilla `FoodData.eat(FoodProperties)` which passes
-    /// `nutrition()` and `saturation()` (already absolute) into `add`.
-    pub fn eat_absolute(&mut self, nutrition: i32, saturation: f32) {
-        self.add(nutrition, saturation);
-    }
-
     /// Runs one tick of the hunger system.
-    ///
     /// Returns a [`FoodTickResult`] describing what happened this tick so the
-    /// caller (`Player::tick`) can apply healing or starvation damage without
-    /// needing to pass the player into this struct.
-    ///
-    /// **Important for callers:** When the result is [`FoodTickResult::Heal`],
-    /// the caller **must** call `food_data.add_exhaustion(result.exhaustion)`
-    /// after applying the heal — vanilla does this internally, but our
-    /// decoupled architecture requires the caller to do it.
+    /// caller (`Player::tick`) can apply healing or starvation damage
     #[must_use]
     pub fn tick(
         &mut self,
@@ -215,22 +188,24 @@ impl FoodData {
         let food = self.food_level;
         let is_hurt = current_health > 0.0 && current_health < max_health;
 
-        // Fast regen: food >= 20 AND saturation > 0 AND hurt
+        // Fast regen
         if natural_regen && self.saturation_level > 0.0 && is_hurt && food >= MAX_FOOD_LEVEL {
             self.tick_timer += 1;
+
             if self.tick_timer >= HEALTH_TICK_COUNT_SATURATED {
-                let saturation_cost = self.saturation_level.min(EXHAUSTION_HEAL);
-                let heal_amount = saturation_cost / EXHAUSTION_HEAL;
+                let saturation_spent = self.saturation_level.min(EXHAUSTION_HEAL);
+                let heal_amount = saturation_spent / EXHAUSTION_HEAL;
                 self.tick_timer = 0;
                 return FoodTickResult::Heal {
                     amount: heal_amount,
-                    exhaustion: saturation_cost,
+                    exhaustion: saturation_spent,
                 };
             }
         }
-        // Slow regen: food >= 18 AND hurt
+        // Slow regen
         else if natural_regen && food >= HEAL_LEVEL && is_hurt {
             self.tick_timer += 1;
+
             if self.tick_timer >= HEALTH_TICK_COUNT {
                 self.tick_timer = 0;
                 return FoodTickResult::Heal {
@@ -239,17 +214,17 @@ impl FoodData {
                 };
             }
         }
-        // Starvation: food <= 0
-        else if food <= STARVE_LEVEL {
+        // Starving
+        else if food <= 0 {
             self.tick_timer += 1;
-            if self.tick_timer >= HEALTH_TICK_COUNT {
-                let should_starve = current_health > 10.0
-                    || difficulty == Difficulty::Hard
-                    || (current_health > 1.0 && difficulty == Difficulty::Normal);
 
+            if self.tick_timer >= HEALTH_TICK_COUNT {
                 self.tick_timer = 0;
 
-                if should_starve {
+                if current_health > 10.0
+                    || difficulty == Difficulty::Hard
+                    || (current_health > 1.0 && difficulty == Difficulty::Normal)
+                {
                     return FoodTickResult::Starve;
                 }
             }
@@ -261,25 +236,19 @@ impl FoodData {
     }
 }
 
-/// Describes what the hunger tick determined should happen this tick.
-///
-/// The `Player` is responsible for actually applying healing or damage so that
-/// `FoodData` stays decoupled from entity/world state.
+/// Describes what the hunger tick determined should happen this tick
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FoodTickResult {
-    /// Nothing happened this tick.
+    /// Nothing happened this tick
     None,
-    /// The player should be healed by `amount` HP and `exhaustion` should be
-    /// added back (the cost of regenerating).
-    ///
-    /// **Caller must also call `food_data.add_exhaustion(exhaustion)`.**
+    /// The player should be healed by `amount` HP and `exhaustion` should be added back
     Heal {
-        /// Health points to restore.
+        /// Health points to restore
         amount: f32,
-        /// Exhaustion to add as cost of this regeneration.
+        /// Exhaustion to add as cost of this regeneration
         exhaustion: f32,
     },
-    /// The player should take 1 point of starvation damage.
+    /// The player should take 1 point of starvation damage
     Starve,
 }
 
