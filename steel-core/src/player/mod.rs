@@ -25,9 +25,10 @@ mod signature_cache;
 mod teleport_state;
 
 pub use abilities::Abilities;
+use bitflags::bitflags;
 use chat_state::ChatState;
 use entity_state::EntityState;
-use food_data::{FoodData, FoodTickResult};
+use food_data::{FoodData, FoodTickResult, food_constants};
 use health_sync::HealthSyncState;
 pub use message_validator::LastSeenMessagesValidator;
 use movement_state::MovementState;
@@ -121,18 +122,18 @@ use steel_utils::{ChunkPos, math::Vector3, translations};
 
 use crate::entity::LivingEntity;
 
-// Vanilla shared flags byte bit indices
-#[allow(dead_code)]
-const FLAG_ONFIRE: u8 = 0;
-const FLAG_SHIFT_KEY_DOWN: u8 = 1;
-const FLAG_SPRINTING: u8 = 3;
-#[allow(dead_code)]
-const FLAG_SWIMMING: u8 = 4;
-#[allow(dead_code)]
-const FLAG_INVISIBLE: u8 = 5;
-#[allow(dead_code)]
-const FLAG_GLOWING: u8 = 6;
-const FLAG_FALL_FLYING: u8 = 7;
+bitflags! {
+    /// Vanilla shared‐flags byte sent in entity metadata.
+    struct SharedFlags: u8 {
+        const ON_FIRE       = 1 << 0;
+        const SHIFT_KEY_DOWN = 1 << 1;
+        const SPRINTING     = 1 << 3;
+        const SWIMMING      = 1 << 4;
+        const INVISIBLE     = 1 << 5;
+        const GLOWING       = 1 << 6;
+        const FALL_FLYING   = 1 << 7;
+    }
+}
 
 /// Vanilla sprint speed modifier.
 const SPRINT_SPEED_MODIFIER_AMOUNT: f64 = 0.3;
@@ -558,22 +559,15 @@ impl Player {
     /// ensures a `SetEntityData` packet is only sent when the value changes.
     fn update_shared_flags(&self) {
         let state = self.entity_state.lock();
-        let mut flags: u8 = 0;
+        let mut flags = SharedFlags::empty();
 
         // TODO: on_fire, swimming, invisible, glowing
-        if state.crouching {
-            flags |= 1 << FLAG_SHIFT_KEY_DOWN;
-        }
-        if state.sprinting {
-            flags |= 1 << FLAG_SPRINTING;
-        }
-
-        if state.fall_flying {
-            flags |= 1 << FLAG_FALL_FLYING;
-        }
+        flags.set(SharedFlags::SHIFT_KEY_DOWN, state.crouching);
+        flags.set(SharedFlags::SPRINTING, state.sprinting);
+        flags.set(SharedFlags::FALL_FLYING, state.fall_flying);
         drop(state);
 
-        self.entity_data.lock().shared_flags.set(flags as i8);
+        self.entity_data.lock().shared_flags.set(flags.bits() as i8);
     }
 
     /// Syncs dirty entity data to nearby players.
@@ -1029,9 +1023,9 @@ impl Player {
                 let moved_upwards = validation.move_delta.y > 0.0;
                 if was_on_ground && !packet.on_ground && moved_upwards {
                     if self.is_sprinting() {
-                        self.cause_food_exhaustion(food_data::EXHAUSTION_SPRINT_JUMP);
+                        self.cause_food_exhaustion(food_constants::EXHAUSTION_SPRINT_JUMP);
                     } else {
-                        self.cause_food_exhaustion(food_data::EXHAUSTION_JUMP);
+                        self.cause_food_exhaustion(food_constants::EXHAUSTION_JUMP);
                     }
                 }
 
@@ -1041,7 +1035,7 @@ impl Player {
                     let horizontal_dist_sq = dx * dx + dz * dz;
                     if horizontal_dist_sq > 0.0 {
                         let distance = horizontal_dist_sq.sqrt() as f32;
-                        self.cause_food_exhaustion(distance * food_data::EXHAUSTION_SPRINT);
+                        self.cause_food_exhaustion(distance * food_constants::EXHAUSTION_SPRINT);
                     }
                 }
             }
@@ -1395,7 +1389,7 @@ impl Player {
                 }
 
                 let mut food = self.food_data.lock();
-                if food.saturation_level < food_data::MAX_SATURATION {
+                if food.saturation_level < food_constants::MAX_SATURATION {
                     food.saturation_level += 1.0;
                 }
             }

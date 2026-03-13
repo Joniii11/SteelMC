@@ -2,96 +2,93 @@
 //!
 //! Manages food level, saturation, and exhaustion — the three values that
 //! control natural health regeneration and starvation damage.
-//!
-//! The tick logic mirrors vanilla `FoodData.tick()` exactly:
-//! 1. Exhaustion above 4.0 drains saturation first, then food level.
-//! 2. Natural regeneration (gated by the `naturalRegeneration` game rule):
-//!    - **Fast regen**: food = 20 AND saturation > 0 → heal every 10 ticks.
-//!    - **Slow regen**: food ≥ 18 → heal 1 HP every 80 ticks.
-//! 3. Starvation: food = 0 → 1 damage every 80 ticks (threshold depends on
-//!    difficulty).
 
 use steel_utils::types::Difficulty;
 
-/// Maximum food level of a player
-pub const MAX_FOOD_LEVEL: i32 = 20;
+/// All food-system constants bundled in one place.
+pub mod food_constants {
+    /// Maximum food level of a player
+    pub const MAX_FOOD_LEVEL: i32 = 20;
 
-/// Maximum saturation level
-pub const MAX_SATURATION: f32 = 20.0;
+    /// Maximum saturation level
+    pub const MAX_SATURATION: f32 = 20.0;
 
-/// Default saturation for a freshly spawned player
-pub const DEFAULT_SATURATION: f32 = 5.0;
+    /// Default saturation for a freshly spawned player
+    pub const DEFAULT_SATURATION: f32 = 5.0;
 
-/// Saturation floor used by some food items
-pub const SATURATION_FLOOR: f32 = 2.5;
+    /// Saturation floor used by some food items
+    pub const SATURATION_FLOOR: f32 = 2.5;
 
-/// Exhaustion threshold
-pub const EXHAUSTION_DROP: f32 = 4.0;
+    /// Exhaustion threshold
+    pub const EXHAUSTION_DROP: f32 = 4.0;
 
-/// Slow regeneration interval ticks
-pub const HEALTH_TICK_COUNT: i32 = 80;
+    /// Slow regeneration interval ticks
+    pub const HEALTH_TICK_COUNT: i32 = 80;
 
-/// Fast regeneration interval ticks
-pub const HEALTH_TICK_COUNT_SATURATED: i32 = 10;
+    /// Fast regeneration interval ticks
+    pub const HEALTH_TICK_COUNT_SATURATED: i32 = 10;
 
-/// Minimum food level required for slow natural regeneration
-pub const HEAL_LEVEL: i32 = 18;
+    /// Minimum food level required for slow natural regeneration
+    pub const HEAL_LEVEL: i32 = 18;
 
-/// Food level at or above which the player can sprint
-pub const SPRINT_LEVEL: i32 = 6;
+    /// Food level at or above which the player can sprint
+    pub const SPRINT_LEVEL: i32 = 6;
 
-/// Poor saturation modifier
-pub const FOOD_SATURATION_POOR: f32 = 0.1;
+    /// Poor saturation modifier
+    pub const FOOD_SATURATION_POOR: f32 = 0.1;
 
-/// Low saturation modifier
-pub const FOOD_SATURATION_LOW: f32 = 0.3;
+    /// Low saturation modifier
+    pub const FOOD_SATURATION_LOW: f32 = 0.3;
 
-/// Normal saturation modifier
-pub const FOOD_SATURATION_NORMAL: f32 = 0.6;
+    /// Normal saturation modifier
+    pub const FOOD_SATURATION_NORMAL: f32 = 0.6;
 
-/// Good saturation modifier
-pub const FOOD_SATURATION_GOOD: f32 = 0.8;
+    /// Good saturation modifier
+    pub const FOOD_SATURATION_GOOD: f32 = 0.8;
 
-/// Max saturation modifier
-pub const FOOD_SATURATION_MAX: f32 = 1.0;
+    /// Max saturation modifier
+    pub const FOOD_SATURATION_MAX: f32 = 1.0;
 
-/// Supernatural saturation modifier
-pub const FOOD_SATURATION_SUPERNATURAL: f32 = 1.2;
+    /// Supernatural saturation modifier
+    pub const FOOD_SATURATION_SUPERNATURAL: f32 = 1.2;
 
-/// Exhaustion cost of regenerating health
-pub const EXHAUSTION_HEAL: f32 = 6.0;
+    /// Exhaustion cost of regenerating health
+    pub const EXHAUSTION_HEAL: f32 = 6.0;
 
-/// Exhaustion cost per jump
-pub const EXHAUSTION_JUMP: f32 = 0.05;
+    /// Exhaustion cost per jump
+    pub const EXHAUSTION_JUMP: f32 = 0.05;
 
-/// Exhaustion cost per sprint-jump
-pub const EXHAUSTION_SPRINT_JUMP: f32 = 0.2;
+    /// Exhaustion cost per sprint-jump
+    pub const EXHAUSTION_SPRINT_JUMP: f32 = 0.2;
 
-/// Exhaustion cost per block mined
-pub const EXHAUSTION_MINE: f32 = 0.005;
+    /// Exhaustion cost per block mined
+    pub const EXHAUSTION_MINE: f32 = 0.005;
 
-/// Exhaustion cost per attack
-pub const EXHAUSTION_ATTACK: f32 = 0.1;
+    /// Exhaustion cost per attack
+    pub const EXHAUSTION_ATTACK: f32 = 0.1;
 
-/// Exhaustion cost per meter walked
-pub const EXHAUSTION_WALK: f32 = 0.0;
+    /// Exhaustion cost per meter walked
+    pub const EXHAUSTION_WALK: f32 = 0.0;
 
-/// Exhaustion cost per meter crouched
-pub const EXHAUSTION_CROUCH: f32 = 0.0;
+    /// Exhaustion cost per meter crouched
+    pub const EXHAUSTION_CROUCH: f32 = 0.0;
 
-/// Exhaustion cost per meter sprinted
-pub const EXHAUSTION_SPRINT: f32 = 0.1;
+    /// Exhaustion cost per meter sprinted
+    pub const EXHAUSTION_SPRINT: f32 = 0.1;
 
-/// Exhaustion cost per meter swum
-pub const EXHAUSTION_SWIM: f32 = 0.01;
+    /// Exhaustion cost per meter swum
+    pub const EXHAUSTION_SWIM: f32 = 0.01;
 
-/// Default food level for a freshly spawned player.
-pub const DEFAULT_FOOD_LEVEL: i32 = 20;
+    /// Default food level for a freshly spawned player.
+    pub const DEFAULT_FOOD_LEVEL: i32 = 20;
 
-/// Hard cap on accumulated exhaustion
-const MAX_EXHAUSTION: f32 = 40.0;
+    /// Hard cap on accumulated exhaustion
+    pub const MAX_EXHAUSTION: f32 = 40.0;
+}
 
-/// Computes the absolute saturation value from a nutrition count and a
+use food_constants::*;
+
+/// Computes the absolute saturation value from a nutrition count and a modifier.
 #[must_use]
 pub fn saturation_by_modifier(nutrition: i32, modifier: f32) -> f32 {
     nutrition as f32 * modifier * 2.0
@@ -331,15 +328,10 @@ mod tests {
             result
         };
 
-        // Hard at 1 HP → still starves
         assert_eq!(run(Difficulty::Hard, 1.0), FoodTickResult::Starve);
-        // Normal at 1 HP → stops (won't kill)
         assert_eq!(run(Difficulty::Normal, 1.0), FoodTickResult::None);
-        // Normal at 2 HP → still starves
         assert_eq!(run(Difficulty::Normal, 2.0), FoodTickResult::Starve);
-        // Easy at 10 HP → stops
         assert_eq!(run(Difficulty::Easy, 10.0), FoodTickResult::None);
-        // Easy at 11 HP → starves
         assert_eq!(run(Difficulty::Easy, 11.0), FoodTickResult::Starve);
     }
 

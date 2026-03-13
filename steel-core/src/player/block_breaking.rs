@@ -13,7 +13,7 @@ use steel_utils::{
     types::{GameType, InteractionHand, UpdateFlags},
 };
 
-use super::food_data;
+use super::food_data::food_constants;
 use crate::behavior::BlockStateBehaviorExt;
 use crate::fluid::fluid_state_to_block;
 use crate::player::Player;
@@ -326,7 +326,7 @@ impl BlockBreakingManager {
                 }
             }
 
-            player.cause_food_exhaustion(food_data::EXHAUSTION_MINE);
+            player.cause_food_exhaustion(food_constants::EXHAUSTION_MINE);
 
             // Handle drops (skip for creative/spectator)
             let game_mode = player.game_mode.load();
