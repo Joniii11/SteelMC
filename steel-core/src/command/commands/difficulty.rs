@@ -1,44 +1,32 @@
-//! Handler for the "difficulty" command.
+//! Handler for the "difficulty" command
+
 use crate::command::commands::{
-    CommandExecutor, CommandHandlerDyn, CommandParserLeafExecutor, DynCommandHandler, literal,
+    CommandExecutor, CommandHandlerBuilder, CommandHandlerDyn, literal,
 };
 use crate::command::context::CommandContext;
 use crate::command::error::CommandError;
-use std::marker::PhantomData;
 use steel_protocol::packets::game::CChangeDifficulty;
 use steel_utils::translations;
 use steel_utils::types::Difficulty;
 use text_components::TextComponent;
 use text_components::translation::Translation;
 
-/// Handler for the "difficulty" command.
+/// Handler for the "difficulty" command
 #[must_use]
 pub fn command_handler() -> impl CommandHandlerDyn {
-    let mut handler = DynCommandHandler::new(
+    CommandHandlerBuilder::new(
         &["difficulty"],
         "Gets or sets the world difficulty.",
         "minecraft:command.difficulty",
-    );
-
-    for difficulty in [
-        Difficulty::Peaceful,
-        Difficulty::Easy,
-        Difficulty::Normal,
-        Difficulty::Hard,
-    ] {
-        handler = handler
-            .then(literal(difficulty_key(difficulty)).executes(SetDifficultyExecutor(difficulty)));
-    }
-
-    handler = handler.then(CommandParserLeafExecutor {
-        executor: QueryDifficultyExecutor,
-        _source: PhantomData::<()>,
-    });
-
-    handler
+    )
+    .executes(QueryExecutor)
+    .then(literal("peaceful").executes(SetExecutor(Difficulty::Peaceful)))
+    .then(literal("easy").executes(SetExecutor(Difficulty::Easy)))
+    .then(literal("normal").executes(SetExecutor(Difficulty::Normal)))
+    .then(literal("hard").executes(SetExecutor(Difficulty::Hard)))
 }
 
-/// Returns the string value of a Difficulty
+/// Returns the string key for a [`Difficulty`] variant
 const fn difficulty_key(difficulty: Difficulty) -> &'static str {
     match difficulty {
         Difficulty::Peaceful => "peaceful",
@@ -48,7 +36,7 @@ const fn difficulty_key(difficulty: Difficulty) -> &'static str {
     }
 }
 
-/// Translation key helper fn
+/// Returns the translatable display name for a [`Difficulty`] variant
 fn difficulty_display_name(difficulty: Difficulty) -> &'static Translation<0> {
     match difficulty {
         Difficulty::Peaceful => &translations::OPTIONS_DIFFICULTY_PEACEFUL,
@@ -58,10 +46,10 @@ fn difficulty_display_name(difficulty: Difficulty) -> &'static Translation<0> {
     }
 }
 
-/// The query for the current difficulty
-struct QueryDifficultyExecutor;
+/// Queries the current world difficulty
+struct QueryExecutor;
 
-impl CommandExecutor<()> for QueryDifficultyExecutor {
+impl CommandExecutor<()> for QueryExecutor {
     fn execute(&self, _args: (), context: &mut CommandContext) -> Result<(), CommandError> {
         let difficulty = context.world.get_difficulty();
         let display_name = difficulty_display_name(difficulty);
@@ -77,9 +65,9 @@ impl CommandExecutor<()> for QueryDifficultyExecutor {
 }
 
 /// Sets the world difficulty to the specified value
-struct SetDifficultyExecutor(Difficulty);
+struct SetExecutor(Difficulty);
 
-impl CommandExecutor<()> for SetDifficultyExecutor {
+impl CommandExecutor<()> for SetExecutor {
     fn execute(&self, _args: (), context: &mut CommandContext) -> Result<(), CommandError> {
         let difficulty = self.0;
         let current = context.world.get_difficulty();
