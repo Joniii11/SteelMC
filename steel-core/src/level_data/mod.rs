@@ -6,6 +6,7 @@
 
 use std::{
     io,
+    ops::Deref,
     path::{Path, PathBuf},
 };
 
@@ -149,6 +150,14 @@ pub struct LevelDataManager {
     data: LevelData,
     /// Whether data has been modified since last save.
     dirty: bool,
+}
+
+impl Deref for LevelDataManager {
+    type Target = LevelData;
+
+    fn deref(&self) -> &LevelData {
+        &self.data
+    }
 }
 
 impl LevelDataManager {

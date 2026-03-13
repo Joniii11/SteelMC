@@ -1354,30 +1354,39 @@ impl Player {
 
     /// Sends the current world difficulty to the client.
     pub fn send_difficulty(&self) {
-        let difficulty = self.world.get_difficulty();
-        let locked = self.world.is_difficulty_locked();
+        let level_data = self.world.level_data.read();
+        let difficulty = level_data.difficulty;
+        let locked = level_data.difficulty_locked;
+        drop(level_data);
         self.send_packet(CChangeDifficulty { difficulty, locked });
     }
 
     /// Handles a client request to change the world difficulty.
     pub fn handle_change_difficulty(&self, difficulty: Difficulty) {
         // TODO: implement op-level permission check
-        if self.world.is_difficulty_locked() {
-            self.send_difficulty();
+        let mut level_data = self.world.level_data.write();
+        if level_data.difficulty_locked {
+            let locked = true;
+            let current = level_data.difficulty;
+            drop(level_data);
+            self.send_packet(CChangeDifficulty {
+                difficulty: current,
+                locked,
+            });
             return;
         }
 
-        self.world.set_difficulty(difficulty);
+        level_data.data_mut().difficulty = difficulty;
+        let locked = level_data.difficulty_locked;
+        drop(level_data);
 
-        let locked = self.world.is_difficulty_locked();
         let packet = CChangeDifficulty { difficulty, locked };
-
         self.world.broadcast_to_all(packet);
     }
 
     /// Ticks food/hunger regeneration and starvation.
     fn tick_regeneration(&self) {
-        let difficulty = self.world.get_difficulty();
+        let difficulty = self.world.level_data.read().difficulty;
         let natural_regen =
             self.world.get_game_rule(NATURAL_HEALTH_REGENERATION) == GameRuleValue::Bool(true);
         let tick = self.tick_count.load(Ordering::Relaxed);
@@ -2745,7 +2754,7 @@ impl Player {
         // TODO: well so basically this isn't done in hurt but rather on the ATTACKER side (so Mob.doHurtTarget)
         let mut amount = amount;
         if source.scales_with_difficulty() {
-            let difficulty = self.world.get_difficulty();
+            let difficulty = self.world.level_data.read().difficulty;
             match difficulty {
                 Difficulty::Peaceful => {
                     amount = 0.0;
@@ -3008,7 +3017,7 @@ impl Player {
             data_kept: 0,
         });
 
-        let spawn_pos = world.level_data.read().data().spawn_pos();
+        let spawn_pos = world.level_data.read().spawn_pos();
         let spawn = Vector3::new(
             f64::from(spawn_pos.x()) + 0.5,
             f64::from(spawn_pos.y()),

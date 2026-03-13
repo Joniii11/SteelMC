@@ -51,7 +51,7 @@ struct QueryExecutor;
 
 impl CommandExecutor<()> for QueryExecutor {
     fn execute(&self, _args: (), context: &mut CommandContext) -> Result<(), CommandError> {
-        let difficulty = context.world.get_difficulty();
+        let difficulty = context.world.level_data.read().difficulty;
         let display_name = difficulty_display_name(difficulty);
 
         context.sender.send_message(
@@ -70,7 +70,9 @@ struct SetExecutor(Difficulty);
 impl CommandExecutor<()> for SetExecutor {
     fn execute(&self, _args: (), context: &mut CommandContext) -> Result<(), CommandError> {
         let difficulty = self.0;
-        let current = context.world.get_difficulty();
+
+        let mut level_data = context.world.level_data.write();
+        let current = level_data.difficulty;
 
         if current == difficulty {
             return Err(CommandError::CommandFailed(Box::new(
@@ -80,9 +82,10 @@ impl CommandExecutor<()> for SetExecutor {
             )));
         }
 
-        context.world.set_difficulty(difficulty);
+        level_data.data_mut().difficulty = difficulty;
+        let locked = level_data.difficulty_locked;
+        drop(level_data);
 
-        let locked = context.world.is_difficulty_locked();
         context
             .world
             .broadcast_to_all(CChangeDifficulty { difficulty, locked });

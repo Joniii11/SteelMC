@@ -39,8 +39,6 @@ use steel_registry::{block_entity_type::BlockEntityTypeRef, vanilla_dimension_ty
 use steel_registry::{
     blocks::BlockRef, vanilla_game_rules::ADVANCE_TIME, vanilla_game_rules::ADVANCE_WEATHER,
 };
-use steel_utils::types::Difficulty;
-
 use steel_utils::locks::{SyncMutex, SyncRwLock};
 
 /// Controls how a block position is treated during a raytrace traversal.
@@ -365,10 +363,7 @@ impl World {
         rule: GameRuleRef,
         guard: &LevelDataManager,
     ) -> GameRuleValue {
-        guard
-            .data()
-            .game_rules_values
-            .get(rule, &REGISTRY.game_rules)
+        guard.game_rules_values.get(rule, &REGISTRY.game_rules)
     }
 
     /// Sets the value of a game rule.
@@ -392,42 +387,6 @@ impl World {
             .set(rule, value, &REGISTRY.game_rules)
     }
 
-    /// Gets the current world difficulty.
-    ///
-    /// WARNING: acquires a read lock on level data.
-    #[must_use]
-    pub fn get_difficulty(&self) -> Difficulty {
-        self.level_data.read().data().difficulty
-    }
-
-    /// Sets the world difficulty and marks level data as dirty.
-    ///
-    /// WARNING: acquires a write lock on level data.
-    pub fn set_difficulty(&self, difficulty: Difficulty) {
-        self.level_data.write().data_mut().difficulty = difficulty;
-    }
-
-    /// Returns whether the difficulty is locked.
-    ///
-    /// WARNING: acquires a read lock on level data.
-    #[must_use]
-    pub fn is_difficulty_locked(&self) -> bool {
-        self.level_data.read().data().difficulty_locked
-    }
-
-    /// Locks or unlocks the difficulty setting.
-    ///
-    /// WARNING: acquires a write lock on level data.
-    pub fn set_difficulty_locked(&self, locked: bool) {
-        self.level_data.write().data_mut().difficulty_locked = locked;
-    }
-
-    /// Gets the world seed.
-    #[must_use]
-    pub fn seed(&self) -> i64 {
-        self.level_data.read().data().seed
-    }
-
     /// Gets the obfuscated seed for sending to clients.
     ///
     /// This uses SHA-256 hashing to prevent clients from easily extracting
@@ -435,7 +394,7 @@ impl World {
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // SHA-256 always produces 32 bytes
     pub fn obfuscated_seed(&self) -> i64 {
-        let seed = self.seed();
+        let seed = self.level_data.read().seed;
         let mut hasher = Sha256::new();
         hasher.update(seed.to_be_bytes());
         let result = hasher.finalize();
