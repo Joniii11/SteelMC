@@ -86,7 +86,10 @@ pub mod food_constants {
     pub const MAX_EXHAUSTION: f32 = 40.0;
 }
 
-use food_constants::*;
+use food_constants::{
+    DEFAULT_FOOD_LEVEL, DEFAULT_SATURATION, EXHAUSTION_DROP, EXHAUSTION_HEAL, HEAL_LEVEL,
+    HEALTH_TICK_COUNT, HEALTH_TICK_COUNT_SATURATED, MAX_EXHAUSTION, MAX_FOOD_LEVEL, SPRINT_LEVEL,
+};
 
 /// Computes the absolute saturation value from a nutrition count and a modifier.
 #[must_use]
