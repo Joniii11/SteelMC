@@ -98,6 +98,7 @@ pub type EntityTypeRef = &'static EntityType;
 pub struct EntityTypeRegistry {
     types_by_id: Vec<EntityTypeRef>,
     types_by_key: FxHashMap<Identifier, usize>,
+    tags: FxHashMap<Identifier, Vec<Identifier>>,
     allows_registering: bool,
 }
 
@@ -114,6 +115,7 @@ impl EntityTypeRegistry {
         Self {
             types_by_id: Vec::new(),
             types_by_key: FxHashMap::default(),
+            tags: FxHashMap::default(),
             allows_registering: true,
         }
     }
@@ -139,6 +141,13 @@ impl EntityTypeRegistry {
         self.types_by_id[id] = entity_type;
         true
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (usize, EntityTypeRef)> + '_ {
+        self.types_by_id
+            .iter()
+            .enumerate()
+            .map(|(id, &et)| (id, et))
+    }
 }
 
 crate::impl_registry!(
@@ -148,3 +157,5 @@ crate::impl_registry!(
     types_by_key,
     entity_types
 );
+
+crate::impl_tagged_registry!(EntityTypeRegistry, types_by_key, "entity type");

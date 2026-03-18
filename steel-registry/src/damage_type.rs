@@ -44,6 +44,7 @@ pub type DamageTypeRef = &'static DamageType;
 pub struct DamageTypeRegistry {
     damage_types_by_id: Vec<DamageTypeRef>,
     damage_types_by_key: FxHashMap<Identifier, usize>,
+    tags: FxHashMap<Identifier, Vec<Identifier>>,
     allows_registering: bool,
 }
 
@@ -54,6 +55,7 @@ impl DamageTypeRegistry {
             damage_types_by_id: Vec::new(),
             damage_types_by_key: FxHashMap::default(),
             allows_registering: true,
+            tags: FxHashMap::default(),
         }
     }
 
@@ -101,3 +103,4 @@ crate::impl_registry!(
     damage_types_by_key,
     damage_types
 );
+crate::impl_tagged_registry!(DamageTypeRegistry, damage_types_by_key, "damage type");

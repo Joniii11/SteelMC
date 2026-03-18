@@ -3,6 +3,8 @@
 //! This module implements the logic from Java's `ServerPlayerGameMode` for handling
 //! block breaking, including progress tracking and validation.
 
+use std::sync::Arc;
+
 use steel_protocol::packets::game::CBlockUpdate;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::loot_table::LootContext;
@@ -66,11 +68,11 @@ impl BlockBreakingManager {
     /// Ticks the block breaking manager.
     ///
     /// This handles delayed destruction and updates break progress.
-    pub fn tick(&mut self, player: &Player, world: &World) {
+    pub fn tick(&mut self, player: &Player, world: &Arc<World>) {
         self.game_ticks += 1;
 
         if self.has_delayed_destroy {
-            let state = world.get_block_state(&self.delayed_destroy_pos);
+            let state = world.get_block_state(self.delayed_destroy_pos);
             if is_air(state) {
                 self.has_delayed_destroy = false;
             } else {
@@ -87,7 +89,7 @@ impl BlockBreakingManager {
                 }
             }
         } else if self.is_destroying_block {
-            let state = world.get_block_state(&self.destroy_pos);
+            let state = world.get_block_state(self.destroy_pos);
             if is_air(state) {
                 // Block was broken by something else
                 world.broadcast_block_destruction(player.id, self.destroy_pos, -1);
@@ -109,7 +111,7 @@ impl BlockBreakingManager {
     fn increment_destroy_progress(
         &mut self,
         player: &Player,
-        world: &World,
+        world: &Arc<World>,
         block_state: BlockStateId,
         pos: BlockPos,
         destroy_start_tick: u64,
@@ -135,13 +137,13 @@ impl BlockBreakingManager {
     pub fn handle_block_break_action(
         &mut self,
         player: &Player,
-        world: &World,
+        world: &Arc<World>,
         pos: BlockPos,
         action: BlockBreakAction,
         _direction: Direction,
     ) {
         // Validate interaction range
-        if !player.is_within_block_interaction_range(&pos) {
+        if !player.is_within_block_interaction_range(pos) {
             return;
         }
 
@@ -149,7 +151,7 @@ impl BlockBreakingManager {
         if pos.y() >= world.max_build_height() {
             player.send_packet(CBlockUpdate {
                 pos,
-                block_state: world.get_block_state(&pos),
+                block_state: world.get_block_state(pos),
             });
             return;
         }
@@ -157,10 +159,10 @@ impl BlockBreakingManager {
         match action {
             BlockBreakAction::Start => {
                 // Check may_interact permission
-                if !world.may_interact(player, &pos) {
+                if !world.may_interact(player, pos) {
                     player.send_packet(CBlockUpdate {
                         pos,
-                        block_state: world.get_block_state(&pos),
+                        block_state: world.get_block_state(pos),
                     });
                     return;
                 }
@@ -175,7 +177,7 @@ impl BlockBreakingManager {
                 // TODO: Implement blockActionRestricted check
 
                 self.destroy_progress_start = self.game_ticks;
-                let block_state = world.get_block_state(&pos);
+                let block_state = world.get_block_state(pos);
 
                 if !is_air(block_state) {
                     // TODO: Call EnchantmentHelper.onHitBlock and blockState.attack
@@ -191,7 +193,7 @@ impl BlockBreakingManager {
                             // Send block update for the old position to cancel client prediction
                             player.send_packet(CBlockUpdate {
                                 pos: self.destroy_pos,
-                                block_state: world.get_block_state(&self.destroy_pos),
+                                block_state: world.get_block_state(self.destroy_pos),
                             });
                         }
 
@@ -207,7 +209,7 @@ impl BlockBreakingManager {
             BlockBreakAction::Stop => {
                 if pos == self.destroy_pos {
                     let ticks_spent = self.game_ticks.saturating_sub(self.destroy_progress_start);
-                    let block_state = world.get_block_state(&pos);
+                    let block_state = world.get_block_state(pos);
 
                     if !is_air(block_state) {
                         let destroy_speed = get_destroy_progress(player, block_state);
@@ -250,12 +252,12 @@ impl BlockBreakingManager {
     }
 
     /// Destroys a block and sends appropriate response.
-    fn destroy_and_ack(&mut self, player: &Player, world: &World, pos: BlockPos) {
+    fn destroy_and_ack(&mut self, player: &Player, world: &Arc<World>, pos: BlockPos) {
         if !self.destroy_block(player, world, pos) {
             // Send block update to resync client
             player.send_packet(CBlockUpdate {
                 pos,
-                block_state: world.get_block_state(&pos),
+                block_state: world.get_block_state(pos),
             });
         }
     }
@@ -264,8 +266,8 @@ impl BlockBreakingManager {
     ///
     /// Returns true if the block was successfully destroyed.
     #[allow(clippy::unused_self)]
-    fn destroy_block(&self, player: &Player, world: &World, pos: BlockPos) -> bool {
-        let state = world.get_block_state(&pos);
+    fn destroy_block(&self, player: &Player, world: &Arc<World>, pos: BlockPos) -> bool {
+        let state = world.get_block_state(pos);
 
         // Check if player's tool can destroy this block
         // TODO: Implement canDestroyBlock check for adventure mode
@@ -432,7 +434,7 @@ fn get_destroy_progress(player: &Player, block_state: BlockStateId) -> f32 {
 
 /// Drops loot for a destroyed block using its loot table.
 #[allow(clippy::needless_pass_by_value)]
-fn drop_block_loot(player: &Player, _world: &World, pos: BlockPos, state: BlockStateId) {
+fn drop_block_loot(player: &Player, _world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
     let block = state.get_block();
 
     // Build the loot table key: "blocks/{block_name}"
@@ -460,7 +462,7 @@ fn drop_block_loot(player: &Player, _world: &World, pos: BlockPos, state: BlockS
     // Spawn each dropped item using the player's world reference (Arc<World>)
     for item in drops {
         if !item.is_empty() {
-            player.world.pop_resource(&pos, item);
+            player.world.pop_resource(pos, item);
         }
     }
 }
