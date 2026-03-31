@@ -4,7 +4,7 @@
 //! to create more natural-looking noise with detail at multiple scales.
 
 use crate::noise::ImprovedNoise;
-use crate::random::{PositionalRandom, Random, RandomSource, RandomSplitter};
+use crate::random::{PositionalRandom, Random, RandomSource, RandomSplitter, name_hash::NameHash};
 
 /// Round-off constant for coordinate wrapping to prevent precision loss.
 /// This is 2^25 = 33554432.
@@ -45,7 +45,7 @@ impl PerlinNoise {
             if amplitudes[i] != 0.0 {
                 let octave = first_octave + i as i32;
                 let name = format!("octave_{octave}");
-                let mut octave_random = splitter.with_hash_of(&name);
+                let mut octave_random = splitter.with_hash_of(&NameHash::new(&name));
                 noise_levels[i] = Some(ImprovedNoise::new(&mut octave_random));
             }
         }
@@ -81,7 +81,7 @@ impl PerlinNoise {
             if amplitudes[i] != 0.0 {
                 let octave = first_octave + i as i32;
                 let name = format!("octave_{octave}");
-                let mut octave_random = splitter.with_hash_of(&name);
+                let mut octave_random = splitter.with_hash_of(&NameHash::new(&name));
                 noise_levels[i] = Some(ImprovedNoise::new(&mut octave_random));
             }
         }
@@ -189,7 +189,6 @@ impl PerlinNoise {
     /// * `y_scale` - Y scaling factor for terrain
     /// * `y_fudge` - Y fudge factor for floor snapping
     /// * `y_flat_hack` - If true, use `-yo` instead of wrapped y (for legacy biomes)
-    #[allow(clippy::too_many_arguments)]
     #[must_use]
     pub fn get_value_with_y_params(
         &self,
@@ -311,7 +310,7 @@ mod tests {
     fn test_create_from_random_different_seeds() {
         let mut rng = Xoroshiro::from_seed(12345);
         let splitter = rng.next_positional();
-        let mut random = splitter.with_hash_of("test_noise");
+        let mut random = splitter.with_hash_of(&NameHash::new("test_noise"));
 
         let amplitudes = [1.0, 1.0, 1.0];
         let noise1 = PerlinNoise::create_from_random(&mut random, -3, &amplitudes);

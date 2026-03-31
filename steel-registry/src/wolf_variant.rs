@@ -1,13 +1,14 @@
 use rustc_hash::FxHashMap;
+use simdnbt::ToNbtTag;
+use simdnbt::owned::NbtTag;
 use steel_utils::Identifier;
-
-use crate::RegistryExt;
 
 /// Represents a full wolf variant definition from a data pack JSON file.
 #[derive(Debug)]
 pub struct WolfVariant {
     pub key: Identifier,
     pub assets: WolfAssetInfo,
+    pub baby_assets: WolfAssetInfo,
     pub spawn_conditions: &'static [SpawnConditionEntry],
 }
 
@@ -31,6 +32,49 @@ pub struct SpawnConditionEntry {
 pub struct BiomeCondition {
     pub condition_type: &'static str,
     pub biomes: &'static str,
+}
+
+impl ToNbtTag for &WolfVariant {
+    fn to_nbt_tag(self) -> NbtTag {
+        use simdnbt::owned::{NbtCompound, NbtList};
+        let mut compound = NbtCompound::new();
+        let mut assets = NbtCompound::new();
+        let wild = self.assets.wild.to_string();
+        assets.insert("wild", wild.as_str());
+        let tame = self.assets.tame.to_string();
+        assets.insert("tame", tame.as_str());
+        let angry = self.assets.angry.to_string();
+        assets.insert("angry", angry.as_str());
+        compound.insert("assets", NbtTag::Compound(assets));
+        let mut baby_assets = NbtCompound::new();
+        let wild = self.assets.wild.to_string();
+        baby_assets.insert("wild", wild.as_str());
+        let tame = self.assets.tame.to_string();
+        baby_assets.insert("tame", tame.as_str());
+        let angry = self.assets.angry.to_string();
+        baby_assets.insert("angry", angry.as_str());
+        compound.insert("baby_assets", NbtTag::Compound(baby_assets));
+        let conditions: Vec<NbtCompound> = self
+            .spawn_conditions
+            .iter()
+            .map(|entry| {
+                let mut e = NbtCompound::new();
+                e.insert("priority", entry.priority);
+                if let Some(cond) = &entry.condition {
+                    let mut c = NbtCompound::new();
+                    c.insert("type", cond.condition_type);
+                    c.insert("biomes", cond.biomes);
+                    e.insert("condition", NbtTag::Compound(c));
+                }
+                e
+            })
+            .collect();
+        compound.insert(
+            "spawn_conditions",
+            NbtTag::List(NbtList::Compound(conditions)),
+        );
+        NbtTag::Compound(compound)
+    }
 }
 
 pub type WolfVariantRef = &'static WolfVariant;
@@ -75,46 +119,11 @@ impl WolfVariantRegistry {
         true
     }
 
-    #[must_use]
-    pub fn by_id(&self, id: usize) -> Option<WolfVariantRef> {
-        self.wolf_variants_by_id.get(id).copied()
-    }
-
-    #[must_use]
-    pub fn get_id(&self, wolf_variant: WolfVariantRef) -> &usize {
-        self.wolf_variants_by_key
-            .get(&wolf_variant.key)
-            .expect("Wolf variant not found")
-    }
-
-    #[must_use]
-    pub fn by_key(&self, key: &Identifier) -> Option<WolfVariantRef> {
-        self.wolf_variants_by_key
-            .get(key)
-            .and_then(|id| self.by_id(*id))
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (usize, WolfVariantRef)> + '_ {
         self.wolf_variants_by_id
             .iter()
             .enumerate()
             .map(|(id, &variant)| (id, variant))
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.wolf_variants_by_id.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.wolf_variants_by_id.is_empty()
-    }
-}
-
-impl RegistryExt for WolfVariantRegistry {
-    fn freeze(&mut self) {
-        self.allows_registering = false;
     }
 }
 
@@ -123,3 +132,11 @@ impl Default for WolfVariantRegistry {
         Self::new()
     }
 }
+
+crate::impl_registry!(
+    WolfVariantRegistry,
+    WolfVariant,
+    wolf_variants_by_id,
+    wolf_variants_by_key,
+    wolf_variants
+);

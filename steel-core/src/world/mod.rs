@@ -34,7 +34,7 @@ use steel_registry::level_events;
 use steel_registry::loot_table::LootContext;
 use steel_registry::vanilla_blocks;
 use steel_registry::vanilla_game_rules::{BLOCK_DROPS, RANDOM_TICK_SPEED};
-use steel_registry::{REGISTRY, dimension_type::DimensionTypeRef};
+use steel_registry::{REGISTRY, RegistryEntry, RegistryExt, dimension_type::DimensionTypeRef};
 use steel_registry::{block_entity_type::BlockEntityTypeRef, vanilla_dimension_types};
 use steel_registry::{
     blocks::BlockRef, vanilla_game_rules::ADVANCE_TIME, vanilla_game_rules::ADVANCE_WEATHER,
@@ -54,7 +54,7 @@ pub enum RaytraceAction {
     ImmediateHit,
 }
 
-use steel_utils::math::Vector3;
+use glam::DVec3;
 use steel_utils::{BlockPos, BlockStateId, ChunkPos, SectionPos, types::UpdateFlags};
 use tokio::{runtime::Runtime, time::Instant};
 
@@ -162,6 +162,7 @@ impl World {
         dimension: DimensionTypeRef,
         seed: i64,
         config: WorldConfig,
+        generation_pool: Arc<rayon::ThreadPool>,
     ) -> io::Result<Arc<Self>> {
         // Create storage backend based on config
         let storage: Arc<ChunkStorage> = match &config.storage {
@@ -202,9 +203,10 @@ impl World {
             chunk_map: Arc::new(ChunkMap::new_with_storage(
                 chunk_runtime,
                 weak_self.clone(),
-                &dimension,
+                dimension,
                 storage,
                 config.generator,
+                generation_pool,
             )),
             players: PlayerMap::new(),
             player_area_map: PlayerAreaMap::new(),
@@ -220,8 +222,10 @@ impl World {
     }
 
     /// Cleans up the world by saving all chunks.
-    /// `await_holding_lock` is safe here cause it's only done on shutdown
-    #[allow(clippy::await_holding_lock)]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "holding the write lock across await is safe here because it only happens during shutdown"
+    )]
     pub async fn cleanup(&self, total_saved: &mut usize) {
         match self.level_data.write().save().await {
             Ok(()) => log::info!(
@@ -258,14 +262,15 @@ impl World {
     }
 
     /// Returns whether the block position is within valid horizontal bounds.
-    pub const fn is_in_valid_bounds_horizontal(&self, block_pos: &BlockPos) -> bool {
+    #[expect(clippy::unused_self, reason = "this is an api function")]
+    pub const fn is_in_valid_bounds_horizontal(&self, block_pos: BlockPos) -> bool {
         let chunk_x = SectionPos::block_to_section_coord(block_pos.0.x);
         let chunk_z = SectionPos::block_to_section_coord(block_pos.0.z);
         ChunkPos::is_valid(chunk_x, chunk_z)
     }
 
     /// Returns whether the block position is within valid world bounds.
-    pub const fn is_in_valid_bounds(&self, block_pos: &BlockPos) -> bool {
+    pub const fn is_in_valid_bounds(&self, block_pos: BlockPos) -> bool {
         !self.is_outside_build_height(block_pos.0.y)
             && self.is_in_valid_bounds_horizontal(block_pos)
     }
@@ -280,7 +285,7 @@ impl World {
     /// Checks if a player may interact with the world at the given position.
     /// Currently only checks if position is within world bounds.
     #[must_use]
-    pub const fn may_interact(&self, _player: &Player, pos: &BlockPos) -> bool {
+    pub const fn may_interact(&self, _player: &Player, pos: BlockPos) -> bool {
         self.is_in_valid_bounds(pos)
     }
 
@@ -296,7 +301,7 @@ impl World {
     ///
     /// Returns `true` if the position is clear, `false` if an entity would obstruct placement.
     #[must_use]
-    pub fn is_unobstructed(&self, collision_shape: VoxelShape, pos: &BlockPos) -> bool {
+    pub fn is_unobstructed(&self, collision_shape: VoxelShape, pos: BlockPos) -> bool {
         if collision_shape.is_empty() {
             return true;
         }
@@ -357,6 +362,7 @@ impl World {
     }
 
     /// Gets the value of a game rule on the `LevelDataManager` guard being passed in.
+    #[expect(clippy::unused_self, reason = "this is an api function")]
     #[must_use]
     pub fn get_game_rule_with_guard(
         &self,
@@ -375,6 +381,7 @@ impl World {
     }
 
     /// Sets the value of a game rule on the `LevelDataManager` guard being passed in.
+    #[expect(clippy::unused_self, reason = "this is an api function")]
     pub fn set_game_rule_with_guard(
         &self,
         rule: GameRuleRef,
@@ -392,7 +399,10 @@ impl World {
     /// This uses SHA-256 hashing to prevent clients from easily extracting
     /// the actual world seed, matching vanilla's `BiomeManager.obfuscateSeed()`.
     #[must_use]
-    #[allow(clippy::missing_panics_doc)] // SHA-256 always produces 32 bytes
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "panic is unreachable: SHA-256 always produces 32 bytes"
+    )]
     pub fn obfuscated_seed(&self) -> i64 {
         let seed = self.level_data.read().seed;
         let mut hasher = Sha256::new();
@@ -407,14 +417,14 @@ impl World {
     ///
     /// Returns the default block state (void air) if the position is out of bounds or the chunk is not loaded.
     #[must_use]
-    pub fn get_block_state(&self, pos: &BlockPos) -> BlockStateId {
+    pub fn get_block_state(&self, pos: BlockPos) -> BlockStateId {
         if !self.is_in_valid_bounds(pos) {
             return REGISTRY.blocks.get_base_state_id(vanilla_blocks::AIR);
         }
 
         let chunk_pos = Self::chunk_pos_for_block(pos);
         self.chunk_map
-            .with_full_chunk(&chunk_pos, |chunk| chunk.get_block_state(*pos))
+            .with_full_chunk(chunk_pos, |chunk| chunk.get_block_state(pos))
             .unwrap_or_else(|| REGISTRY.blocks.get_base_state_id(vanilla_blocks::AIR))
     }
 
@@ -422,7 +432,12 @@ impl World {
     ///
     /// Returns `true` if the block was successfully set, `false` otherwise.
     /// Uses the default update limit of 512 (matching vanilla).
-    pub fn set_block(&self, pos: BlockPos, block_state: BlockStateId, flags: UpdateFlags) -> bool {
+    pub fn set_block(
+        self: &Arc<Self>,
+        pos: BlockPos,
+        block_state: BlockStateId,
+        flags: UpdateFlags,
+    ) -> bool {
         self.set_block_with_limit(pos, block_state, flags, 512)
     }
 
@@ -433,7 +448,7 @@ impl World {
     ///
     /// Returns `true` if the block was successfully set, `false` otherwise.
     pub fn set_block_with_limit(
-        &self,
+        self: &Arc<Self>,
         pos: BlockPos,
         block_state: BlockStateId,
         flags: UpdateFlags,
@@ -443,14 +458,14 @@ impl World {
             return false;
         }
 
-        if !self.is_in_valid_bounds(&pos) {
+        if !self.is_in_valid_bounds(pos) {
             return false;
         }
 
-        let chunk_pos = Self::chunk_pos_for_block(&pos);
+        let chunk_pos = Self::chunk_pos_for_block(pos);
         let Some(old_state) = self
             .chunk_map
-            .with_full_chunk(&chunk_pos, |chunk| {
+            .with_full_chunk(chunk_pos, |chunk| {
                 chunk.set_block_state(pos, block_state, flags)
             })
             .flatten()
@@ -460,13 +475,13 @@ impl World {
 
         // Record the block change for broadcasting to clients
         log::debug!("Block changed at {pos:?}: {old_state:?} -> {block_state:?}");
-        self.chunk_map.block_changed(&pos);
+        self.chunk_map.block_changed(pos);
 
         // Neighbor updates (when UPDATE_NEIGHBORS is set)
         if flags.contains(UpdateFlags::UPDATE_NEIGHBORS) {
-            self.update_neighbors_at(&pos, old_state.get_block());
+            self.update_neighbors_at(pos, old_state.get_block());
             // TODO: if block has analog output signal, update comparator neighbors
-            // via updateNeighbourForOutputSignal
+            // via updateNeighborForOutputSignal
         }
 
         // Shape updates (unless UPDATE_KNOWN_SHAPE is set)
@@ -506,7 +521,7 @@ impl World {
     /// Updates all neighbors of the given position about a block change.
     ///
     /// This is the Rust equivalent of vanilla's `Level.updateNeighborsAt()`.
-    pub fn update_neighbors_at(&self, pos: &BlockPos, source_block: BlockRef) {
+    pub fn update_neighbors_at(self: &Arc<Self>, pos: BlockPos, source_block: BlockRef) {
         for direction in Self::NEIGHBOR_UPDATE_ORDER {
             let neighbor_pos = pos.relative(direction);
             self.neighbor_changed(neighbor_pos, source_block, false);
@@ -517,7 +532,7 @@ impl World {
     ///
     /// This is the Rust equivalent of vanilla's `NeighborUpdater.executeShapeUpdate()`.
     fn neighbor_shape_changed(
-        &self,
+        self: &Arc<Self>,
         direction: Direction,
         pos: BlockPos,
         neighbor_pos: BlockPos,
@@ -525,15 +540,17 @@ impl World {
         flags: UpdateFlags,
         update_limit: i32,
     ) {
-        if !self.is_in_valid_bounds(&pos) {
+        if !self.is_in_valid_bounds(pos) {
             return;
         }
 
-        let current_state = self.get_block_state(&pos);
+        let current_state = self.get_block_state(pos);
 
-        // TODO: Skip redstone wire if UPDATE_SKIP_SHAPE_UPDATE_ON_WIRE is set
-        // if flags.contains(UpdateFlags::UPDATE_SKIP_SHAPE_UPDATE_ON_WIRE)
-        //     && current_state.is_redstone_wire() { return; }
+        if flags.contains(UpdateFlags::UPDATE_SKIP_SHAPE_UPDATE_ON_WIRE)
+            && current_state.get_block() == vanilla_blocks::REDSTONE_WIRE
+        {
+            return;
+        }
 
         let block_behaviors = &*BLOCK_BEHAVIORS;
         let behavior = block_behaviors.get_behavior(current_state.get_block());
@@ -546,13 +563,7 @@ impl World {
             neighbor_state,
         );
 
-        if new_state != current_state {
-            log::debug!(
-                "Shape update at {pos:?}: {current_state:?} -> {new_state:?} (neighbor {neighbor_pos:?} changed)"
-            );
-            // Use set_block_with_limit to prevent infinite recursion
-            self.set_block_with_limit(pos, new_state, flags, update_limit);
-        }
+        self.update_or_destroy(current_state, new_state, pos, flags, update_limit);
 
         // Vanilla parity: `SimpleWaterloggedBlock.updateShape` / `Level.neighborShapeChanged` —
         // always reschedule the fluid tick when a block with fluid has a neighbor shape change,
@@ -567,26 +578,45 @@ impl World {
         }
     }
 
+    fn update_or_destroy(
+        self: &Arc<World>,
+        old_state: BlockStateId,
+        new_state: BlockStateId,
+        pos: BlockPos,
+        flags: UpdateFlags,
+        recursion_left: i32,
+    ) {
+        if new_state == old_state {
+            return;
+        }
+
+        if new_state.is_air() {
+            self.destroy_block(pos, !flags.contains(UpdateFlags::UPDATE_SUPPRESS_DROPS));
+        } else {
+            self.set_block_with_limit(pos, new_state, flags, recursion_left);
+        }
+    }
+
     /// Notifies a block that one of its neighbors changed.
     ///
     /// This is the Rust equivalent of vanilla's `Level.neighborChanged()`.
     pub(crate) fn neighbor_changed(
-        &self,
+        self: &Arc<Self>,
         pos: BlockPos,
         source_block: BlockRef,
         moved_by_piston: bool,
     ) {
-        if !self.is_in_valid_bounds(&pos) {
+        if !self.is_in_valid_bounds(pos) {
             return;
         }
 
-        let state = self.get_block_state(&pos);
+        let state = self.get_block_state(pos);
         let block_behaviors = &*BLOCK_BEHAVIORS;
         let behavior = block_behaviors.get_behavior(state.get_block());
         behavior.handle_neighbor_changed(state, self, pos, source_block, moved_by_piston);
     }
 
-    const fn chunk_pos_for_block(pos: &BlockPos) -> ChunkPos {
+    const fn chunk_pos_for_block(pos: BlockPos) -> ChunkPos {
         ChunkPos::new(
             SectionPos::block_to_section_coord(pos.0.x),
             SectionPos::block_to_section_coord(pos.0.z),
@@ -597,11 +627,11 @@ impl World {
     ///
     /// Returns `None` if the chunk is not loaded or there is no block entity at the position.
     #[must_use]
-    pub fn get_block_entity(&self, pos: &BlockPos) -> Option<SharedBlockEntity> {
+    pub fn get_block_entity(&self, pos: BlockPos) -> Option<SharedBlockEntity> {
         let chunk_pos = Self::chunk_pos_for_block(pos);
         self.chunk_map
-            .with_full_chunk(&chunk_pos, |chunk| {
-                chunk.as_full().and_then(|lc| lc.get_block_entity(*pos))
+            .with_full_chunk(chunk_pos, |chunk| {
+                chunk.as_full().and_then(|lc| lc.get_block_entity(pos))
             })
             .flatten()
     }
@@ -610,7 +640,7 @@ impl World {
     ///
     /// Marks the containing chunk as unsaved so it will be persisted to disk.
     pub fn block_entity_changed(&self, pos: BlockPos) {
-        let chunk_pos = Self::chunk_pos_for_block(&pos);
+        let chunk_pos = Self::chunk_pos_for_block(pos);
         self.mark_chunk_dirty(chunk_pos);
     }
 
@@ -618,7 +648,7 @@ impl World {
     ///
     /// Called when entities move, are added/removed, or when block entities change.
     pub fn mark_chunk_dirty(&self, chunk_pos: ChunkPos) {
-        self.chunk_map.with_full_chunk(&chunk_pos, |chunk| {
+        self.chunk_map.with_full_chunk(chunk_pos, |chunk| {
             if let Some(lc) = chunk.as_full() {
                 lc.dirty.store(true, Ordering::Release);
             }
@@ -675,7 +705,10 @@ impl World {
         }
     }
 
-    #[expect(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "splitting would hurt readability of the weather state machine"
+    )]
     fn tick_weather(&self) {
         if !self.can_have_weather() {
             return;
@@ -761,7 +794,10 @@ impl World {
         // Broadcast weather changes to clients
         let raining_now = self.is_raining_with_guard(&weather);
         if raining_before == raining_now {
-            #[expect(clippy::float_cmp)]
+            #[expect(
+                clippy::float_cmp,
+                reason = "comparing against the exact previously-assigned value to detect any change"
+            )]
             if weather.previous_rain_level != weather.rain_level {
                 self.broadcast_to_all(CGameEvent {
                     event: GameEventType::RainLevelChange,
@@ -769,7 +805,10 @@ impl World {
                 });
             }
 
-            #[expect(clippy::float_cmp)]
+            #[expect(
+                clippy::float_cmp,
+                reason = "comparing against the exact previously-assigned value to detect any change"
+            )]
             if weather.previous_thunder_level != weather.thunder_level {
                 self.broadcast_to_all(CGameEvent {
                     event: GameEventType::ThunderLevelChange,
@@ -850,8 +889,8 @@ impl World {
         delay: i32,
         priority: tick_scheduler::TickPriority,
     ) {
-        let chunk_pos = Self::chunk_pos_for_block(&pos);
-        self.chunk_map.with_full_chunk(&chunk_pos, |chunk_access| {
+        let chunk_pos = Self::chunk_pos_for_block(pos);
+        self.chunk_map.with_full_chunk(chunk_pos, |chunk_access| {
             if let Some(chunk) = chunk_access.as_full() {
                 let order = self.sub_tick_count.fetch_add(1, Ordering::Relaxed);
                 let tick = tick_scheduler::BlockTick {
@@ -882,8 +921,8 @@ impl World {
         delay: i32,
         priority: tick_scheduler::TickPriority,
     ) {
-        let chunk_pos = Self::chunk_pos_for_block(&pos);
-        self.chunk_map.with_full_chunk(&chunk_pos, |chunk_access| {
+        let chunk_pos = Self::chunk_pos_for_block(pos);
+        self.chunk_map.with_full_chunk(chunk_pos, |chunk_access| {
             if let Some(chunk) = chunk_access.as_full() {
                 let order = self.sub_tick_count.fetch_add(1, Ordering::Relaxed);
                 let tick = tick_scheduler::FluidTick {
@@ -905,9 +944,9 @@ impl World {
 
     /// Returns `true` if a block tick is already scheduled for the given `(pos, block)`.
     pub fn has_scheduled_block_tick(&self, pos: BlockPos, block: BlockRef) -> bool {
-        let chunk_pos = Self::chunk_pos_for_block(&pos);
+        let chunk_pos = Self::chunk_pos_for_block(pos);
         self.chunk_map
-            .with_full_chunk(&chunk_pos, |chunk_access| {
+            .with_full_chunk(chunk_pos, |chunk_access| {
                 chunk_access
                     .as_full()
                     .is_some_and(|chunk| chunk.block_ticks.lock().has_tick(pos, block))
@@ -917,9 +956,9 @@ impl World {
 
     /// Returns `true` if a fluid tick is already scheduled for the given `(pos, fluid)`.
     pub fn has_scheduled_fluid_tick(&self, pos: BlockPos, fluid: FluidRef) -> bool {
-        let chunk_pos = Self::chunk_pos_for_block(&pos);
+        let chunk_pos = Self::chunk_pos_for_block(pos);
         self.chunk_map
-            .with_full_chunk(&chunk_pos, |chunk_access| {
+            .with_full_chunk(chunk_pos, |chunk_access| {
                 chunk_access
                     .as_full()
                     .is_some_and(|chunk| chunk.fluid_ticks.lock().has_tick(pos, fluid))
@@ -951,11 +990,8 @@ impl World {
         };
 
         if game_time % 20 == 0 {
-            self.broadcast_to_all(CSetTime {
-                game_time,
-                day_time,
-                time_of_day_increasing: advance_time,
-            });
+            let rate = if advance_time { 1.0 } else { 0.0 };
+            self.broadcast_to_all(CSetTime::new(game_time, day_time, 0.0, rate));
         }
     }
 
@@ -985,7 +1021,7 @@ impl World {
         mut packet: CPlayerChat,
         _sender: Arc<Player>,
         sender_last_seen: LastSeen,
-        message_signature: Option<[u8; 256]>,
+        message_signature: Option<&[u8; 256]>,
     ) {
         log::debug!(
             "broadcast_chat: sender_last_seen has {} signatures, message_signature present: {}",
@@ -1028,13 +1064,13 @@ impl World {
                 let mut chat = recipient.chat.lock();
                 if let Some(signature) = message_signature {
                     chat.signature_cache
-                        .push(&sender_last_seen, Some(&signature));
+                        .push(&sender_last_seen, Some(signature));
 
                     log::debug!("  Added signature to recipient's cache and pending list");
 
                     // Add to pending messages for acknowledgment tracking
                     chat.message_validator
-                        .add_pending(Some(Box::new(signature) as Box<[u8]>));
+                        .add_pending(Some(Box::new(*signature) as Box<[u8]>));
                 } else {
                     // Even unsigned messages update the pending tracker
                     chat.message_validator.add_pending(None);
@@ -1164,7 +1200,10 @@ impl World {
     /// * `entity_id` - The entity ID of the player breaking the block
     /// * `pos` - The position of the block being broken
     /// * `progress` - The destruction progress (0-9), or -1 to clear
-    #[allow(clippy::cast_sign_loss)]
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "value is clamped to -1..=9 before cast; -1 wraps intentionally to 255 as sentinel"
+    )]
     pub fn broadcast_block_destruction(&self, entity_id: i32, pos: BlockPos, progress: i32) {
         let chunk = ChunkPos::new(
             SectionPos::block_to_section_coord(pos.x()),
@@ -1201,7 +1240,7 @@ impl World {
         );
 
         // Get the block entity type ID from the registry
-        let type_id = *REGISTRY.block_entity_types.get_id(block_entity_type);
+        let type_id = block_entity_type.id();
 
         let packet = CBlockEntityData {
             pos,
@@ -1262,9 +1301,9 @@ impl World {
             let entity_id = next_entity_id();
             let entity = Arc::new(ItemEntity::with_item_and_velocity(
                 entity_id,
-                Vector3::new(x, y, z),
+                DVec3::new(x, y, z),
                 split_stack,
-                Vector3::new(vx, vy, vz),
+                DVec3::new(vx, vy, vz),
                 Arc::downgrade(self),
             ));
             entity.set_default_pickup_delay();
@@ -1275,9 +1314,9 @@ impl World {
     /// Checks if a ray intersects with a block's selection box.
     pub fn ray_outline_check(
         &self,
-        block_pos: &BlockPos,
-        from: Vector3<f64>,
-        to: Vector3<f64>,
+        block_pos: BlockPos,
+        from: DVec3,
+        to: DVec3,
     ) -> (bool, Option<Direction>) {
         let state = self.get_block_state(block_pos);
         let bounding_boxes = state.get_outline_shape();
@@ -1291,23 +1330,21 @@ impl World {
         let mut closest: Option<(f64, Direction)> = None;
 
         for shape in bounding_boxes {
-            let block_vec = Vector3::new(
+            let block_vec = DVec3::new(
                 f64::from(block_pos.x()),
                 f64::from(block_pos.y()),
                 f64::from(block_pos.z()),
             );
-            let world_min = Vector3::new(
+            let world_min = DVec3::new(
                 f64::from(shape.min_x),
                 f64::from(shape.min_y),
                 f64::from(shape.min_z),
-            )
-            .add(&block_vec);
-            let world_max = Vector3::new(
+            ) + block_vec;
+            let world_max = DVec3::new(
                 f64::from(shape.max_x),
                 f64::from(shape.max_y),
                 f64::from(shape.max_z),
-            )
-            .add(&block_vec);
+            ) + block_vec;
 
             if let Some(hit) = Self::intersects_aabb_with_t(from, to, world_min, world_max)
                 && closest.is_none_or(|(best_t, _)| hit.0 < best_t)
@@ -1329,12 +1366,12 @@ impl World {
     /// Returns `None` if the AABB is missed or entirely behind the ray origin.
     ///
     /// Used internally by [`ray_outline_check`] to pick the *closest* hit across
-    /// a multi-box voxel shape, matching vanilla's `VoxelShape.clip()` behaviour.
+    /// a multi-box voxel shape, matching vanilla's `VoxelShape.clip()` behavior.
     fn intersects_aabb_with_t(
-        start: Vector3<f64>,
-        end: Vector3<f64>,
-        min: Vector3<f64>,
-        max: Vector3<f64>,
+        start: DVec3,
+        end: DVec3,
+        min: DVec3,
+        max: DVec3,
     ) -> Option<(f64, Direction)> {
         let dir = end - start;
 
@@ -1403,20 +1440,20 @@ impl World {
     /// Adapted from Pumpkin project.
     pub fn raytrace<F>(
         &self,
-        start_pos: Vector3<f64>,
-        end_pos: Vector3<f64>,
+        start_pos: DVec3,
+        end_pos: DVec3,
         hit_check: F,
     ) -> (Option<BlockPos>, Option<Direction>)
     where
-        F: Fn(&BlockPos, &Self) -> RaytraceAction,
+        F: Fn(BlockPos, &Self) -> RaytraceAction,
     {
         if start_pos == end_pos {
             return (None, None);
         }
 
         let adjust = -1.0e-7f64;
-        let to = end_pos.lerp(&start_pos, adjust);
-        let from = start_pos.lerp(&end_pos, adjust);
+        let to = end_pos.lerp(start_pos, adjust);
+        let from = start_pos.lerp(end_pos, adjust);
 
         let mut block = BlockPos::new(
             from.x.floor() as i32,
@@ -1424,10 +1461,10 @@ impl World {
             from.z.floor() as i32,
         );
 
-        match hit_check(&block, self) {
+        match hit_check(block, self) {
             RaytraceAction::ImmediateHit => return (Some(block), None),
             RaytraceAction::CheckShape => {
-                let (hit, face) = self.ray_outline_check(&block, start_pos, end_pos);
+                let (hit, face) = self.ray_outline_check(block, start_pos, end_pos);
                 if hit {
                     return (Some(block), face);
                 }
@@ -1435,11 +1472,11 @@ impl World {
             RaytraceAction::Pass => {}
         }
 
-        let difference = to.sub(&from);
+        let difference = to - from;
 
-        let step = difference.sign();
+        let step = difference.signum().as_ivec3();
 
-        let delta = Vector3::new(
+        let delta = DVec3::new(
             if step.x == 0 {
                 f64::MAX
             } else {
@@ -1457,7 +1494,7 @@ impl World {
             },
         );
 
-        let mut next = Vector3::new(
+        let mut next = DVec3::new(
             delta.x
                 * (if step.x > 0 {
                     1.0 - (from.x - from.x.floor())
@@ -1509,12 +1546,12 @@ impl World {
                 }
             };
 
-            match hit_check(&block, self) {
+            match hit_check(block, self) {
                 RaytraceAction::ImmediateHit => {
                     return (Some(block), Some(block_direction));
                 }
                 RaytraceAction::CheckShape => {
-                    let (hit, face) = self.ray_outline_check(&block, start_pos, end_pos);
+                    let (hit, face) = self.ray_outline_check(block, start_pos, end_pos);
                     if hit {
                         return (Some(block), face);
                     }
@@ -1614,8 +1651,23 @@ impl World {
     ///
     /// Sends destruction particles (skipping fire blocks), optionally drops
     /// resources via loot table, then replaces with air.
+    ///
+    /// Defaults to recursion limit of 512
     pub fn destroy_block(self: &Arc<Self>, pos: BlockPos, drop_items: bool) -> bool {
-        let state = self.get_block_state(&pos);
+        self.destroy_block_with_limit(pos, drop_items, 512)
+    }
+
+    /// Destroys a block at the given position, optionally dropping its loot.
+    ///
+    /// Sends destruction particles (skipping fire blocks), optionally drops
+    /// resources via loot table, then replaces with air.
+    pub fn destroy_block_with_limit(
+        self: &Arc<Self>,
+        pos: BlockPos,
+        drop_items: bool,
+        recursion_left: i32,
+    ) -> bool {
+        let state = self.get_block_state(pos);
         if state.is_air() {
             return false;
         }
@@ -1628,12 +1680,13 @@ impl World {
 
         if drop_items {
             self.drop_resources(state, pos);
+            // TODO: block entity and entity drops
         }
 
         // Vanilla parity: fluidState.createLegacyBlock() — breaking a waterlogged
         // block leaves water behind instead of air.
         let replacement = fluid_state_to_block(state.get_fluid_state());
-        self.set_block(pos, replacement, UpdateFlags::UPDATE_ALL);
+        self.set_block_with_limit(pos, replacement, UpdateFlags::UPDATE_ALL, recursion_left);
         // TODO: Fire GameEvent.BLOCK_DESTROY
         true
     }
@@ -1644,6 +1697,7 @@ impl World {
     /// `block_breaking::drop_block_loot` which includes tool context for
     /// fortune/silk touch.
     // TODO: `spawnAfterBreak` (XP orbs for ores) not called yet.
+    // TODO: block entity and entity drops
     pub fn drop_resources(self: &Arc<Self>, state: BlockStateId, pos: BlockPos) {
         let block = state.get_block();
         let loot_key = steel_utils::Identifier::vanilla(format!("blocks/{}", block.key.path));
@@ -1660,7 +1714,7 @@ impl World {
         let drops = loot_table.get_random_items(&mut ctx);
         for item in drops {
             if !item.is_empty() {
-                self.pop_resource(&pos, item);
+                self.pop_resource(pos, item);
             }
         }
     }
@@ -1678,7 +1732,7 @@ impl World {
     pub fn block_event(&self, pos: BlockPos, block: BlockRef, action_id: u8, action_param: u8) {
         const MAX_DISTANCE_SQ: f64 = 64.0 * 64.0;
 
-        let block_id = *REGISTRY.blocks.get_id(block) as i32;
+        let block_id = block.id() as i32;
 
         let chunk = ChunkPos::new(
             SectionPos::block_to_section_coord(pos.x()),
@@ -1837,7 +1891,7 @@ impl World {
         let pos = entity.position();
         let chunk_pos = ChunkPos::new((pos.x as i32) >> 4, (pos.z as i32) >> 4);
 
-        self.chunk_map.with_full_chunk(&chunk_pos, |chunk| {
+        self.chunk_map.with_full_chunk(chunk_pos, |chunk| {
             if let Some(c) = chunk.as_full() {
                 c.add_and_register_entity(entity.clone());
             }
@@ -1850,16 +1904,12 @@ impl World {
     /// The item will have a default pickup delay.
     ///
     /// Returns `None` if the item stack is empty.
-    pub fn spawn_item(
-        self: &Arc<Self>,
-        pos: Vector3<f64>,
-        item: ItemStack,
-    ) -> Option<Arc<ItemEntity>> {
+    pub fn spawn_item(self: &Arc<Self>, pos: DVec3, item: ItemStack) -> Option<Arc<ItemEntity>> {
         // Default ItemEntity velocity: random horizontal scatter + upward pop
         let vx = rand::random::<f64>() * 0.2 - 0.1;
         let vy = 0.2;
         let vz = rand::random::<f64>() * 0.2 - 0.1;
-        self.spawn_item_with_velocity(pos, item, Vector3::new(vx, vy, vz))
+        self.spawn_item_with_velocity(pos, item, DVec3::new(vx, vy, vz))
     }
 
     /// Spawns an item entity at the given position with initial velocity.
@@ -1867,9 +1917,9 @@ impl World {
     /// Returns `None` if the item stack is empty.
     pub fn spawn_item_with_velocity(
         self: &Arc<Self>,
-        pos: Vector3<f64>,
+        pos: DVec3,
         item: ItemStack,
-        velocity: Vector3<f64>,
+        velocity: DVec3,
     ) -> Option<Arc<ItemEntity>> {
         use crate::entity::next_entity_id;
 
@@ -1898,7 +1948,7 @@ impl World {
     /// and small random velocity.
     pub fn pop_resource(
         self: &Arc<Self>,
-        pos: &BlockPos,
+        pos: BlockPos,
         item: ItemStack,
     ) -> Option<Arc<ItemEntity>> {
         use steel_registry::vanilla_entities;
@@ -1920,7 +1970,7 @@ impl World {
         let y = f64::from(pos.y()) + 0.5 + (rand::random::<f64>() - 0.5) * 0.5 - half_height;
         let z = f64::from(pos.z()) + 0.5 + (rand::random::<f64>() - 0.5) * 0.5;
 
-        self.spawn_item(Vector3::new(x, y, z), item)
+        self.spawn_item(DVec3::new(x, y, z), item)
     }
 
     /// Drops an item from a block face with directional velocity.
@@ -1929,7 +1979,7 @@ impl World {
     /// from a specific side of a block.
     pub fn pop_resource_from_face(
         self: &Arc<Self>,
-        pos: &BlockPos,
+        pos: BlockPos,
         face: Direction,
         item: ItemStack,
     ) -> Option<Arc<ItemEntity>> {
@@ -1986,9 +2036,9 @@ impl World {
         };
 
         self.spawn_item_with_velocity(
-            Vector3::new(x, y, z),
+            DVec3::new(x, y, z),
             item,
-            Vector3::new(delta_x, delta_y, delta_z),
+            DVec3::new(delta_x, delta_y, delta_z),
         )
     }
 
@@ -2023,14 +2073,14 @@ impl World {
         // Remove Arc from old chunk
         let entity = self
             .chunk_map
-            .with_full_chunk(&from, |chunk| {
+            .with_full_chunk(from, |chunk| {
                 chunk.as_full().and_then(|c| c.entities.remove(entity_id))
             })
             .flatten();
 
         // Add Arc to new chunk
         if let Some(entity) = entity {
-            self.chunk_map.with_full_chunk(&to, |chunk| {
+            self.chunk_map.with_full_chunk(to, |chunk| {
                 if let Some(c) = chunk.as_full() {
                     c.entities.add(entity);
                 }
@@ -2050,7 +2100,7 @@ impl World {
         // Remove from chunk storage
         let entity: Option<SharedEntity> = self
             .chunk_map
-            .with_full_chunk(&chunk_pos, |chunk| {
+            .with_full_chunk(chunk_pos, |chunk| {
                 chunk.as_full().and_then(|c| c.entities.remove(entity_id))
             })
             .flatten();

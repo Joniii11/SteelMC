@@ -3,6 +3,7 @@ use enum_dispatch::enum_dispatch;
 
 use crate::random::{
     legacy_random::{LegacyRandom, LegacyRandomSplitter},
+    name_hash::NameHash,
     xoroshiro::{Xoroshiro, XoroshiroSplitter},
 };
 
@@ -10,12 +11,14 @@ use crate::random::{
 pub mod gaussian;
 /// This module contains the legacy random number generator implementation.
 pub mod legacy_random;
+/// Precomputed name hashes for positional random seeding.
+pub mod name_hash;
 /// This module contains the xoroshiro random number generator.
 pub mod xoroshiro;
 
 /// A trait for random number generators.
 #[enum_dispatch]
-#[allow(missing_docs)]
+#[expect(missing_docs, reason = "method names are self-explanatory")]
 pub trait Random {
     #[must_use]
     fn fork(&mut self) -> Self;
@@ -61,11 +64,11 @@ pub trait Random {
 
 /// A trait for positional random number generators.
 #[enum_dispatch]
-#[allow(missing_docs)]
+#[expect(missing_docs, reason = "method names are self-explanatory")]
 pub trait PositionalRandom {
     fn at(&self, x: i32, y: i32, z: i32) -> RandomSource;
 
-    fn with_hash_of(&self, name: &str) -> RandomSource;
+    fn with_hash_of(&self, hash: &NameHash) -> RandomSource;
 
     fn with_seed(&self, seed: u64) -> RandomSource;
 }
@@ -80,6 +83,7 @@ pub enum RandomSource {
 }
 
 /// A random number generator that can be split.
+#[derive(Clone)]
 #[enum_dispatch(PositionalRandom)]
 pub enum RandomSplitter {
     /// A xoroshiro random number generator.
@@ -89,7 +93,6 @@ pub enum RandomSplitter {
 }
 
 /// Gets a seed from a position.
-#[allow(clippy::cast_sign_loss)]
 #[must_use]
 pub fn get_seed(x: i32, y: i32, z: i32) -> i64 {
     let l = i64::from(x.wrapping_mul(3_129_871))

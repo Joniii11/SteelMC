@@ -3,10 +3,13 @@
 //! This module handles server-side movement simulation and anti-cheat checks.
 //! It implements collision detection and physics similar to vanilla Minecraft.
 
+use std::sync::Arc;
+
+use glam::DVec3;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::shapes::AABBd;
 use steel_registry::vanilla_entities;
-use steel_utils::{BlockPos, math::Vector3};
+use steel_utils::BlockPos;
 
 use crate::physics::{
     CollisionWorld, EntityPhysicsState, MoverType, WorldCollisionProvider, join_is_not_empty,
@@ -48,13 +51,13 @@ pub const IMPULSE_GRACE_TICKS: i32 = 20;
 
 /// Creates a player bounding box at the given position.
 #[must_use]
-pub fn make_player_aabb(pos: Vector3<f64>) -> AABBd {
+pub fn make_player_aabb(pos: DVec3) -> AABBd {
     AABBd::entity_box(pos.x, pos.y, pos.z, PLAYER_WIDTH / 2.0, PLAYER_HEIGHT)
 }
 
 /// Creates a player bounding box at the given position, deflated by the collision epsilon.
 #[must_use]
-pub fn make_player_aabb_deflated(pos: Vector3<f64>) -> AABBd {
+pub fn make_player_aabb_deflated(pos: DVec3) -> AABBd {
     make_player_aabb(pos).deflate(COLLISION_EPSILON)
 }
 
@@ -78,9 +81,9 @@ pub fn clamp_vertical(value: f64) -> f64 {
 #[derive(Debug, Clone)]
 pub struct MoveResult {
     /// The actual movement after collision resolution.
-    pub movement: Vector3<f64>,
+    pub movement: DVec3,
     /// The final position after movement.
-    pub position: Vector3<f64>,
+    pub position: DVec3,
     /// Whether there was a collision on the X axis.
     pub collision_x: bool,
     /// Whether there was a collision on the Y axis.
@@ -110,9 +113,9 @@ pub struct MoveResult {
 /// A `MoveResult` containing the resolved movement and collision info.
 #[must_use]
 pub fn simulate_move(
-    world: &World,
-    start_pos: Vector3<f64>,
-    delta: Vector3<f64>,
+    world: &Arc<World>,
+    start_pos: DVec3,
+    delta: DVec3,
     is_crouching: bool,
     on_ground: bool,
 ) -> MoveResult {
@@ -142,7 +145,7 @@ pub fn simulate_move(
 ///
 /// Used to allow movement when already stuck in blocks.
 #[must_use]
-pub fn is_in_collision(world: &World, pos: Vector3<f64>) -> bool {
+pub fn is_in_collision(world: &Arc<World>, pos: DVec3) -> bool {
     let aabb = make_player_aabb_deflated(pos);
 
     let min_x = aabb.min_x.floor() as i32;
@@ -156,7 +159,7 @@ pub fn is_in_collision(world: &World, pos: Vector3<f64>) -> bool {
         for by in min_y..max_y {
             for bz in min_z..max_z {
                 let block_pos = BlockPos::new(bx, by, bz);
-                let block_state = world.get_block_state(&block_pos);
+                let block_state = world.get_block_state(block_pos);
                 let collision_shape = block_state.get_collision_shape();
 
                 for block_aabb in collision_shape {
@@ -182,11 +185,7 @@ pub fn is_in_collision(world: &World, pos: Vector3<f64>) -> bool {
 ///
 /// Matches vanilla `ServerGamePacketListenerImpl.isEntityCollidingWithAnythingNew()`.
 #[must_use]
-pub fn is_colliding_with_new_blocks(
-    world: &World,
-    old_pos: Vector3<f64>,
-    new_pos: Vector3<f64>,
-) -> bool {
+pub fn is_colliding_with_new_blocks(world: &Arc<World>, old_pos: DVec3, new_pos: DVec3) -> bool {
     let old_aabb = make_player_aabb_deflated(old_pos);
     let new_aabb = make_player_aabb_deflated(new_pos);
 
@@ -211,11 +210,11 @@ pub fn is_colliding_with_new_blocks(
 #[derive(Debug, Clone)]
 pub struct MovementInput {
     /// The target position the client claims to have moved to.
-    pub target_pos: Vector3<f64>,
+    pub target_pos: DVec3,
     /// The position at the start of the current tick.
-    pub first_good_pos: Vector3<f64>,
+    pub first_good_pos: DVec3,
     /// The last validated position.
-    pub last_good_pos: Vector3<f64>,
+    pub last_good_pos: DVec3,
     /// The player's current expected velocity (squared length).
     pub expected_velocity_sq: f64,
     /// Number of movement packets received since last tick.
@@ -239,7 +238,7 @@ pub struct MovementValidation {
     /// Whether the movement is valid.
     pub is_valid: bool,
     /// The movement delta from `last_good_pos`.
-    pub move_delta: Vector3<f64>,
+    pub move_delta: DVec3,
     /// The result of physics simulation.
     pub move_result: MoveResult,
     /// Why the movement failed (if invalid).
@@ -262,7 +261,7 @@ pub enum MovementFailure {
 /// This encapsulates the movement validation logic from vanilla's `handleMovePlayer`.
 /// It runs physics simulation and checks for speed hacks, position errors, and collisions.
 #[must_use]
-pub fn validate_movement(world: &World, input: &MovementInput) -> MovementValidation {
+pub fn validate_movement(world: &Arc<World>, input: &MovementInput) -> MovementValidation {
     let target_pos = input.target_pos;
     let first_good = input.first_good_pos;
     let last_good = input.last_good_pos;
@@ -284,9 +283,9 @@ pub fn validate_movement(world: &World, input: &MovementInput) -> MovementValida
         if moved_dist_sq - input.expected_velocity_sq > threshold {
             return MovementValidation {
                 is_valid: false,
-                move_delta: Vector3::new(0.0, 0.0, 0.0),
+                move_delta: DVec3::new(0.0, 0.0, 0.0),
                 move_result: MoveResult {
-                    movement: Vector3::new(0.0, 0.0, 0.0),
+                    movement: DVec3::new(0.0, 0.0, 0.0),
                     position: last_good,
                     collision_x: false,
                     collision_y: false,
@@ -299,7 +298,7 @@ pub fn validate_movement(world: &World, input: &MovementInput) -> MovementValida
     }
 
     // Calculate movement delta from last_good position
-    let move_delta = Vector3::new(
+    let move_delta = DVec3::new(
         target_pos.x - last_good.x,
         target_pos.y - last_good.y,
         target_pos.z - last_good.z,
@@ -368,7 +367,7 @@ pub fn validate_movement(world: &World, input: &MovementInput) -> MovementValida
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)]
+#[expect(clippy::float_cmp, reason = "exact match against vanilla test vectors")]
 mod tests {
     use super::*;
 
@@ -388,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_make_player_aabb() {
-        let pos = Vector3::new(0.0, 64.0, 0.0);
+        let pos = DVec3::new(0.0, 64.0, 0.0);
         let aabb = make_player_aabb(pos);
 
         assert!((aabb.min_x - (-0.3)).abs() < 0.001);

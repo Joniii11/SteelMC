@@ -1,5 +1,6 @@
-use crate::RegistryExt;
 use rustc_hash::FxHashMap;
+use simdnbt::ToNbtTag;
+use simdnbt::owned::NbtTag;
 use steel_utils::Identifier;
 
 /// Represents a chat type definition from the data packs.
@@ -27,6 +28,55 @@ pub struct ChatStyle {
     pub underlined: Option<bool>,
     pub strikethrough: Option<bool>,
     pub obfuscated: Option<bool>,
+}
+
+impl ToNbtTag for &ChatType {
+    fn to_nbt_tag(self) -> NbtTag {
+        use simdnbt::owned::NbtCompound;
+        let mut compound = NbtCompound::new();
+        compound.insert(
+            "chat",
+            NbtTag::Compound(ChatType::decoration_to_nbt(&self.chat)),
+        );
+        compound.insert(
+            "narration",
+            NbtTag::Compound(ChatType::decoration_to_nbt(&self.narration)),
+        );
+        NbtTag::Compound(compound)
+    }
+}
+
+impl ChatType {
+    fn decoration_to_nbt(dec: &ChatTypeDecoration) -> simdnbt::owned::NbtCompound {
+        use simdnbt::owned::{NbtCompound, NbtTag};
+        let mut compound = NbtCompound::new();
+        compound.insert("translation_key", dec.translation_key);
+        let params: Vec<String> = dec.parameters.iter().map(|s| s.to_string()).collect();
+        compound.insert("parameters", params);
+        if let Some(style) = &dec.style {
+            let mut style_compound = NbtCompound::new();
+            if let Some(color) = style.color {
+                style_compound.insert("color", color);
+            }
+            if let Some(bold) = style.bold {
+                style_compound.insert("bold", bold);
+            }
+            if let Some(italic) = style.italic {
+                style_compound.insert("italic", italic);
+            }
+            if let Some(underlined) = style.underlined {
+                style_compound.insert("underlined", underlined);
+            }
+            if let Some(strikethrough) = style.strikethrough {
+                style_compound.insert("strikethrough", strikethrough);
+            }
+            if let Some(obfuscated) = style.obfuscated {
+                style_compound.insert("obfuscated", obfuscated);
+            }
+            compound.insert("style", NbtTag::Compound(style_compound));
+        }
+        compound
+    }
 }
 
 pub type ChatTypeRef = &'static ChatType;
@@ -70,46 +120,11 @@ impl ChatTypeRegistry {
         true
     }
 
-    #[must_use]
-    pub fn by_id(&self, id: usize) -> Option<ChatTypeRef> {
-        self.chat_types_by_id.get(id).copied()
-    }
-
-    #[must_use]
-    pub fn get_id(&self, chat_type: ChatTypeRef) -> &usize {
-        self.chat_types_by_key
-            .get(&chat_type.key)
-            .expect("Chat type not found")
-    }
-
-    #[must_use]
-    pub fn by_key(&self, key: &Identifier) -> Option<ChatTypeRef> {
-        self.chat_types_by_key
-            .get(key)
-            .and_then(|id| self.by_id(*id))
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (usize, ChatTypeRef)> + '_ {
         self.chat_types_by_id
             .iter()
             .enumerate()
             .map(|(id, &ct)| (id, ct))
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.chat_types_by_id.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.chat_types_by_id.is_empty()
-    }
-}
-
-impl RegistryExt for ChatTypeRegistry {
-    fn freeze(&mut self) {
-        self.allows_registering = false;
     }
 }
 
@@ -118,3 +133,11 @@ impl Default for ChatTypeRegistry {
         Self::new()
     }
 }
+
+crate::impl_registry!(
+    ChatTypeRegistry,
+    ChatType,
+    chat_types_by_id,
+    chat_types_by_key,
+    chat_types
+);

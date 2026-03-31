@@ -12,7 +12,9 @@ use steel_protocol::packets::game::{
     BlockEntityInfo, ChunkPacketData, HeightmapType as ProtocolHeightmapType, Heightmaps,
     LightUpdatePacketData,
 };
-use steel_registry::{REGISTRY, blocks::block_state_ext::BlockStateExt, vanilla_blocks};
+use steel_registry::{
+    REGISTRY, RegistryEntry, blocks::block_state_ext::BlockStateExt, vanilla_blocks,
+};
 use steel_utils::{
     BlockPos, BlockStateId, ChunkPos, SectionPos, codec::BitSet, locks::SyncRwLock,
     types::UpdateFlags,
@@ -230,7 +232,10 @@ impl LevelChunk {
     /// # Panics
     /// Panics if the block behavior registry has not been initialized.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "all parameters are required to fully restore a chunk from disk"
+    )]
     pub fn from_disk(
         sections: Sections,
         pos: ChunkPos,
@@ -640,7 +645,7 @@ impl LevelChunk {
             .map(|entity| {
                 let guard = entity.lock();
                 let pos = guard.get_block_pos();
-                let type_id = *REGISTRY.block_entity_types.get_id(guard.get_type()) as i32;
+                let type_id = guard.get_type().id() as i32;
                 let update_tag = guard.get_update_tag();
 
                 // Pack local X and Z coordinates into a single byte

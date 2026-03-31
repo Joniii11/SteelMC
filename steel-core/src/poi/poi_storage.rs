@@ -6,7 +6,7 @@
 //! load/unload and spatial queries.
 
 use rustc_hash::FxHashMap;
-use steel_registry::REGISTRY;
+use steel_registry::{REGISTRY, RegistryExt};
 use steel_utils::{BlockPos, BlockStateId, ChunkPos, SectionPos};
 
 use super::poi_instance::PointOfInterest;
@@ -27,7 +27,7 @@ pub enum OccupationStatus {
 impl OccupationStatus {
     /// Returns `true` if the given POI matches this status filter.
     #[must_use]
-    pub const fn matches(&self, poi: &PointOfInterest, max_tickets: u32) -> bool {
+    pub const fn matches(self, poi: &PointOfInterest, max_tickets: u32) -> bool {
         match self {
             Self::Any => true,
             Self::Free => poi.has_space(),

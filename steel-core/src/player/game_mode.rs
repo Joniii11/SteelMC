@@ -3,6 +3,8 @@
 //! This module implements the logic from Java's `ServerPlayerGameMode`, particularly
 //! the `useItemOn` method that handles block placement and block interactions.
 
+use std::sync::Arc;
+
 use steel_registry::REGISTRY;
 use steel_utils::types::{GameType, InteractionHand};
 
@@ -26,11 +28,11 @@ use crate::world::World;
 /// 6. Handle creative mode infinite materials
 pub fn use_item_on(
     player: &Player,
-    world: &World,
+    world: &Arc<World>,
     hand: InteractionHand,
     hit_result: &BlockHitResult,
 ) -> InteractionResult {
-    let pos = &hit_result.block_pos;
+    let pos = hit_result.block_pos;
     let state = world.get_block_state(pos);
 
     // Spectator mode: can only open menus
@@ -64,7 +66,7 @@ pub fn use_item_on(
         let item_snapshot = player.inventory.lock().get_item_in_hand(hand).clone();
 
         let block_result =
-            behavior.use_item_on(&item_snapshot, state, world, *pos, player, hand, hit_result);
+            behavior.use_item_on(&item_snapshot, state, world, pos, player, hand, hit_result);
 
         if block_result.consumes_action() {
             return block_result;
@@ -73,7 +75,7 @@ pub fn use_item_on(
         if matches!(block_result, InteractionResult::TryEmptyHandInteraction)
             && hand == InteractionHand::MainHand
         {
-            let empty_result = behavior.use_without_item(state, world, *pos, player, hit_result);
+            let empty_result = behavior.use_without_item(state, world, pos, player, hit_result);
 
             if empty_result.consumes_action() {
                 return empty_result;
@@ -86,43 +88,29 @@ pub fn use_item_on(
     let mut guard = ContainerLockGuard::lock_all(&[&inv_ref]);
 
     let inv_id = inv_ref.container_id();
-    let mut item_stack = {
+
+    let is_empty = {
         let Some(inv) = guard.get_player_inventory_mut(inv_id) else {
             return InteractionResult::Pass;
         };
-        inv.get_item_in_hand(hand).clone()
+        inv.get_item_in_hand(hand).is_empty()
     };
 
-    if !item_stack.is_empty() {
+    if !is_empty {
         // TODO: Check item cooldowns
         // if player.getCooldowns().isOnCooldown(item_stack.item) { return Pass }
 
-        let original_count = item_stack.count;
+        let mut context =
+            UseOnContext::new(player, hand, hit_result.clone(), world, &mut guard, inv_id);
 
-        let result = {
-            let mut context = UseOnContext {
-                player,
-                hand,
-                hit_result: hit_result.clone(),
-                world,
-                item_stack: &mut item_stack,
-                inv_guard: &mut guard,
-            };
+        let original_count = context.inv.item().count;
+        let item_ref = context.inv.item().item;
+        let item_behavior = item_behaviors.get_behavior(item_ref);
+        let result = item_behavior.use_on(&mut context);
 
-            let item_behavior = item_behaviors.get_behavior(context.item_stack.item);
-            let result = item_behavior.use_on(&mut context);
-
-            // Restore count for creative mode (infinite materials)
-            if player.has_infinite_materials() && context.item_stack.count < original_count {
-                context.item_stack.count = original_count;
-            }
-
-            result
-        };
-
-        // Write back through the guard (context dropped, borrows released)
-        if let Some(inv) = guard.get_player_inventory_mut(inv_id) {
-            inv.set_item_in_hand(hand, item_stack);
+        // Restore count for creative mode (infinite materials)
+        if player.has_infinite_materials() && context.inv.item().count < original_count {
+            context.inv.item().count = original_count;
         }
 
         return result;
@@ -134,7 +122,7 @@ pub fn use_item_on(
 /// Handles using an item (general usage like right-clicking air).
 ///
 /// This implements logic similar to `ServerPlayerGameMode.useItem()`.
-pub fn use_item(player: &Player, world: &World, hand: InteractionHand) -> InteractionResult {
+pub fn use_item(player: &Player, world: &Arc<World>, hand: InteractionHand) -> InteractionResult {
     // Spectator mode: can only open menus
     if player.game_mode.load() == GameType::Spectator {
         return InteractionResult::Pass;
@@ -145,45 +133,31 @@ pub fn use_item(player: &Player, world: &World, hand: InteractionHand) -> Intera
 
     let inv_ref = ContainerRef::PlayerInventory(player.inventory.clone());
     let mut guard = ContainerLockGuard::lock_all(&[&inv_ref]);
+    let inv_id = inv_ref.container_id();
 
-    let mut item_stack = {
-        let inv_id = inv_ref.container_id();
+    let is_empty = {
         let Some(inv) = guard.get_player_inventory_mut(inv_id) else {
             return InteractionResult::Pass;
         };
-        inv.get_item_in_hand(hand).clone()
+        inv.get_item_in_hand(hand).is_empty()
     };
 
-    if !item_stack.is_empty() {
-        let original_count = item_stack.count;
+    if !is_empty {
+        let mut context =
+            crate::behavior::UseItemContext::new(player, hand, world, &mut guard, inv_id);
 
-        let result = {
-            let mut context = crate::behavior::UseItemContext {
-                player,
-                hand,
-                world,
-                item_stack: &mut item_stack,
-                inv_guard: &mut guard,
-            };
+        let original_count = context.inv.item().count;
 
-            // Get behavior registries
-            let item_behaviors = &*ITEM_BEHAVIORS;
-            let item_behavior = item_behaviors.get_behavior(context.item_stack.item);
+        // Get behavior registries
+        let item_behaviors = &*ITEM_BEHAVIORS;
+        let item_ref = context.inv.item().item;
+        let item_behavior = item_behaviors.get_behavior(item_ref);
 
-            let result = item_behavior.use_item(&mut context);
+        let result = item_behavior.use_item(&mut context);
 
-            // Restore count for creative mode (infinite materials)
-            if player.has_infinite_materials() && context.item_stack.count < original_count {
-                context.item_stack.count = original_count;
-            }
-
-            result
-        };
-
-        // Write back modified hand item through the guard (context dropped, borrows released)
-        let inv_id = inv_ref.container_id();
-        if let Some(inv) = guard.get_player_inventory_mut(inv_id) {
-            inv.set_item_in_hand(hand, item_stack);
+        // Restore count for creative mode (infinite materials)
+        if player.has_infinite_materials() && context.inv.item().count < original_count {
+            context.inv.item().count = original_count;
         }
 
         return result;

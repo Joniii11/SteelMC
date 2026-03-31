@@ -1,5 +1,6 @@
-use crate::RegistryExt;
 use rustc_hash::FxHashMap;
+use simdnbt::ToNbtTag;
+use simdnbt::owned::NbtTag;
 use steel_utils::Identifier;
 
 /// Represents a full pig variant definition from a data pack JSON file.
@@ -7,6 +8,7 @@ use steel_utils::Identifier;
 pub struct PigVariant {
     pub key: Identifier,
     pub asset_id: Identifier,
+    pub baby_asset_id: Identifier,
     pub model: PigModelType,
     pub spawn_conditions: &'static [SpawnConditionEntry],
 }
@@ -31,6 +33,42 @@ pub struct SpawnConditionEntry {
 pub struct BiomeCondition {
     pub condition_type: &'static str,
     pub biomes: &'static str,
+}
+
+impl ToNbtTag for &PigVariant {
+    fn to_nbt_tag(self) -> NbtTag {
+        use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
+        let mut compound = NbtCompound::new();
+        compound.insert("asset_id", self.asset_id.clone());
+        compound.insert("baby_asset_id", self.baby_asset_id.clone());
+        compound.insert(
+            "model",
+            match self.model {
+                PigModelType::Normal => "normal",
+                PigModelType::Cold => "cold",
+            },
+        );
+        let conditions: Vec<NbtCompound> = self
+            .spawn_conditions
+            .iter()
+            .map(|entry| {
+                let mut e = NbtCompound::new();
+                e.insert("priority", entry.priority);
+                if let Some(cond) = &entry.condition {
+                    let mut c = NbtCompound::new();
+                    c.insert("type", cond.condition_type);
+                    c.insert("biomes", cond.biomes);
+                    e.insert("condition", NbtTag::Compound(c));
+                }
+                e
+            })
+            .collect();
+        compound.insert(
+            "spawn_conditions",
+            NbtTag::List(NbtList::Compound(conditions)),
+        );
+        NbtTag::Compound(compound)
+    }
 }
 
 pub type PigVariantRef = &'static PigVariant;
@@ -74,46 +112,11 @@ impl PigVariantRegistry {
         true
     }
 
-    #[must_use]
-    pub fn by_id(&self, id: usize) -> Option<PigVariantRef> {
-        self.pig_variants_by_id.get(id).copied()
-    }
-
-    #[must_use]
-    pub fn get_id(&self, pig_variant: PigVariantRef) -> &usize {
-        self.pig_variants_by_key
-            .get(&pig_variant.key)
-            .expect("Pig variant not found")
-    }
-
-    #[must_use]
-    pub fn by_key(&self, key: &Identifier) -> Option<PigVariantRef> {
-        self.pig_variants_by_key
-            .get(key)
-            .and_then(|id| self.by_id(*id))
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (usize, PigVariantRef)> + '_ {
         self.pig_variants_by_id
             .iter()
             .enumerate()
             .map(|(id, &variant)| (id, variant))
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.pig_variants_by_id.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.pig_variants_by_id.is_empty()
-    }
-}
-
-impl RegistryExt for PigVariantRegistry {
-    fn freeze(&mut self) {
-        self.allows_registering = false;
     }
 }
 
@@ -122,3 +125,11 @@ impl Default for PigVariantRegistry {
         Self::new()
     }
 }
+
+crate::impl_registry!(
+    PigVariantRegistry,
+    PigVariant,
+    pig_variants_by_id,
+    pig_variants_by_key,
+    pig_variants
+);

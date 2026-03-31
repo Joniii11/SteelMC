@@ -18,6 +18,7 @@ use crate::player::player_data_storage::PlayerDataStorage;
 use crate::server::registry_cache::RegistryCache;
 use crate::world::{World, WorldConfig, WorldTickTimings};
 use crate::worldgen::BiomeSourceKind;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 use small_map::FxSmallMap;
 use std::{
     sync::Arc,
@@ -32,7 +33,7 @@ use steel_registry::dimension_type::DimensionTypeRef;
 use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_dimension_types::{OVERWORLD, THE_END, THE_NETHER};
 use steel_registry::vanilla_game_rules::{IMMEDIATE_RESPAWN, LIMITED_CRAFTING, REDUCED_DEBUG_INFO};
-use steel_registry::{REGISTRY, Registry, vanilla_blocks};
+use steel_registry::{REGISTRY, Registry, RegistryEntry, RegistryExt, vanilla_blocks};
 use steel_utils::{Identifier, entity_events::EntityStatus, locks::SyncRwLock};
 use text_components::{Modifier, TextComponent, format::Color};
 use tick_rate_manager::{SprintReport, TickRateManager};
@@ -66,7 +67,6 @@ impl Server {
     /// # Panics
     ///
     /// Panics if the global registry has already been initialized.
-    #[allow(clippy::too_many_lines)]
     pub async fn new(chunk_runtime: Arc<Runtime>, cancel_token: CancellationToken) -> Self {
         let start = Instant::now();
         let mut registry = Registry::new_vanilla();
@@ -97,11 +97,23 @@ impl Server {
             })
         };
 
+        let generation_pool: Arc<ThreadPool> = Arc::new({
+            let mut builder = ThreadPoolBuilder::new().thread_name(|i| format!("rayon-gen-{i}"));
+            // Debug builds have deep call chains in density functions that overflow the default 2 MB stack
+            if cfg!(debug_assertions) {
+                builder = builder.stack_size(8 * 1024 * 1024);
+            }
+            builder
+                .build()
+                .expect("Failed to create generation thread pool")
+        });
+
         let overworld = World::new_with_config(
             chunk_runtime.clone(),
             OVERWORLD,
             seed,
             Self::make_world_config(OVERWORLD, seed),
+            generation_pool.clone(),
         )
         .await
         .expect("Failed to create overworld");
@@ -111,6 +123,7 @@ impl Server {
             THE_NETHER,
             seed,
             Self::make_world_config(THE_NETHER, seed),
+            generation_pool.clone(),
         )
         .await
         .expect("Failed to create nether");
@@ -120,6 +133,7 @@ impl Server {
             THE_END,
             seed,
             Self::make_world_config(THE_END, seed),
+            generation_pool,
         )
         .await
         .expect("Failed to create end");
@@ -193,12 +207,11 @@ impl Server {
             show_death_screen: !immediate_respawn,
             do_limited_crafting,
             common_player_spawn_info: CommonPlayerSpawnInfo {
-                dimension_type: *(REGISTRY.dimension_types.get_id(
-                    REGISTRY
-                        .dimension_types
-                        .by_key(&dimension_key)
-                        .expect("Should be registered"),
-                )) as i32,
+                dimension_type: REGISTRY
+                    .dimension_types
+                    .by_key(&dimension_key)
+                    .expect("Should be registered")
+                    .id() as i32,
                 dimension: dimension_key,
                 seed: hashed_seed,
                 game_type: player.game_mode.load(),

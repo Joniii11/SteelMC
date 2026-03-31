@@ -6,6 +6,8 @@ pub mod chunk_sender;
 /// This module contains the `PlayerConnection` trait that abstracts network connections.
 pub mod connection;
 mod entity_state;
+/// Experience System
+pub mod experience;
 pub mod food_data;
 /// Game mode specific logic for player interactions.
 pub mod game_mode;
@@ -29,11 +31,12 @@ use bitflags::bitflags;
 use chat_state::ChatState;
 use entity_state::EntityState;
 use food_data::{FoodData, FoodTickResult, food_constants};
+use glam::DVec3;
 use health_sync::HealthSyncState;
 pub use message_validator::LastSeenMessagesValidator;
 use movement_state::MovementState;
 pub use signature_cache::{LastSeen, MessageCache};
-use steel_protocol::packet_traits::CompressionInfo;
+use steel_protocol::{packet_traits::CompressionInfo, packets::game::CSetExperience};
 use teleport_state::TeleportState;
 
 use block_breaking::BlockBreakingManager;
@@ -71,7 +74,7 @@ use steel_registry::vanilla_game_rules::{
     ADVANCE_TIME, ELYTRA_MOVEMENT_CHECK, IMMEDIATE_RESPAWN, KEEP_INVENTORY,
     NATURAL_HEALTH_REGENERATION, PLAYER_MOVEMENT_CHECK, SHOW_DEATH_MESSAGES,
 };
-use steel_registry::{REGISTRY, vanilla_chat_types};
+use steel_registry::{RegistryEntry, vanilla_chat_types};
 use steel_utils::entity_events::EntityStatus;
 
 use steel_utils::Identifier;
@@ -87,7 +90,6 @@ use text_components::{
 };
 use uuid::Uuid;
 
-use crate::config::STEEL_CONFIG;
 use crate::entity::{
     DEATH_DURATION, Entity, EntityLevelCallback, LivingEntityBase, NullEntityCallback,
     RemovalReason,
@@ -95,6 +97,7 @@ use crate::entity::{
 use crate::player::player_inventory::PlayerInventory;
 use crate::server::Server;
 use crate::{command::commands::gamemode::get_gamemode_translation, inventory::SyncPlayerInv};
+use crate::{config::STEEL_CONFIG, player::experience::Experience};
 use crate::{config::WorldGeneratorTypes, entity::damage::DamageSource};
 use steel_registry::vanilla_damage_types;
 
@@ -118,7 +121,7 @@ use crate::block_entity::entities::SignBlockEntity;
 use steel_utils::BlockPos;
 
 use steel_utils::types::InteractionHand;
-use steel_utils::{ChunkPos, math::Vector3, translations};
+use steel_utils::{ChunkPos, translations};
 
 use crate::entity::LivingEntity;
 
@@ -171,7 +174,7 @@ pub struct ClientInformation {
     /// Whether chat colors are enabled.
     pub chat_colors: bool,
     /// Bitmask for displayed skin parts.
-    pub model_customisation: i32,
+    pub model_customization: i32,
     /// The player's main hand (left or right).
     pub main_hand: HumanoidArm,
     /// Whether text filtering is enabled.
@@ -189,7 +192,7 @@ impl Default for ClientInformation {
             view_distance: 8, // Default client view distance
             chat_visibility: ChatVisibility::Full,
             chat_colors: true,
-            model_customisation: 0,
+            model_customization: 0,
             main_hand: HumanoidArm::Right,
             text_filtering_enabled: false,
             allows_listing: true,
@@ -228,7 +231,6 @@ pub struct Player {
     pub world: Arc<World>,
 
     /// Reference to the server (for entity ID generation, etc.).
-    #[allow(dead_code)]
     pub(crate) server: Weak<Server>,
 
     /// The entity ID assigned to this player.
@@ -238,7 +240,7 @@ pub struct Player {
     pub client_loaded: AtomicBool,
 
     /// The player's position.
-    pub position: SyncMutex<Vector3<f64>>,
+    pub position: SyncMutex<DVec3>,
     /// The player's rotation (yaw, pitch).
     pub rotation: AtomicCell<(f32, f32)>,
     /// Movement tracking state
@@ -316,6 +318,9 @@ pub struct Player {
 
     /// Callback for entity lifecycle events (movement between chunks, removal).
     level_callback: SyncMutex<Arc<dyn EntityLevelCallback>>,
+
+    /// The Player's Experience
+    pub experience: SyncMutex<Experience>,
 }
 
 impl Player {
@@ -325,9 +330,9 @@ impl Player {
     }
 
     /// Computes the start (eye position) and end positions for a raytrace.
-    pub fn get_ray_endpoints(&self) -> (Vector3<f64>, Vector3<f64>) {
+    pub fn get_ray_endpoints(&self) -> (DVec3, DVec3) {
         let pos = self.position();
-        let start_pos = Vector3::new(pos.x, self.get_eye_y(), pos.z);
+        let start_pos = DVec3::new(pos.x, self.get_eye_y(), pos.z);
         let (yaw, pitch) = self.rotation();
         let (yaw_rad, pitch_rad) = (f64::from(yaw.to_radians()), f64::from(pitch.to_radians()));
         // Vanilla: Attributes.BLOCK_INTERACTION_RANGE defaults to 4.5,
@@ -337,13 +342,13 @@ impl Player {
         } else {
             4.5
         };
-        let direction = Vector3::new(
+        let direction = DVec3::new(
             -yaw_rad.sin() * pitch_rad.cos() * block_interaction_range,
             -pitch_rad.sin() * block_interaction_range,
             pitch_rad.cos() * yaw_rad.cos() * block_interaction_range,
         );
 
-        let end_pos = start_pos.add(&direction);
+        let end_pos = start_pos + direction;
         (start_pos, end_pos)
     }
 
@@ -360,7 +365,7 @@ impl Player {
         // Create a single shared inventory container used by both the player and inventory menu
         let inventory = Arc::new(SyncMutex::new(PlayerInventory::new(player.clone())));
 
-        let pos = Vector3::new(0.0, 0.0, 0.0);
+        let pos = DVec3::new(0.0, 0.0, 0.0);
 
         Self {
             gameprofile,
@@ -401,6 +406,7 @@ impl Player {
             health_sync: SyncMutex::new(HealthSyncState::new()),
             removed: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
+            experience: SyncMutex::new(Experience::default()),
         }
     }
 
@@ -445,7 +451,10 @@ impl Player {
     }
 
     /// Ticks the player.
-    #[allow(clippy::cast_possible_truncation)]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "world coordinates are always within i32 range in a valid Minecraft world"
+    )]
     pub fn tick(&self) {
         self.tick_count.fetch_add(1, Ordering::Relaxed);
 
@@ -523,6 +532,19 @@ impl Player {
                     food_saturation: saturation,
                 });
                 sync.record_sent(health, food, saturation_zero);
+            }
+        }
+
+        {
+            let mut experience = self.experience.lock();
+
+            if experience.dirty {
+                self.send_packet(CSetExperience {
+                    progress: experience.progress() as f32,
+                    level: experience.level(),
+                    total_experience: experience.total_points(),
+                });
+                experience.dirty = false;
             }
         }
 
@@ -610,11 +632,13 @@ impl Player {
     }
 
     /// Handles a custom payload packet.
+    #[expect(clippy::unused_self, reason = "this is an api function")]
     pub fn handle_custom_payload(&self, packet: SCustomPayload) {
         log::info!("Hello from the other side! {packet:?}");
     }
 
     /// Handles the end of a client tick.
+    #[expect(clippy::unused_self, reason = "this is an api function")]
     pub const fn handle_client_tick_end(&self) {
         //log::info!("Hello from the other side!");
     }
@@ -702,7 +726,10 @@ impl Player {
     }
 
     /// Handles a chat message from the player.
-    #[allow(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "chat verification, signing, and broadcast form a single logical flow; splitting would hurt readability"
+    )]
     pub fn handle_chat(&self, packet: SChat, player: Arc<Player>) {
         let chat_message = packet.message.clone();
 
@@ -754,7 +781,7 @@ impl Player {
             idx
         };
 
-        let registry_id = *REGISTRY.chat_types.get_id(vanilla_chat_types::CHAT) as i32;
+        let registry_id = vanilla_chat_types::CHAT.id() as i32;
 
         let chat_packet = CPlayerChat::new(
             0,
@@ -802,7 +829,7 @@ impl Player {
                             chat_packet.clone(),
                             Arc::clone(&player),
                             last_seen.clone(),
-                            Some(sig_array),
+                            Some(&sig_array),
                         );
                     }
                 }
@@ -905,7 +932,10 @@ impl Player {
     /// Handles a move player packet.
     ///
     /// Matches vanilla `ServerGamePacketListenerImpl.handleMovePlayer()`.
-    #[allow(clippy::cast_lossless, clippy::too_many_lines, clippy::similar_names)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "matches vanilla handleMovePlayer; splitting would hurt readability"
+    )]
     pub fn handle_move_player(&self, packet: SMovePlayer) {
         if Self::is_invalid_position(
             packet.get_x(0.0),
@@ -946,7 +976,8 @@ impl Player {
         let tick_frozen = !self.world.tick_runs_normally();
 
         if packet.has_pos {
-            let target_pos = Vector3::new(
+            // Clamp position to vanilla limits
+            let target_pos = DVec3::new(
                 movement::clamp_horizontal(packet.position.x),
                 movement::clamp_vertical(packet.position.y),
                 movement::clamp_horizontal(packet.position.z),
@@ -1295,7 +1326,7 @@ impl Player {
             view_distance: packet.view_distance.clamp(2, 32) as u8,
             chat_visibility: packet.chat_visibility,
             chat_colors: packet.chat_colors,
-            model_customisation: packet.model_customisation,
+            model_customization: packet.model_customization,
             main_hand: packet.main_hand,
             text_filtering_enabled: packet.text_filtering_enabled,
             allows_listing: packet.allows_listing,
@@ -1684,7 +1715,7 @@ impl Player {
     /// Uses eye position and AABB distance (nearest point on block surface),
     /// matching vanilla's `Player.isWithinBlockInteractionRange(pos, 1.0)`.
     #[must_use]
-    pub fn is_within_block_interaction_range(&self, pos: &BlockPos) -> bool {
+    pub fn is_within_block_interaction_range(&self, pos: BlockPos) -> bool {
         let player_pos = *self.position.lock();
         let eye_y = player_pos.y + self.get_eye_height();
 
@@ -1836,12 +1867,12 @@ impl Player {
 
     /// Returns the player's current velocity.
     #[must_use]
-    pub fn get_delta_movement(&self) -> Vector3<f64> {
+    pub fn get_delta_movement(&self) -> DVec3 {
         self.movement.lock().delta_movement
     }
 
     /// Sets the player's velocity.
-    pub fn set_delta_movement(&self, velocity: Vector3<f64>) {
+    pub fn set_delta_movement(&self, velocity: DVec3) {
         self.movement.lock().delta_movement = velocity;
     }
 
@@ -1896,7 +1927,7 @@ impl Player {
     ///
     /// Matches vanilla `ServerGamePacketListenerImpl.teleport()`.
     pub fn teleport(&self, x: f64, y: f64, z: f64, yaw: f32, pitch: f32) {
-        let pos = Vector3::new(x, y, z);
+        let pos = DVec3::new(x, y, z);
 
         let new_id = {
             let mut tp = self.teleport_state.lock();
@@ -1935,15 +1966,15 @@ impl Player {
     /// Sends block update packets for a position and its neighbor.
     /// Optionally also sends an update for an additional placement position
     /// (useful for items like buckets that place blocks at different positions).
-    fn send_block_updates(&self, pos: &BlockPos, direction: Direction) {
+    fn send_block_updates(&self, pos: BlockPos, direction: Direction) {
         let state = self.world.get_block_state(pos);
         self.send_packet(CBlockUpdate {
-            pos: *pos,
+            pos,
             block_state: state,
         });
 
         let neighbor_pos = direction.relative(pos);
-        let neighbor_state = self.world.get_block_state(&neighbor_pos);
+        let neighbor_state = self.world.get_block_state(neighbor_pos);
         self.send_packet(CBlockUpdate {
             pos: neighbor_pos,
             block_state: neighbor_state,
@@ -2104,7 +2135,7 @@ impl Player {
         // 2. Ack block changes
         self.ack_block_changes_up_to(packet.sequence);
 
-        let pos = &packet.block_hit.block_pos;
+        let pos = packet.block_hit.block_pos;
         let direction = packet.block_hit.direction;
 
         // 3. Validate interaction range
@@ -2265,12 +2296,12 @@ impl Player {
     /// Panics if the behavior registry has not been initialized.
     pub fn handle_pick_item_from_block(&self, packet: SPickItemFromBlock) {
         // Check if player is within interaction range (with 1.0 buffer like vanilla)
-        if !self.is_within_block_interaction_range(&packet.pos) {
+        if !self.is_within_block_interaction_range(packet.pos) {
             return;
         }
 
         // Get block state at position
-        let state = self.world.get_block_state(&packet.pos);
+        let state = self.world.get_block_state(packet.pos);
         if state.is_air() {
             return;
         }
@@ -2339,12 +2370,12 @@ impl Player {
     /// Handles a sign update packet from the client.
     pub fn handle_sign_update(&self, packet: SSignUpdate) {
         // Check if player is within interaction range
-        if !self.is_within_block_interaction_range(&packet.pos) {
+        if !self.is_within_block_interaction_range(packet.pos) {
             return;
         }
 
         // Get the block entity at the position
-        let Some(block_entity) = self.world.get_block_entity(&packet.pos) else {
+        let Some(block_entity) = self.world.get_block_entity(packet.pos) else {
             return;
         };
 
@@ -2408,7 +2439,7 @@ impl Player {
     /// * `is_front_text` - Whether to edit front (true) or back (false) text
     pub fn open_sign_editor(&self, pos: BlockPos, is_front_text: bool) {
         // Set this player as the one who may edit the sign
-        if let Some(block_entity) = self.world.get_block_entity(&pos) {
+        if let Some(block_entity) = self.world.get_block_entity(pos) {
             let mut guard = block_entity.lock();
             if let Some(sign) = guard.as_any_mut().downcast_mut::<SignBlockEntity>() {
                 sign.set_player_who_may_edit(Some(self.gameprofile.id));
@@ -2416,7 +2447,7 @@ impl Player {
         }
 
         // Send the block update first to ensure client has latest state
-        let state = self.world.get_block_state(&pos);
+        let state = self.world.get_block_state(pos);
         self.send_packet(CBlockUpdate {
             pos,
             block_state: state,
@@ -2585,7 +2616,7 @@ impl Player {
             // Random direction throw (like death drops)
             let power = rand::random::<f32>() * 0.5;
             let angle = rand::random::<f32>() * TAU;
-            Vector3::new(
+            DVec3::new(
                 f64::from(-angle.sin() * power),
                 0.2,
                 f64::from(angle.cos() * power),
@@ -2604,7 +2635,7 @@ impl Player {
             let angle_offset = rand::random::<f32>() * TAU;
             let power_offset = 0.02 * rand::random::<f32>();
 
-            Vector3::new(
+            DVec3::new(
                 f64::from(-sin_yaw * cos_pitch * 0.3)
                     + f64::from(angle_offset.cos() * power_offset),
                 f64::from(-sin_pitch * 0.3 + 0.1)
@@ -2613,7 +2644,7 @@ impl Player {
             )
         };
 
-        let spawn_pos = Vector3::new(pos.x, spawn_y, pos.z);
+        let spawn_pos = DVec3::new(pos.x, spawn_y, pos.z);
 
         if let Some(entity) = self
             .world
@@ -2695,7 +2726,7 @@ impl Player {
             for y in min_y..=max_y {
                 for z in min_z..=max_z {
                     let pos = BlockPos::new(x, y, z);
-                    let state = self.world.get_block_state(&pos);
+                    let state = self.world.get_block_state(pos);
                     if state.is_air() {
                         continue;
                     }
@@ -2807,7 +2838,7 @@ impl Player {
         // Blocked on: knockback / velocity system, projectile system
 
         if took_full_damage {
-            let type_id = *REGISTRY.damage_types.get_id(source.damage_type) as i32;
+            let type_id = source.damage_type.id() as i32;
             let chunk_pos = *self.last_chunk_pos.lock();
 
             self.world.broadcast_to_nearby(
@@ -2870,6 +2901,19 @@ impl Player {
 
             living_base.dead = true;
         }
+
+        {
+            let mut experience = self.experience.lock();
+
+            experience.sync_score(&mut self.entity_data.lock());
+            experience.score = 0;
+        }
+
+        self.sync_entity_data();
+
+        // NOTE: Vanilla `ServerPlayer.die()` does NOT set Pose::Dying — only
+        // `LivingEntity.die()` does (which ServerPlayer never calls via super).
+        // The death screen covers the player model, so the pose is irrelevant.
 
         // Broadcast entity event 3 (death sound) to all nearby players.
         let chunk_pos = *self.last_chunk_pos.lock();
@@ -2942,7 +2986,10 @@ impl Player {
     ///
     /// # Panics
     /// If the player dies in a dimension that doesn't exist.
-    #[allow(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "respawn logic is a single sequential operation matching vanilla ServerPlayer.respawn; splitting would hurt readability"
+    )]
     pub fn respawn(&self) {
         {
             let mut living_base = self.living_base.lock();
@@ -2969,7 +3016,7 @@ impl Player {
         // is naturally zeroed; we reuse the same Player, so we must reset manually.
         // TODO: as new transient fields are added (effects, fire ticks, frozen
         // ticks, etc.), they must be reset here too.
-        self.movement.lock().delta_movement = Vector3::default();
+        self.movement.lock().delta_movement = DVec3::default();
         {
             let mut es = self.entity_state.lock();
             es.on_ground = false;
@@ -2990,19 +3037,11 @@ impl Player {
 
         self.health_sync.lock().reset_for_respawn();
 
-        let dimension_key = world.dimension.key.clone();
-        let dimension_type_id = *(REGISTRY.dimension_types.get_id(
-            REGISTRY
-                .dimension_types
-                .by_key(&dimension_key)
-                .expect("Dimension should be registered!"),
-        )) as i32;
-
         // TODO: bed/respawn anchor lookup, send NO_RESPAWN_BLOCK_AVAILABLE if missing
 
         self.send_packet(CRespawn {
-            dimension_type: dimension_type_id,
-            dimension_name: dimension_key.clone(),
+            dimension_type: world.dimension.id() as i32,
+            dimension_name: world.dimension.key().to_owned(),
             hashed_seed: world.obfuscated_seed(),
             gamemode: self.game_mode.load() as u8,
             previous_gamemode: self.prev_game_mode.load() as i8,
@@ -3018,7 +3057,7 @@ impl Player {
         });
 
         let spawn_pos = world.level_data.read().spawn_pos();
-        let spawn = Vector3::new(
+        let spawn = DVec3::new(
             f64::from(spawn_pos.x()) + 0.5,
             f64::from(spawn_pos.y()),
             f64::from(spawn_pos.z()) + 0.5,
@@ -3037,7 +3076,17 @@ impl Player {
 
         self.send_difficulty();
 
-        // TODO: send CSetExperience (progress, level, total)
+        {
+            let mut experience = self.experience.lock();
+            if self.world.get_game_rule(KEEP_INVENTORY) != GameRuleValue::Bool(true)
+                && self.game_mode.load() != GameType::Spectator
+            {
+                // TODO: drop XP orbs (min(level * 7, 100))
+                experience.set_total_points(0);
+            }
+            // Re-send XP to client after respawn regardless of keepInventory
+            experience.dirty = true;
+        }
 
         // TODO: send mob effect packets once effects are implemented
 
@@ -3045,7 +3094,7 @@ impl Player {
 
         // Vanilla: ChunkMap.addEntity -> addPairing -> sendPairingData
         // TODO: also send SetEquipment + UpdateAttributes in the bundle
-        let player_type_id = *REGISTRY.entity_types.get_id(vanilla_entities::PLAYER) as i32;
+        let player_type_id = vanilla_entities::PLAYER.id() as i32;
         let spawn_packet = CAddEntity::player(
             self.id,
             self.gameprofile.id,
@@ -3083,11 +3132,8 @@ impl Player {
                 .get_game_rule(ADVANCE_TIME)
                 .as_bool()
                 .expect("gamerule advance_time should always be a bool.");
-            self.send_packet(CSetTime {
-                game_time,
-                day_time,
-                time_of_day_increasing: advance_time,
-            });
+            let rate = if advance_time { 1.0 } else { 0.0 };
+            self.send_packet(CSetTime::new(game_time, day_time, 0.0, rate));
         }
 
         if world.is_raining() {
@@ -3140,6 +3186,7 @@ impl Player {
     }
 
     /// Cleans up player resources.
+    #[expect(clippy::unused_self, reason = "this is an api function")]
     pub const fn cleanup(&self) {}
 }
 
@@ -3156,7 +3203,7 @@ impl Entity for Player {
         self.gameprofile.id
     }
 
-    fn position(&self) -> Vector3<f64> {
+    fn position(&self) -> DVec3 {
         *self.position.lock()
     }
 
@@ -3207,7 +3254,7 @@ impl Entity for Player {
         self.rotation.load()
     }
 
-    fn velocity(&self) -> Vector3<f64> {
+    fn velocity(&self) -> DVec3 {
         self.movement.lock().delta_movement
     }
 

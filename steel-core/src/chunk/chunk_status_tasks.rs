@@ -1,4 +1,7 @@
-#![allow(missing_docs)]
+#![expect(
+    missing_docs,
+    reason = "task functions are named after their vanilla counterparts"
+)]
 
 use std::sync::Arc;
 
@@ -22,7 +25,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
+    ) {
         let sections = (0..context.section_count())
             .map(|_| ChunkSection::new_empty())
             .collect::<Vec<_>>()
@@ -35,12 +38,9 @@ impl ChunkStatusTasks {
             context.height(),
         );
 
-        //log::info!("Inserted proto chunk for {:?}", holder.get_pos());
-
         // Use no_notify variant - the caller (apply_step) will notify via the completion channel
         // to avoid rayon threads contending on tokio's scheduler mutex
         holder.insert_chunk_no_notify(ChunkAccess::Proto(proto_chunk));
-        Ok(())
     }
 
     /// Generates structure starts.
@@ -52,8 +52,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     pub fn generate_structure_references(
@@ -61,8 +60,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     pub fn load_structure_starts(
@@ -70,8 +68,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     /// # Panics
@@ -81,38 +78,69 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
+    ) {
         let chunk = holder
             .try_chunk(ChunkStatus::StructureReferences)
             .expect("Chunk not found at status StructureReferences");
 
         context.generator.create_biomes(&chunk);
-
-        Ok(())
     }
 
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "panic is unreachable given correct status ordering"
+    )]
     pub fn generate_noise(
         context: Arc<WorldGenContext>,
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
+    ) {
         let chunk = holder
             .try_chunk(ChunkStatus::Biomes)
             .expect("Chunk not found at status Biomes");
         context.generator.fill_from_noise(&chunk);
-        Ok(())
     }
 
-    // TODO: Wire up to context.generator.build_surface() once surface generation is implemented
+    /// # Panics
+    /// Panics if the chunk has not reached `ChunkStatus::Noise`.
+    #[expect(
+        clippy::similar_names,
+        reason = "chunk_x/chunk_z and local_qx/local_qz are intentionally similar"
+    )]
     pub fn generate_surface(
-        _context: Arc<WorldGenContext>,
+        context: Arc<WorldGenContext>,
         _step: &ChunkStep,
-        _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
-        _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+        cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
+        holder: Arc<ChunkHolder>,
+    ) {
+        let chunk = holder
+            .try_chunk(ChunkStatus::Noise)
+            .expect("Chunk not found at status Noise");
+
+        let min_qy = chunk.min_y() >> 2;
+        let total_quarts_y = (chunk.sections().sections.len() * 4) as i32;
+
+        let neighbor_biomes = |qx: i32, qy: i32, qz: i32| -> u16 {
+            let chunk_x = qx >> 2;
+            let chunk_z = qz >> 2;
+            let neighbor = cache.get(chunk_x, chunk_z);
+            let neighbor_chunk = neighbor
+                .try_chunk(ChunkStatus::Biomes)
+                .expect("Neighbor not at Biomes status");
+            let sections = neighbor_chunk.sections();
+            let local_qx = (qx - chunk_x * 4) as usize;
+            let local_qz = (qz - chunk_z * 4) as usize;
+            let qy_clamped = (qy - min_qy).clamp(0, total_quarts_y - 1) as usize;
+            let section_idx = qy_clamped / 4;
+            let local_qy = qy_clamped % 4;
+            sections.sections[section_idx]
+                .read()
+                .biomes
+                .get(local_qx, local_qy, local_qz)
+        };
+
+        context.generator.build_surface(&chunk, &neighbor_biomes);
     }
 
     // TODO: Wire up to context.generator.apply_carvers() once carver generation is implemented
@@ -121,8 +149,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     // TODO: Wire up to context.generator.apply_biome_decorations() once feature generation is implemented
@@ -131,8 +158,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     pub fn initialize_light(
@@ -140,8 +166,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     pub fn light(
@@ -149,8 +174,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     pub fn generate_spawn(
@@ -158,8 +182,7 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         _holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
+    ) {
     }
 
     pub fn full(
@@ -167,9 +190,8 @@ impl ChunkStatusTasks {
         _step: &ChunkStep,
         _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
         holder: Arc<ChunkHolder>,
-    ) -> Result<(), anyhow::Error> {
+    ) {
         //log::info!("Chunk {:?} upgraded to full", holder.get_pos());
         holder.upgrade_to_full(context.weak_world());
-        Ok(())
     }
 }

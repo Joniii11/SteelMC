@@ -1,6 +1,6 @@
 use crate::random::{
     PositionalRandom, Random, RandomSource, RandomSplitter, gaussian::MarsagliaPolarGaussian,
-    get_seed,
+    get_seed, name_hash::NameHash,
 };
 
 // Ratios used in the mix functions
@@ -15,6 +15,7 @@ pub struct Xoroshiro {
 }
 
 /// A splitter for the Xoroshiro128++ random number generator.
+#[derive(Clone)]
 pub struct XoroshiroSplitter {
     seed_lo: u64,
     seed_hi: u64,
@@ -73,7 +74,6 @@ impl Xoroshiro {
     }
 }
 
-#[allow(missing_docs)]
 impl MarsagliaPolarGaussian for Xoroshiro {
     fn stored_next_gaussian(&self) -> Option<f64> {
         self.next_gaussian
@@ -90,7 +90,6 @@ const fn mix_stafford_13(z: u64) -> u64 {
     z ^ (z >> 31)
 }
 
-#[allow(missing_docs)]
 impl Random for Xoroshiro {
     fn fork(&mut self) -> Self {
         Self::new(self.next_random(), self.next_random())
@@ -144,9 +143,11 @@ impl Random for Xoroshiro {
     }
 }
 
-#[allow(missing_docs)]
 impl PositionalRandom for XoroshiroSplitter {
-    #[allow(clippy::many_single_char_names)]
+    #[expect(
+        clippy::many_single_char_names,
+        reason = "matches vanilla's positional seeding math notation"
+    )]
     fn at(&self, x: i32, y: i32, z: i32) -> RandomSource {
         let l = get_seed(x, y, z) as u64;
         let m = l ^ self.seed_lo;
@@ -154,18 +155,8 @@ impl PositionalRandom for XoroshiroSplitter {
         RandomSource::Xoroshiro(Xoroshiro::new(m, self.seed_hi))
     }
 
-    fn with_hash_of(&self, name: &str) -> RandomSource {
-        let bytes = md5::compute(name.as_bytes());
-        let l = u64::from_be_bytes(
-            bytes[0..8]
-                .try_into()
-                .expect("slice with 8 elements to array"),
-        );
-        let m = u64::from_be_bytes(
-            bytes[8..16]
-                .try_into()
-                .expect("slice with 8 elements to array"),
-        );
+    fn with_hash_of(&self, hash: &NameHash) -> RandomSource {
+        let [l, m] = hash.md5;
         RandomSource::Xoroshiro(Xoroshiro::new(l ^ self.seed_lo, m ^ self.seed_hi))
     }
 
@@ -175,11 +166,11 @@ impl PositionalRandom for XoroshiroSplitter {
 }
 
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::unreadable_literal,
     clippy::cast_sign_loss,
-    clippy::items_after_statements,
-    clippy::float_cmp
+    clippy::float_cmp,
+    reason = "test vectors from vanilla Java; raw literals and casts are intentional"
 )]
 mod tests {
     use super::*;
@@ -426,7 +417,9 @@ mod tests {
 
         let splitter = forked.next_positional();
 
-        let RandomSource::Xoroshiro(mut rand1) = splitter.with_hash_of("TEST STRING") else {
+        let RandomSource::Xoroshiro(mut rand1) =
+            splitter.with_hash_of(&NameHash::new("TEST STRING"))
+        else {
             panic!("Expected Xoroshiro variant");
         };
         assert_eq!(rand1.next_i32(), -641435713);

@@ -1,5 +1,6 @@
-use crate::RegistryExt;
 use rustc_hash::FxHashMap;
+use simdnbt::ToNbtTag;
+use simdnbt::owned::NbtTag;
 use steel_utils::Identifier;
 
 /// Represents a full chicken variant definition from a data pack JSON file.
@@ -7,6 +8,7 @@ use steel_utils::Identifier;
 pub struct ChickenVariant {
     pub key: Identifier,
     pub asset_id: Identifier,
+    pub baby_asset_id: Identifier,
     pub model: ChickenModelType,
     pub spawn_conditions: &'static [SpawnConditionEntry],
 }
@@ -31,6 +33,42 @@ pub struct SpawnConditionEntry {
 pub struct BiomeCondition {
     pub condition_type: &'static str,
     pub biomes: &'static str,
+}
+
+impl ToNbtTag for &ChickenVariant {
+    fn to_nbt_tag(self) -> NbtTag {
+        use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
+        let mut compound = NbtCompound::new();
+        compound.insert("asset_id", self.asset_id.clone());
+        compound.insert("baby_asset_id", self.baby_asset_id.clone());
+        compound.insert(
+            "model",
+            match self.model {
+                ChickenModelType::Normal => "normal",
+                ChickenModelType::Cold => "cold",
+            },
+        );
+        let conditions: Vec<NbtCompound> = self
+            .spawn_conditions
+            .iter()
+            .map(|entry| {
+                let mut e = NbtCompound::new();
+                e.insert("priority", entry.priority);
+                if let Some(cond) = &entry.condition {
+                    let mut c = NbtCompound::new();
+                    c.insert("type", cond.condition_type);
+                    c.insert("biomes", cond.biomes);
+                    e.insert("condition", NbtTag::Compound(c));
+                }
+                e
+            })
+            .collect();
+        compound.insert(
+            "spawn_conditions",
+            NbtTag::List(NbtList::Compound(conditions)),
+        );
+        NbtTag::Compound(compound)
+    }
 }
 
 pub type ChickenVariantRef = &'static ChickenVariant;
@@ -75,46 +113,11 @@ impl ChickenVariantRegistry {
         true
     }
 
-    #[must_use]
-    pub fn by_id(&self, id: usize) -> Option<ChickenVariantRef> {
-        self.chicken_variants_by_id.get(id).copied()
-    }
-
-    #[must_use]
-    pub fn get_id(&self, chicken_variant: ChickenVariantRef) -> &usize {
-        self.chicken_variants_by_key
-            .get(&chicken_variant.key)
-            .expect("Chicken variant not found")
-    }
-
-    #[must_use]
-    pub fn by_key(&self, key: &Identifier) -> Option<ChickenVariantRef> {
-        self.chicken_variants_by_key
-            .get(key)
-            .and_then(|id| self.by_id(*id))
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (usize, ChickenVariantRef)> + '_ {
         self.chicken_variants_by_id
             .iter()
             .enumerate()
             .map(|(id, &variant)| (id, variant))
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.chicken_variants_by_id.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.chicken_variants_by_id.is_empty()
-    }
-}
-
-impl RegistryExt for ChickenVariantRegistry {
-    fn freeze(&mut self) {
-        self.allows_registering = false;
     }
 }
 
@@ -123,3 +126,11 @@ impl Default for ChickenVariantRegistry {
         Self::new()
     }
 }
+
+crate::impl_registry!(
+    ChickenVariantRegistry,
+    ChickenVariant,
+    chicken_variants_by_id,
+    chicken_variants_by_key,
+    chicken_variants
+);

@@ -18,6 +18,9 @@ mod entity_data;
 mod fluid_tags;
 mod fluids;
 
+mod cat_sound_variants;
+mod chicken_sound_variants;
+mod cow_sound_variants;
 mod frog_variants;
 mod game_rules;
 mod instruments;
@@ -29,6 +32,7 @@ mod loot_tables;
 mod menu_types;
 mod packets;
 mod painting_variants;
+mod pig_sound_variants;
 mod pig_variants;
 mod poi_types;
 mod recipes;
@@ -40,11 +44,24 @@ mod trim_materials;
 mod trim_patterns;
 mod wolf_sound_variants;
 mod wolf_variants;
+mod world_clocks;
 mod zombie_nautilus_variants;
+
+mod enchantment_tags;
+mod enchantments;
 
 mod density_functions;
 mod multi_noise;
 mod noise_parameters;
+mod surface_rules;
+
+mod banner_pattern_tags;
+mod damage_type_tags;
+mod entity_type_tags;
+mod instrument_tags;
+mod painting_variant_tags;
+mod poi_type_tags;
+mod tag_utils;
 
 const FMT: bool = cfg!(feature = "fmt");
 
@@ -61,6 +78,10 @@ const TRIM_MATERIALS: &str = "trim_materials";
 const WOLF_VARIANTS: &str = "wolf_variants";
 const WOLF_SOUNDS: &str = "wolf_sound_variants";
 const PIG_VARIANTS: &str = "pig_variants";
+const PIG_SOUNDS: &str = "pig_sound_variants";
+const CHICKEN_SOUNDS: &str = "chicken_sound_variants";
+const CAT_SOUNDS: &str = "cat_sound_variants";
+const COW_SOUNDS: &str = "cow_sound_variants";
 const FROG_VARIANTS: &str = "frog_variants";
 const CAT_VARIANTS: &str = "cat_variants";
 const COW_VARIANTS: &str = "cow_variants";
@@ -68,6 +89,12 @@ const CHICKEN_VARIANTS: &str = "chicken_variants";
 const PAINTING_VARIANTS: &str = "painting_variants";
 const DIMENSIONS: &str = "dimension_types";
 const DAMAGE_TYPES: &str = "damage_types";
+const DAMAGE_TYPE_TAGS: &str = "damage_type_tags";
+const BANNER_PATTERN_TAGS: &str = "banner_pattern_tags";
+const ENTITY_TYPE_TAGS: &str = "entity_type_tags";
+const INSTRUMENT_TAGS: &str = "instrument_tags";
+const PAINTING_VARIANT_TAGS: &str = "painting_variant_tags";
+const POI_TYPE_TAGS: &str = "poi_type_tags";
 const JUKEBOX_SONGS: &str = "jukebox_songs";
 const INSTRUMENTS: &str = "instruments";
 const DIALOGS: &str = "dialogs";
@@ -83,6 +110,8 @@ const FLUIDS: &str = "fluids";
 const FLUID_TAGS: &str = "fluid_tags";
 const POI_TYPES: &str = "poi_types";
 
+const ENCHANTMENT_TAGS: &str = "enchantment_tags";
+const ENCHANTMENTS: &str = "enchantments";
 const LOOT_TABLES: &str = "loot_tables";
 const BLOCK_ENTITY_TYPES: &str = "block_entity_types";
 const GAME_RULES: &str = "game_rules";
@@ -91,7 +120,7 @@ const SOUND_EVENTS: &str = "sound_events";
 const SOUND_TYPES: &str = "sound_types";
 const MULTI_NOISE: &str = "multi_noise";
 const NOISE_PARAMETERS: &str = "noise_parameters";
-const DENSITY_FUNCTIONS: &str = "density_functions";
+const WORLD_CLOCKS: &str = "world_clocks";
 
 pub fn main() {
     // Rerun build script when any file in the build/ directory changes
@@ -120,6 +149,10 @@ pub fn main() {
         (wolf_variants::build(), WOLF_VARIANTS),
         (wolf_sound_variants::build(), WOLF_SOUNDS),
         (pig_variants::build(), PIG_VARIANTS),
+        (pig_sound_variants::build(), PIG_SOUNDS),
+        (chicken_sound_variants::build(), CHICKEN_SOUNDS),
+        (cat_sound_variants::build(), CAT_SOUNDS),
+        (cow_sound_variants::build(), COW_SOUNDS),
         (frog_variants::build(), FROG_VARIANTS),
         (cat_variants::build(), CAT_VARIANTS),
         (cow_variants::build(), COW_VARIANTS),
@@ -127,6 +160,7 @@ pub fn main() {
         (painting_variants::build(), PAINTING_VARIANTS),
         (dimension_types::build(), DIMENSIONS),
         (damage_types::build(), DAMAGE_TYPES),
+        (damage_type_tags::build(), DAMAGE_TYPE_TAGS),
         (jukebox_songs::build(), JUKEBOX_SONGS),
         (instruments::build(), INSTRUMENTS),
         (dialogs::build(), DIALOGS),
@@ -146,10 +180,17 @@ pub fn main() {
         (level_events::build(), LEVEL_EVENTS),
         (sound_events::build(), SOUND_EVENTS),
         (sound_types::build(), SOUND_TYPES),
+        (world_clocks::build(), WORLD_CLOCKS),
         (multi_noise::build(), MULTI_NOISE),
         (noise_parameters::build(), NOISE_PARAMETERS),
-        (density_functions::build(), DENSITY_FUNCTIONS),
         (poi_types::build(), POI_TYPES),
+        (banner_pattern_tags::build(), BANNER_PATTERN_TAGS),
+        (entity_type_tags::build(), ENTITY_TYPE_TAGS),
+        (instrument_tags::build(), INSTRUMENT_TAGS),
+        (painting_variant_tags::build(), PAINTING_VARIANT_TAGS),
+        (poi_type_tags::build(), POI_TYPE_TAGS),
+        (enchantment_tags::build(), ENCHANTMENT_TAGS),
+        (enchantments::build(), ENCHANTMENTS),
     ];
 
     // Track which files we're generating this run
@@ -169,27 +210,68 @@ pub fn main() {
         fs::write(&path, content).unwrap();
     }
 
+    // Density functions are split into per-dimension files in a subdirectory
+    let df = density_functions::build();
+    let df_dir = out_dir.join("vanilla_density_functions");
+    fs::create_dir_all(&df_dir).unwrap();
+
+    let df_dimension_files = [
+        (df.overworld, "overworld"),
+        (df.nether, "nether"),
+        (df.end, "end"),
+    ];
+
+    let mut df_generated: Vec<std::path::PathBuf> = Vec::new();
+    for (content, name) in df_dimension_files {
+        let path = df_dir.join(format!("{name}.rs"));
+        let content = content.to_string();
+        df_generated.push(path.clone());
+        if let Ok(existing) = fs::read_to_string(&path)
+            && existing == content
+        {
+            continue;
+        }
+        fs::write(&path, content).unwrap();
+    }
+
+    // Density functions index (mod.rs inside the subdirectory)
+    {
+        let path = df_dir.join("mod.rs");
+        let content = df.index.to_string();
+        df_generated.push(path.clone());
+        if !(fs::read_to_string(&path).is_ok_and(|existing| existing == content)) {
+            fs::write(&path, &content).unwrap();
+        }
+    }
+
     // Remove any stale files not generated this run
     if let Ok(entries) = fs::read_dir(&out_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if !generated_files.contains(&path) {
+            if !generated_files.contains(&path) && path != df_dir {
                 let _ = fs::remove_file(&path);
             }
         }
     }
 
-    if FMT && let Ok(entries) = fs::read_dir(&out_dir) {
+    // Remove stale density function dimension files
+    if let Ok(entries) = fs::read_dir(&df_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            // Skip density_functions — the generated file is too large for rustfmt
-            if path
-                .file_name()
-                .is_some_and(|n| n == "vanilla_density_functions.rs")
-            {
-                continue;
+            if !df_generated.contains(&path) {
+                let _ = fs::remove_file(&path);
             }
-            let _ = Command::new("rustfmt").arg(path).output();
+        }
+    }
+
+    if FMT {
+        for dir in [&out_dir, &df_dir] {
+            if let Ok(entries) = fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let _ = Command::new("rustfmt").arg(path).output();
+                }
+            }
         }
     }
 }

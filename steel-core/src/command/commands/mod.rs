@@ -1,6 +1,7 @@
 //! This module contains the command building structs.
 pub mod clear;
 pub mod difficulty;
+pub mod enchant;
 pub mod execute;
 pub mod fly;
 pub mod gamemode;
@@ -15,6 +16,7 @@ pub mod tick;
 pub mod time;
 pub mod tp;
 pub mod weather;
+pub mod xp;
 
 use std::marker::PhantomData;
 use std::ops::Not;
