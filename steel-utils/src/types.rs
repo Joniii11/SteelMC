@@ -840,7 +840,7 @@ pub enum Difficulty {
     Hard = 3,
 }
 
-#[allow(missing_docs, clippy::match_same_arms)]
+#[expect(clippy::match_same_arms, reason = "cause it looks better")]
 impl From<u8> for Difficulty {
     fn from(value: u8) -> Self {
         match value {
@@ -853,7 +853,6 @@ impl From<u8> for Difficulty {
     }
 }
 
-#[allow(missing_docs)]
 impl From<Difficulty> for u8 {
     fn from(value: Difficulty) -> Self {
         value as u8

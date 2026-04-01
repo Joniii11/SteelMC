@@ -2040,7 +2040,10 @@ impl Player {
 
     /// Handles a player command packet (sprinting, elytra, leaving bed, etc).
     // this is just temporary there because the logic is not yet implemented complete for the other branches
-    #[allow(clippy::match_same_arms)]
+    #[expect(
+        clippy::match_same_arms,
+        reason = "There is still a TODO there, this will eventually go away by itself."
+    )]
     pub fn handle_player_command(&self, packet: SPlayerCommand) {
         if !self.client_loaded.load(Ordering::Relaxed) {
             return;
