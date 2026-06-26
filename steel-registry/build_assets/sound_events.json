@@ -9838,5 +9838,35 @@
     "id": 1967,
     "key": "minecraft:entity.small_sulfur_cube.eat",
     "sound_id": "minecraft:entity.small_sulfur_cube.eat"
+  },
+  {
+    "id": 1968,
+    "key": "minecraft:block.shelf_mushroom.break",
+    "sound_id": "minecraft:block.shelf_mushroom.break"
+  },
+  {
+    "id": 1969,
+    "key": "minecraft:block.shelf_mushroom.fall",
+    "sound_id": "minecraft:block.shelf_mushroom.fall"
+  },
+  {
+    "id": 1970,
+    "key": "minecraft:block.shelf_mushroom.place",
+    "sound_id": "minecraft:block.shelf_mushroom.place"
+  },
+  {
+    "id": 1971,
+    "key": "minecraft:block.shelf_mushroom.step",
+    "sound_id": "minecraft:block.shelf_mushroom.step"
+  },
+  {
+    "id": 1972,
+    "key": "minecraft:block.shelf_mushroom.bounce",
+    "sound_id": "minecraft:block.shelf_mushroom.bounce"
+  },
+  {
+    "id": 1973,
+    "key": "minecraft:block.poplar_leaves.ambient",
+    "sound_id": "minecraft:block.poplar_leaves.ambient"
   }
 ]

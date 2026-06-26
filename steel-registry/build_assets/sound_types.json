@@ -1141,5 +1141,14 @@
     "place_sound": "minecraft:block.cinnabar.place",
     "hit_sound": "minecraft:block.cinnabar.hit",
     "fall_sound": "minecraft:block.cinnabar.fall"
+  },
+  "SHELF_MUSHROOM": {
+    "volume": 1.0,
+    "pitch": 1.0,
+    "break_sound": "minecraft:block.shelf_mushroom.break",
+    "step_sound": "minecraft:block.shelf_mushroom.step",
+    "place_sound": "minecraft:block.shelf_mushroom.place",
+    "hit_sound": "minecraft:intentionally_empty",
+    "fall_sound": "minecraft:block.shelf_mushroom.fall"
   }
 }

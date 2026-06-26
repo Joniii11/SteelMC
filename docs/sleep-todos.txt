@@ -1,0 +1,150 @@
+Ich habe die Liste gegen lokalen Steel-Code und Vanilla geprüft. Größtenteils stimmt sie, mit zwei Korrekturen:
+
+- **Bed support/survival**: so wie formuliert eher nicht korrekt. Vanilla `BedBlock.getStateForPlacement` prüft ebenfalls nur Head-Block ersetzbar + WorldBorder; `updateShape` entfernt bei fehlender Gegenseite. Ich würde daraus keinen Thread machen, außer vorher noch konkret ein Vanilla-Divergenzfall gefunden wird.
+- **Invalid respawn cleanup**: stimmt als Steel-Lücke. Vanilla setzt nicht direkt `respawnConfig = null`, aber bei Death-Respawn wird die RespawnPosition nur kopiert, wenn `!missingRespawnBlock()`. Weil Steel denselben Player wiederverwendet, muss Steel den Personal-Respawn beim Missing-Respawn explizit löschen oder äquivalent behandeln.
+
+Hier sind sinnvolle Prompts für getrennte Threads.
+
+**Thread 1: Invalid Personal Respawn Cleanup**
+```text
+Bitte gleiche den invalid personal respawn cleanup gegen Vanilla ab.
+
+Quellen:
+- Vanilla:
+  - minecraft-src/minecraft/src/net/minecraft/server/level/ServerPlayer.java around findRespawnAndUseSpawnBlock / missingRespawnBlock
+  - minecraft-src/minecraft/src/net/minecraft/server/players/PlayerList.java around respawn(...), especially copyRespawnPosition only when !missingRespawnBlock()
+- Steel:
+  - steel-core/src/player/mod.rs PlayerRespawnJob around NoRespawnBlockAvailable
+  - steel-core/src/player/mod.rs respawn_config / set_respawn_position
+
+Ziel:
+- Prüfe exakt, wie Vanilla den gespeicherten Respawnpunkt bei missing respawn effektiv verwirft.
+- Da Steel den Player wiederverwendet, implementiere die äquivalente Semantik sauber.
+- Invalid bed/anchor personal respawn soll `NoRespawnBlockAvailable` senden und den invaliden personal respawn nicht behalten.
+- Anchor charge consume darf weiterhin nur bei `!forced && consumeSpawnBlock && standUpPosition.is_some()` passieren.
+
+Tests:
+- invalid bed respawn -> NoRespawnBlockAvailable + personal respawn cleared
+- invalid anchor/empty anchor respawn -> NoRespawnBlockAvailable + personal respawn cleared, falls sauber testbar
+- anchor consume bleibt nur bei erfolgreicher unforced respawn position
+
+AGENTS.md beachten:
+- Keine Fake-World/Player-Workarounds.
+- Wenn die Testfixture fehlt, exakt sagen, welche Fixture fehlt.
+- Keine Explosion, keine Monster-Rest-Logik, keine Stats/Criterion.
+```
+
+**Thread 2: Sleep Admission Tests**
+```text
+Bitte ergänze gezielte Tests für die vorhandene Sleep-Admission-Logik, ohne neue Gameplay-Foundations zu raten.
+
+Quellen:
+- Vanilla:
+  - ServerPlayer.startSleepInBed(...)
+- Steel:
+  - steel-core/src/player/mod.rs start_sleep_in_bed, bed_in_range, bed_blocked
+  - steel-core/src/entity/mod.rs start_sleeping
+  - steel-core/src/behavior/blocks/building/bed_block.rs use_without_item
+
+Ziel:
+- Bestehende Steel-Logik gegen Vanilla prüfen:
+  - alive / already sleeping -> OTHER_PROBLEM
+  - too far -> `block.minecraft.bed.too_far_away`
+  - obstructed -> `block.minecraft.bed.obstructed`
+  - spawn wird vor Schlaf-Ablehnung gesetzt, wenn `can_set_spawn`
+- Tests für:
+  - sleep blocked by obstruction
+  - sleep blocked by too-far-away
+  - respawn set even when canSetSpawn=true but canSleep=false, falls mit vorhandener Fixture sauber testbar
+
+Explizit nicht machen:
+- Keine Monster-Rest-Implementierung.
+- Keine Fake-Stats/Criterion.
+- Keine Explosion.
+- Keine geratenen Dimension-Daten.
+
+Wenn Player/World-Testfixture fehlt: stoppen und exakt nennen, welche minimalen Test-APIs fehlen.
+```
+
+**Thread 3: Monster Preventing Rest Foundation**
+```text
+Bitte analysiere nur die Foundation für Vanilla `Monster::isPreventingPlayerRest`, noch nicht breit implementieren.
+
+Quellen:
+- Vanilla:
+  - ServerPlayer.startSleepInBed(...)
+  - Monster.isPreventingPlayerRest(...)
+  - relevante Monster-Unterklassen, falls sie override/indirekte Logik haben
+- Steel:
+  - steel-core/src/player/mod.rs TODO bei Monster-Rest
+  - steel-core/src/entity/mob.rs und vorhandene hostile/mob foundations
+
+Ziel:
+- Herausfinden, welche Steel-Entity-Foundation fehlt, um den Vanilla-Check korrekt auszudrücken:
+  - Entity query im 8x5x8 AABB
+  - Monster-Klassifikation
+  - `isPreventingPlayerRest(level, player)` Semantik
+  - Creative-Spieler überspringen
+- Wenn Foundation schon reicht, einen minimalen Implementierungsplan geben oder implementieren.
+- Wenn nicht, präzise blocker nennen.
+
+AGENTS.md:
+- Keine Monster-Tag-Näherung.
+- Keine hardcoded Monsterliste aus Erinnerung.
+- Vanilla source zuerst prüfen.
+```
+
+**Thread 4: Pressure Plates Foundation**
+```text
+Bitte implementiere Pressure Plates foundation-first gegen Vanilla, in einem kleinen ersten Slice.
+
+Quellen:
+- Vanilla:
+  - BasePressurePlateBlock.java
+  - PressurePlateBlock.java
+  - WeightedPressurePlateBlock.java
+- Steel:
+  - steel-core/src/behavior/blocks/redstone/pressure_plate_block.rs
+  - steel-core/src/behavior/blocks/redstone/button_block.rs als lokales Pattern für scheduled tick, neighbor updates, sounds, game events
+  - BlockBehavior hooks: entity_inside, tick, can_survive, update_shape, affect_neighbors_after_removal
+
+Ziel Slice 1:
+- Base/shared pressure plate behavior sauber strukturieren:
+  - `is_possible_to_respawn_in_this() -> true` beibehalten
+  - `can_survive`: support rigid block oder center support, vanilla prüfen
+  - `update_shape`: bei verlorenem Support Air
+  - tick/entity_inside Pfad vorbereiten, aber nur implementieren, wenn Entity query + trigger filtering sauber existiert
+- Normale PressurePlate:
+  - POWERED false/true Semantik prüfen
+- WeightedPressurePlate:
+  - POWER 0..15 Semantik und maxWeight-Datenquelle prüfen
+
+Stop-Kriterien:
+- Wenn Entity detection / EntitySelector.NO_SPECTATORS / ignoresBlockTriggers nicht sauber existiert, nicht raten.
+- Wenn BlockSetType sound/sensitivity/maxWeight Daten nicht sauber verfügbar sind, nicht hardcoden; fehlende Extractor-/Registry-Daten benennen.
+- Keine generierten Dateien direkt ändern.
+```
+
+**Thread 5: Bed Invalid-Dimension Explosion, Nur Wenn Explosion-Foundation Bereits Existiert**
+```text
+Bitte prüfe nur, ob Bed invalid-dimension explosion mit vorhandener Foundation sauber implementierbar ist.
+
+Quellen:
+- Vanilla BedBlock.useWithoutItem(...)
+- Steel BedBlock.use_without_item(...)
+- Suche nach echter World::explode / DamageSource bad_respawn_point / explosion interaction support
+
+Ziel:
+- Wenn eine echte Explosion-Foundation existiert:
+  - bed-rule error message anzeigen
+  - head + foot entfernen
+  - bad-respawn-point explosion am Bed-Center mit Radius 5.0, fire=true, BLOCK interaction
+- Wenn nicht:
+  - TODO so lassen oder präzisieren.
+  - Keine simulierte Explosion, keine block-only Approximation.
+
+Wichtig:
+- Explosion ist out of scope, falls Foundation fehlt.
+```
+
+Priorität würde ich so setzen: **Thread 1**, dann **Thread 2**, dann **Thread 4**. Monster-Rest ist gameplay-wichtig, aber ohne Entity/Mob-Foundation wahrscheinlich größer. Bed/Anchor-Explosion bleibt bewusst später.

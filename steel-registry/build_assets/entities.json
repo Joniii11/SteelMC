@@ -29208,6 +29208,472 @@
   },
   {
     "id": 105,
+    "name": "poplar_boat",
+    "width": 1.375,
+    "height": 0.5625,
+    "eye_height": 0.5625,
+    "fixed": false,
+    "attachments": {
+      "passenger": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "vehicle": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      ],
+      "name_tag": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "warden_chest": [
+        {
+          "x": 0.0,
+          "y": 0.28125,
+          "z": 0.0
+        }
+      ]
+    },
+    "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+    "class_hierarchy": [
+      {
+        "java_class": "net.minecraft.world.entity.Entity",
+        "simple_name": "Entity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+        "simple_name": "VehicleEntity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+        "simple_name": "AbstractBoat"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+        "simple_name": "Boat"
+      }
+    ],
+    "mob_category": "MISC",
+    "client_tracking_range": 10,
+    "update_interval": 3,
+    "fire_immune": false,
+    "summonable": true,
+    "allowed_in_peaceful": true,
+    "can_serialize": true,
+    "can_spawn_far_from_player": true,
+    "synched_data": {
+      "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+      "class_hierarchy": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+          "simple_name": "Boat"
+        }
+      ],
+      "layers": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity",
+          "fields": [
+            {
+              "index": 0,
+              "name": "shared_flags_id",
+              "accessor_field": "DATA_SHARED_FLAGS_ID",
+              "serializer_id": 0,
+              "serializer": "byte",
+              "default_value": 0
+            },
+            {
+              "index": 1,
+              "name": "air_supply_id",
+              "accessor_field": "DATA_AIR_SUPPLY_ID",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 300
+            },
+            {
+              "index": 2,
+              "name": "custom_name",
+              "accessor_field": "DATA_CUSTOM_NAME",
+              "serializer_id": 6,
+              "serializer": "optional_component",
+              "default_value": {
+                "present": false
+              }
+            },
+            {
+              "index": 3,
+              "name": "custom_name_visible",
+              "accessor_field": "DATA_CUSTOM_NAME_VISIBLE",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 4,
+              "name": "silent",
+              "accessor_field": "DATA_SILENT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 5,
+              "name": "no_gravity",
+              "accessor_field": "DATA_NO_GRAVITY",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 6,
+              "name": "pose",
+              "accessor_field": "DATA_POSE",
+              "serializer_id": 20,
+              "serializer": "pose",
+              "default_value": "STANDING"
+            },
+            {
+              "index": 7,
+              "name": "ticks_frozen",
+              "accessor_field": "DATA_TICKS_FROZEN",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity",
+          "fields": [
+            {
+              "index": 8,
+              "name": "id_hurt",
+              "accessor_field": "DATA_ID_HURT",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            },
+            {
+              "index": 9,
+              "name": "id_hurtdir",
+              "accessor_field": "DATA_ID_HURTDIR",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 1
+            },
+            {
+              "index": 10,
+              "name": "id_damage",
+              "accessor_field": "DATA_ID_DAMAGE",
+              "serializer_id": 3,
+              "serializer": "float",
+              "default_value": 0.0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat",
+          "fields": [
+            {
+              "index": 11,
+              "name": "id_paddle_left",
+              "accessor_field": "DATA_ID_PADDLE_LEFT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 12,
+              "name": "id_paddle_right",
+              "accessor_field": "DATA_ID_PADDLE_RIGHT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 13,
+              "name": "id_bubble_time",
+              "accessor_field": "DATA_ID_BUBBLE_TIME",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        }
+      ]
+    },
+    "flags": {
+      "is_pushable": true,
+      "is_attackable": true,
+      "is_pickable": false,
+      "can_be_collided_with": true,
+      "is_pushed_by_fluid": true,
+      "can_freeze": true,
+      "can_be_hit_by_projectile": false
+    }
+  },
+  {
+    "id": 106,
+    "name": "poplar_chest_boat",
+    "width": 1.375,
+    "height": 0.5625,
+    "eye_height": 0.5625,
+    "fixed": false,
+    "attachments": {
+      "passenger": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "vehicle": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      ],
+      "name_tag": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "warden_chest": [
+        {
+          "x": 0.0,
+          "y": 0.28125,
+          "z": 0.0
+        }
+      ]
+    },
+    "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+    "class_hierarchy": [
+      {
+        "java_class": "net.minecraft.world.entity.Entity",
+        "simple_name": "Entity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+        "simple_name": "VehicleEntity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+        "simple_name": "AbstractBoat"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractChestBoat",
+        "simple_name": "AbstractChestBoat"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+        "simple_name": "ChestBoat"
+      }
+    ],
+    "mob_category": "MISC",
+    "client_tracking_range": 10,
+    "update_interval": 3,
+    "fire_immune": false,
+    "summonable": true,
+    "allowed_in_peaceful": true,
+    "can_serialize": true,
+    "can_spawn_far_from_player": true,
+    "synched_data": {
+      "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+      "class_hierarchy": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractChestBoat",
+          "simple_name": "AbstractChestBoat"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+          "simple_name": "ChestBoat"
+        }
+      ],
+      "layers": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity",
+          "fields": [
+            {
+              "index": 0,
+              "name": "shared_flags_id",
+              "accessor_field": "DATA_SHARED_FLAGS_ID",
+              "serializer_id": 0,
+              "serializer": "byte",
+              "default_value": 0
+            },
+            {
+              "index": 1,
+              "name": "air_supply_id",
+              "accessor_field": "DATA_AIR_SUPPLY_ID",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 300
+            },
+            {
+              "index": 2,
+              "name": "custom_name",
+              "accessor_field": "DATA_CUSTOM_NAME",
+              "serializer_id": 6,
+              "serializer": "optional_component",
+              "default_value": {
+                "present": false
+              }
+            },
+            {
+              "index": 3,
+              "name": "custom_name_visible",
+              "accessor_field": "DATA_CUSTOM_NAME_VISIBLE",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 4,
+              "name": "silent",
+              "accessor_field": "DATA_SILENT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 5,
+              "name": "no_gravity",
+              "accessor_field": "DATA_NO_GRAVITY",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 6,
+              "name": "pose",
+              "accessor_field": "DATA_POSE",
+              "serializer_id": 20,
+              "serializer": "pose",
+              "default_value": "STANDING"
+            },
+            {
+              "index": 7,
+              "name": "ticks_frozen",
+              "accessor_field": "DATA_TICKS_FROZEN",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity",
+          "fields": [
+            {
+              "index": 8,
+              "name": "id_hurt",
+              "accessor_field": "DATA_ID_HURT",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            },
+            {
+              "index": 9,
+              "name": "id_hurtdir",
+              "accessor_field": "DATA_ID_HURTDIR",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 1
+            },
+            {
+              "index": 10,
+              "name": "id_damage",
+              "accessor_field": "DATA_ID_DAMAGE",
+              "serializer_id": 3,
+              "serializer": "float",
+              "default_value": 0.0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat",
+          "fields": [
+            {
+              "index": 11,
+              "name": "id_paddle_left",
+              "accessor_field": "DATA_ID_PADDLE_LEFT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 12,
+              "name": "id_paddle_right",
+              "accessor_field": "DATA_ID_PADDLE_RIGHT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 13,
+              "name": "id_bubble_time",
+              "accessor_field": "DATA_ID_BUBBLE_TIME",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        }
+      ]
+    },
+    "flags": {
+      "is_pushable": true,
+      "is_attackable": true,
+      "is_pickable": false,
+      "can_be_collided_with": true,
+      "is_pushed_by_fluid": true,
+      "can_freeze": true,
+      "can_be_hit_by_projectile": false
+    }
+  },
+  {
+    "id": 107,
     "name": "splash_potion",
     "width": 0.25,
     "height": 0.25,
@@ -29409,7 +29875,7 @@
     }
   },
   {
-    "id": 106,
+    "id": 108,
     "name": "lingering_potion",
     "width": 0.25,
     "height": 0.25,
@@ -29611,7 +30077,7 @@
     }
   },
   {
-    "id": 107,
+    "id": 109,
     "name": "pufferfish",
     "width": 0.7,
     "height": 0.7,
@@ -29939,7 +30405,7 @@
     }
   },
   {
-    "id": 108,
+    "id": 110,
     "name": "rabbit",
     "width": 0.49,
     "height": 0.6,
@@ -30277,7 +30743,7 @@
     }
   },
   {
-    "id": 109,
+    "id": 111,
     "name": "ravager",
     "width": 1.95,
     "height": 2.2,
@@ -30600,7 +31066,7 @@
     }
   },
   {
-    "id": 110,
+    "id": 112,
     "name": "salmon",
     "width": 0.7,
     "height": 0.4,
@@ -30936,7 +31402,7 @@
     }
   },
   {
-    "id": 111,
+    "id": 113,
     "name": "sheep",
     "width": 0.9,
     "height": 1.3,
@@ -31273,7 +31739,7 @@
     }
   },
   {
-    "id": 112,
+    "id": 114,
     "name": "shulker",
     "width": 1.0,
     "height": 1.0,
@@ -31595,7 +32061,7 @@
     }
   },
   {
-    "id": 113,
+    "id": 115,
     "name": "shulker_bullet",
     "width": 0.3125,
     "height": 0.3125,
@@ -31756,7 +32222,7 @@
     }
   },
   {
-    "id": 114,
+    "id": 116,
     "name": "silverfish",
     "width": 0.4,
     "height": 0.3,
@@ -32049,7 +32515,7 @@
     }
   },
   {
-    "id": 115,
+    "id": 117,
     "name": "skeleton",
     "width": 0.6,
     "height": 1.99,
@@ -32364,7 +32830,7 @@
     }
   },
   {
-    "id": 116,
+    "id": 118,
     "name": "skeleton_horse",
     "width": 1.3964844,
     "height": 1.6,
@@ -32709,7 +33175,7 @@
     }
   },
   {
-    "id": 117,
+    "id": 119,
     "name": "slime",
     "width": 0.52,
     "height": 0.52,
@@ -33046,7 +33512,7 @@
     }
   },
   {
-    "id": 118,
+    "id": 120,
     "name": "small_fireball",
     "width": 0.3125,
     "height": 0.3125,
@@ -33240,7 +33706,7 @@
     }
   },
   {
-    "id": 119,
+    "id": 121,
     "name": "sniffer",
     "width": 1.9,
     "height": 1.75,
@@ -33585,7 +34051,7 @@
     }
   },
   {
-    "id": 120,
+    "id": 122,
     "name": "snowball",
     "width": 0.25,
     "height": 0.25,
@@ -33779,7 +34245,7 @@
     }
   },
   {
-    "id": 121,
+    "id": 123,
     "name": "snow_golem",
     "width": 0.7,
     "height": 1.9,
@@ -34085,7 +34551,7 @@
     }
   },
   {
-    "id": 122,
+    "id": 124,
     "name": "spawner_minecart",
     "width": 0.98,
     "height": 0.7,
@@ -34308,7 +34774,7 @@
     }
   },
   {
-    "id": 123,
+    "id": 125,
     "name": "spectral_arrow",
     "width": 0.5,
     "height": 0.5,
@@ -34507,7 +34973,7 @@
     }
   },
   {
-    "id": 124,
+    "id": 126,
     "name": "spider",
     "width": 1.4,
     "height": 0.9,
@@ -34814,7 +35280,7 @@
     }
   },
   {
-    "id": 125,
+    "id": 127,
     "name": "spruce_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -35043,7 +35509,7 @@
     }
   },
   {
-    "id": 126,
+    "id": 128,
     "name": "spruce_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -35280,7 +35746,7 @@
     }
   },
   {
-    "id": 127,
+    "id": 129,
     "name": "squid",
     "width": 0.8,
     "height": 0.8,
@@ -35602,7 +36068,7 @@
     }
   },
   {
-    "id": 128,
+    "id": 130,
     "name": "stray",
     "width": 0.6,
     "height": 1.99,
@@ -35903,7 +36369,7 @@
     }
   },
   {
-    "id": 129,
+    "id": 131,
     "name": "strider",
     "width": 0.9,
     "height": 1.7,
@@ -36248,7 +36714,7 @@
     }
   },
   {
-    "id": 130,
+    "id": 132,
     "name": "sulfur_cube",
     "width": 0.49,
     "height": 0.49,
@@ -36607,7 +37073,7 @@
     }
   },
   {
-    "id": 131,
+    "id": 133,
     "name": "tadpole",
     "width": 0.4,
     "height": 0.3,
@@ -36936,7 +37402,7 @@
     }
   },
   {
-    "id": 132,
+    "id": 134,
     "name": "text_display",
     "width": 0.0,
     "height": 0.0,
@@ -37287,7 +37753,7 @@
     }
   },
   {
-    "id": 133,
+    "id": 135,
     "name": "tnt",
     "width": 0.98,
     "height": 0.98,
@@ -37462,7 +37928,7 @@
     }
   },
   {
-    "id": 134,
+    "id": 136,
     "name": "tnt_minecart",
     "width": 0.98,
     "height": 0.7,
@@ -37685,7 +38151,7 @@
     }
   },
   {
-    "id": 135,
+    "id": 137,
     "name": "trader_llama",
     "width": 0.9,
     "height": 1.87,
@@ -38082,7 +38548,7 @@
     }
   },
   {
-    "id": 136,
+    "id": 138,
     "name": "trident",
     "width": 0.5,
     "height": 0.5,
@@ -38303,7 +38769,7 @@
     }
   },
   {
-    "id": 137,
+    "id": 139,
     "name": "tropical_fish",
     "width": 0.5,
     "height": 0.4,
@@ -38639,7 +39105,7 @@
     }
   },
   {
-    "id": 138,
+    "id": 140,
     "name": "turtle",
     "width": 1.2,
     "height": 0.4,
@@ -38984,7 +39450,7 @@
     }
   },
   {
-    "id": 139,
+    "id": 141,
     "name": "vex",
     "width": 0.4,
     "height": 0.8,
@@ -39291,7 +39757,7 @@
     }
   },
   {
-    "id": 140,
+    "id": 142,
     "name": "villager",
     "width": 0.6,
     "height": 1.95,
@@ -39653,7 +40119,7 @@
     }
   },
   {
-    "id": 141,
+    "id": 143,
     "name": "vindicator",
     "width": 0.6,
     "height": 1.95,
@@ -39984,7 +40450,7 @@
     }
   },
   {
-    "id": 142,
+    "id": 144,
     "name": "wandering_trader",
     "width": 0.6,
     "height": 1.95,
@@ -40320,7 +40786,7 @@
     }
   },
   {
-    "id": 143,
+    "id": 145,
     "name": "warden",
     "width": 0.9,
     "height": 2.9,
@@ -40627,7 +41093,7 @@
     }
   },
   {
-    "id": 144,
+    "id": 146,
     "name": "wind_charge",
     "width": 0.3125,
     "height": 0.3125,
@@ -40804,7 +41270,7 @@
     }
   },
   {
-    "id": 145,
+    "id": 147,
     "name": "witch",
     "width": 0.6,
     "height": 1.95,
@@ -41141,7 +41607,7 @@
     }
   },
   {
-    "id": 146,
+    "id": 148,
     "name": "wither",
     "width": 0.9,
     "height": 3.5,
@@ -41473,7 +41939,7 @@
     }
   },
   {
-    "id": 147,
+    "id": 149,
     "name": "wither_skeleton",
     "width": 0.7,
     "height": 2.4,
@@ -41774,7 +42240,7 @@
     }
   },
   {
-    "id": 148,
+    "id": 150,
     "name": "wither_skull",
     "width": 0.3125,
     "height": 0.3125,
@@ -41957,7 +42423,7 @@
     }
   },
   {
-    "id": 149,
+    "id": 151,
     "name": "wolf",
     "width": 0.6,
     "height": 0.85,
@@ -42359,7 +42825,7 @@
     }
   },
   {
-    "id": 150,
+    "id": 152,
     "name": "zoglin",
     "width": 1.3964844,
     "height": 1.4,
@@ -42666,7 +43132,7 @@
     }
   },
   {
-    "id": 151,
+    "id": 153,
     "name": "zombie",
     "width": 0.6,
     "height": 1.95,
@@ -42990,7 +43456,7 @@
     }
   },
   {
-    "id": 152,
+    "id": 154,
     "name": "zombie_horse",
     "width": 1.3964844,
     "height": 1.6,
@@ -43335,7 +43801,7 @@
     }
   },
   {
-    "id": 153,
+    "id": 155,
     "name": "zombie_nautilus",
     "width": 0.875,
     "height": 0.95,
@@ -43727,7 +44193,7 @@
     }
   },
   {
-    "id": 154,
+    "id": 156,
     "name": "zombie_villager",
     "width": 0.6,
     "height": 1.95,
@@ -44040,7 +44506,7 @@
               "serializer": "villager_data",
               "default_value": {
                 "type": "minecraft:plains",
-                "profession": "minecraft:nitwit",
+                "profession": "minecraft:fletcher",
                 "level": 1
               }
             },
@@ -44093,7 +44559,7 @@
     }
   },
   {
-    "id": 155,
+    "id": 157,
     "name": "zombified_piglin",
     "width": 0.6,
     "height": 1.95,
@@ -44425,7 +44891,7 @@
     }
   },
   {
-    "id": 156,
+    "id": 158,
     "name": "player",
     "width": 0.6,
     "height": 1.8,
@@ -44742,7 +45208,7 @@
     }
   },
   {
-    "id": 157,
+    "id": 159,
     "name": "fishing_bobber",
     "width": 0.25,
     "height": 0.25,
