@@ -31,6 +31,7 @@ impl FeatureDecorationRunner {
             FoliagePlacer::Jungle(placer) => placer.height.sample(random),
             FoliagePlacer::RandomSpread(placer) => placer.foliage_height,
             FoliagePlacer::Cherry(placer) => placer.height.sample(random),
+            FoliagePlacer::Poplar(placer) => placer.height.sample(random),
         }
     }
 
@@ -53,6 +54,7 @@ impl FeatureDecorationRunner {
             FoliagePlacer::Jungle(placer) => placer.radius.sample(random),
             FoliagePlacer::RandomSpread(placer) => placer.radius.sample(random),
             FoliagePlacer::Cherry(placer) => placer.radius.sample(random),
+            FoliagePlacer::Poplar(placer) => placer.radius.sample(random),
         }
     }
 
@@ -170,6 +172,17 @@ impl FeatureDecorationRunner {
                 placement,
             ),
             FoliagePlacer::Cherry(placer) => Self::create_cherry_tree_foliage(
+                region,
+                registry,
+                random,
+                config,
+                placer,
+                attachment,
+                foliage_height,
+                leaf_radius,
+                placement,
+            ),
+            FoliagePlacer::Poplar(placer) => Self::create_poplar_tree_foliage(
                 region,
                 registry,
                 random,
@@ -345,6 +358,227 @@ impl FeatureDecorationRunner {
             placer.hanging_leaves_extension_chance,
             placement,
         );
+    }
+
+    fn create_poplar_tree_foliage(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        config: &TreeConfiguration,
+        placer: &PoplarFoliagePlacer,
+        attachment: FoliageAttachment,
+        foliage_height: i32,
+        leaf_radius: i32,
+        placement: &mut TreePlacement,
+    ) {
+        let offset = Self::tree_foliage_offset(random, &config.foliage_placer);
+        let foliage_pos = attachment.pos.above_n(offset);
+        let current_radius = leaf_radius + attachment.radius_offset - 1;
+        let flip_rhombus_shape = random.next_bool();
+
+        Self::place_poplar_tree_leaves_row(
+            region,
+            registry,
+            random,
+            config,
+            placer,
+            foliage_pos,
+            current_radius - 2,
+            foliage_height - 1,
+            attachment.double_trunk,
+            foliage_height,
+            flip_rhombus_shape,
+            placement,
+        );
+        Self::place_poplar_tree_leaves_row(
+            region,
+            registry,
+            random,
+            config,
+            placer,
+            foliage_pos,
+            current_radius - 1,
+            foliage_height - 2,
+            attachment.double_trunk,
+            foliage_height,
+            flip_rhombus_shape,
+            placement,
+        );
+        Self::place_poplar_tree_leaves_row(
+            region,
+            registry,
+            random,
+            config,
+            placer,
+            foliage_pos,
+            current_radius - 1,
+            foliage_height - 3,
+            attachment.double_trunk,
+            foliage_height,
+            flip_rhombus_shape,
+            placement,
+        );
+
+        for y in (1..=foliage_height - 4).rev() {
+            Self::place_poplar_tree_leaves_row(
+                region,
+                registry,
+                random,
+                config,
+                placer,
+                foliage_pos,
+                current_radius,
+                y,
+                attachment.double_trunk,
+                foliage_height,
+                flip_rhombus_shape,
+                placement,
+            );
+        }
+
+        Self::replace_poplar_leaves_with_logs(
+            region,
+            registry,
+            random,
+            config,
+            foliage_pos,
+            current_radius,
+            foliage_height - 4,
+            attachment.double_trunk,
+            foliage_height,
+            flip_rhombus_shape,
+            placement,
+        );
+        Self::place_poplar_tree_leaves_row(
+            region,
+            registry,
+            random,
+            config,
+            placer,
+            foliage_pos,
+            current_radius - 1,
+            0,
+            attachment.double_trunk,
+            foliage_height,
+            flip_rhombus_shape,
+            placement,
+        );
+        Self::place_poplar_tree_leaves_row(
+            region,
+            registry,
+            random,
+            config,
+            placer,
+            foliage_pos,
+            (current_radius - 2).clamp(1, 2),
+            -1,
+            attachment.double_trunk,
+            foliage_height,
+            flip_rhombus_shape,
+            placement,
+        );
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors vanilla poplar row state"
+    )]
+    fn place_poplar_tree_leaves_row(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        config: &TreeConfiguration,
+        placer: &PoplarFoliagePlacer,
+        origin: BlockPos,
+        current_radius: i32,
+        y: i32,
+        double_trunk: bool,
+        foliage_height: i32,
+        flip_rhombus_shape: bool,
+        placement: &mut TreePlacement,
+    ) {
+        let offset = i32::from(double_trunk);
+        for dx in -current_radius..=current_radius + offset {
+            for dz in -current_radius..=current_radius + offset {
+                if Self::poplar_foliage_should_skip_location(
+                    random,
+                    placer,
+                    dx,
+                    y,
+                    dz,
+                    current_radius,
+                    foliage_height,
+                    flip_rhombus_shape,
+                ) {
+                    continue;
+                }
+
+                let pos = origin.offset(dx, y, dz);
+                let _ = Self::try_place_tree_leaf(region, registry, random, config, pos, placement);
+            }
+        }
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors vanilla poplar foliage log replacement state"
+    )]
+    fn replace_poplar_leaves_with_logs(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        config: &TreeConfiguration,
+        origin: BlockPos,
+        current_radius: i32,
+        y: i32,
+        double_trunk: bool,
+        foliage_height: i32,
+        flip_rhombus_shape: bool,
+        placement: &mut TreePlacement,
+    ) {
+        let offset = i32::from(double_trunk);
+        for dx in -current_radius..=current_radius + offset {
+            for dz in -current_radius..=current_radius + offset {
+                let abs_dx = abs_i32(dx);
+                let abs_dz = abs_i32(dz);
+                let corner_cut = Self::poplar_corner_blocks_to_cut(
+                    dx,
+                    dz,
+                    current_radius,
+                    Self::poplar_should_row_be_partial(foliage_height, y),
+                    flip_rhombus_shape,
+                );
+                let in_rhombus =
+                    Self::poplar_is_within_rhombus(current_radius, abs_dx, abs_dz, corner_cut, 2);
+                let on_x_branch = abs_dz == 0 && current_radius - abs_dx >= 4;
+                let on_z_branch = abs_dx == 0 && current_radius - abs_dz >= 4;
+                if !in_rhombus || (!on_x_branch && !on_z_branch) {
+                    continue;
+                }
+
+                let pos = origin.offset(dx, y, dz);
+                let expected_foliage = Self::sample_block_state_provider(
+                    region,
+                    registry,
+                    random,
+                    &config.foliage_provider,
+                    pos,
+                );
+                if region.block_state(pos) != expected_foliage {
+                    continue;
+                }
+
+                let axis = if abs_dz == 0 { Axis::X } else { Axis::Z };
+                let state = Self::sample_block_state_provider(
+                    region,
+                    registry,
+                    random,
+                    &config.trunk_provider,
+                    pos,
+                );
+                placement.set_foliage(region, pos, Self::with_axis_if_present(state, axis));
+            }
+        }
     }
 
     fn create_dark_oak_tree_foliage(
@@ -657,6 +891,7 @@ impl FeatureDecorationRunner {
             FoliagePlacer::Jungle(placer) => placer.offset.sample(random),
             FoliagePlacer::RandomSpread(placer) => placer.offset.sample(random),
             FoliagePlacer::Cherry(placer) => placer.offset.sample(random),
+            FoliagePlacer::Poplar(placer) => placer.offset.sample(random),
         }
     }
 
@@ -837,6 +1072,7 @@ impl FeatureDecorationRunner {
             FoliagePlacer::Cherry(placer) => {
                 Self::cherry_foliage_should_skip_location(random, placer, dx, y, dz, current_radius)
             }
+            FoliagePlacer::Poplar(_) => unreachable!(),
             FoliagePlacer::DarkOak(_) => unreachable!(),
         }
     }
@@ -914,6 +1150,84 @@ impl FeatureDecorationRunner {
         } else {
             corner && random.next_f32() < placer.corner_hole_chance
         }
+    }
+
+    fn poplar_foliage_should_skip_location(
+        random: &mut WorldgenRandom,
+        placer: &PoplarFoliagePlacer,
+        dx: i32,
+        y: i32,
+        dz: i32,
+        current_radius: i32,
+        foliage_height: i32,
+        flip_rhombus_shape: bool,
+    ) -> bool {
+        let partial_row = Self::poplar_should_row_be_partial(foliage_height, y);
+        let corner_cut = Self::poplar_corner_blocks_to_cut(
+            dx,
+            dz,
+            current_radius,
+            partial_row,
+            flip_rhombus_shape,
+        );
+        let abs_dx = abs_i32(dx);
+        let abs_dz = abs_i32(dz);
+        let edge_block = abs_dx == current_radius || abs_dz == current_radius;
+        if partial_row && edge_block {
+            return true;
+        }
+
+        let additional_side_removal = i32::from(random.next_f32() <= placer.side_hole_chance);
+        !Self::poplar_is_within_rhombus(
+            current_radius,
+            abs_dx,
+            abs_dz,
+            corner_cut,
+            additional_side_removal,
+        )
+    }
+
+    fn poplar_corner_blocks_to_cut(
+        dx: i32,
+        dz: i32,
+        current_radius: i32,
+        partial_row: bool,
+        flip_rhombus_shape: bool,
+    ) -> i32 {
+        let small_corner = if flip_rhombus_shape {
+            Self::poplar_is_left_top_or_right_lower_corner(dx, dz)
+        } else {
+            Self::poplar_is_left_lower_or_right_top_corner(dx, dz)
+        };
+        if small_corner {
+            current_radius - 1
+        } else if partial_row {
+            current_radius + 1
+        } else {
+            current_radius
+        }
+    }
+
+    const fn poplar_is_within_rhombus(
+        current_radius: i32,
+        abs_dx: i32,
+        abs_dz: i32,
+        corner_blocks_to_cut: i32,
+        additional_side_removal: i32,
+    ) -> bool {
+        abs_dx + abs_dz <= current_radius * 2 - (corner_blocks_to_cut + additional_side_removal)
+    }
+
+    const fn poplar_is_left_lower_or_right_top_corner(dx: i32, dz: i32) -> bool {
+        dx > 0 && dz < 0 || dz > 0 && dx < 0
+    }
+
+    const fn poplar_is_left_top_or_right_lower_corner(dx: i32, dz: i32) -> bool {
+        dx > 0 && dz > 0 || dz < 0 && dx < 0
+    }
+
+    const fn poplar_should_row_be_partial(foliage_height: i32, y: i32) -> bool {
+        foliage_height - 1 == y || foliage_height - 2 == y
     }
 
     const fn conifer_foliage_should_skip_location(dx: i32, dz: i32, current_radius: i32) -> bool {

@@ -184,7 +184,10 @@ impl FeatureDecorationRunner {
                         pending_section.key.chunk_z,
                         pending_section.key.section_index,
                         &pending_section.positions,
-                        |block_state| targets.matching_replacement(registry, block_state),
+                        |local_pos, block_state| {
+                            let pos = pending_section.key.block_pos(min_y, local_pos);
+                            targets.matching_replacement(registry, block_state, pos)
+                        },
                     );
                 }
                 if let Some(started_at) = batch_apply_started_at
@@ -384,7 +387,7 @@ impl FeatureDecorationRunner {
     ) -> bool {
         if config.discard_chance_on_air_exposure <= 0.0 {
             return sections.replace_ore_target_block_state(pos, |block_state| {
-                targets.matching_replacement(registry, block_state)
+                targets.matching_replacement(registry, block_state, pos)
             });
         }
 
@@ -410,7 +413,7 @@ impl FeatureDecorationRunner {
         pos: BlockPos,
         block_id: usize,
     ) -> bool {
-        if !target.matches_block_id(block_id) {
+        if !target.matches(block_id, pos) {
             return false;
         }
 
@@ -430,7 +433,7 @@ impl FeatureDecorationRunner {
         pos: BlockPos,
         block_id: usize,
     ) -> bool {
-        if !target.matches_block_id(block_id) {
+        if !target.matches(block_id, pos) {
             return false;
         }
 
@@ -515,6 +518,11 @@ struct ResolvedOreTarget {
 enum ResolvedOreRuleTest {
     Block(usize),
     Tag(SmallVec<[usize; 8]>),
+    AllOf(Vec<ResolvedOreRuleTest>),
+    HeightMatch {
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -557,17 +565,7 @@ impl ResolvedOreTargets {
     fn from_config(registry: &Registry, config: &OreConfiguration) -> Self {
         let mut targets = SmallVec::with_capacity(config.targets.len());
         for target in &config.targets {
-            let matcher = match &target.target {
-                RuleTest::BlockMatch { block } => ResolvedOreRuleTest::Block(block.id()),
-                RuleTest::TagMatch { tag } => {
-                    let block_ids = registry
-                        .blocks
-                        .iter_tag(tag)
-                        .map(steel_registry::RegistryEntry::id)
-                        .collect();
-                    ResolvedOreRuleTest::Tag(block_ids)
-                }
-            };
+            let matcher = ResolvedOreRuleTest::from_rule_test(registry, &target.target);
             let state = WorldgenStateResolver::feature_block_state_from_data(
                 registry,
                 &target.state,
@@ -587,11 +585,12 @@ impl ResolvedOreTargets {
         &self,
         registry: &Registry,
         state: BlockStateId,
+        pos: BlockPos,
     ) -> Option<BlockStateId> {
         let block_id = Self::block_id_for_state(registry, state);
         self.targets
             .iter()
-            .find_map(|target| target.matches_block_id(block_id).then_some(target.state))
+            .find_map(|target| target.matches(block_id, pos).then_some(target.state))
     }
 
     fn block_id_for_state(registry: &Registry, state: BlockStateId) -> usize {
@@ -603,10 +602,50 @@ impl ResolvedOreTargets {
 }
 
 impl ResolvedOreTarget {
-    fn matches_block_id(&self, block_id: usize) -> bool {
-        match &self.matcher {
+    fn matches(&self, block_id: usize, pos: BlockPos) -> bool {
+        self.matcher.matches(block_id, pos)
+    }
+}
+
+impl ResolvedOreRuleTest {
+    fn from_rule_test(registry: &Registry, rule: &RuleTest) -> Self {
+        match rule {
+            RuleTest::BlockMatch { block } => Self::Block(block.id()),
+            RuleTest::TagMatch { tag } => {
+                let block_ids = registry
+                    .blocks
+                    .iter_tag(tag)
+                    .map(steel_registry::RegistryEntry::id)
+                    .collect();
+                Self::Tag(block_ids)
+            }
+            RuleTest::AllOf { rules } => Self::AllOf(
+                rules
+                    .iter()
+                    .map(|rule| Self::from_rule_test(registry, rule))
+                    .collect(),
+            ),
+            RuleTest::HeightMatch {
+                min_inclusive,
+                max_inclusive,
+            } => Self::HeightMatch {
+                min_inclusive: *min_inclusive,
+                max_inclusive: *max_inclusive,
+            },
+        }
+    }
+
+    fn matches(&self, block_id: usize, pos: BlockPos) -> bool {
+        match self {
             ResolvedOreRuleTest::Block(target_block_id) => block_id == *target_block_id,
             ResolvedOreRuleTest::Tag(block_ids) => block_ids.contains(&block_id),
+            ResolvedOreRuleTest::AllOf(rules) => {
+                rules.iter().all(|rule| rule.matches(block_id, pos))
+            }
+            ResolvedOreRuleTest::HeightMatch {
+                min_inclusive,
+                max_inclusive,
+            } => *min_inclusive <= pos.y() && pos.y() <= *max_inclusive,
         }
     }
 }
@@ -618,6 +657,14 @@ impl PendingOreSectionKey {
             chunk_z: SectionPos::block_to_section_coord(z),
             section_index: ((y - min_y) / 16) as usize,
         }
+    }
+
+    fn block_pos(self, min_y: i32, local_pos: PackedSectionBlockPos) -> BlockPos {
+        BlockPos::new(
+            self.chunk_x * 16 + i32::from(local_pos.x()),
+            min_y + self.section_index as i32 * 16 + i32::from(local_pos.y()),
+            self.chunk_z * 16 + i32::from(local_pos.z()),
+        )
     }
 }
 

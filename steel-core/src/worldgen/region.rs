@@ -863,7 +863,7 @@ impl<'region, 'world, 'profile> WorldGenBulkSectionAccess<'region, 'world, 'prof
         chunk_z: i32,
         section_index: usize,
         positions: &[PackedSectionBlockPos],
-        mut replacement: impl FnMut(BlockStateId) -> Option<BlockStateId>,
+        mut replacement: impl FnMut(PackedSectionBlockPos, BlockStateId) -> Option<BlockStateId>,
     ) -> u64 {
         let ore_profile = self.ore_profile;
         let started_at = ore_profile.map(|_| Instant::now());
@@ -905,7 +905,7 @@ impl<'region, 'world, 'profile> WorldGenBulkSectionAccess<'region, 'world, 'prof
                 let local_y = usize::from(pos.y());
                 let local_z = usize::from(pos.z());
                 let old_state = section_guard.states.get(local_x, local_y, local_z);
-                if let Some(state) = replacement(old_state) {
+                if let Some(state) = replacement(pos, old_state) {
                     let old_state = Self::set_bulk_block_state(
                         &chunk.guard,
                         &mut section_guard,
@@ -925,7 +925,7 @@ impl<'region, 'world, 'profile> WorldGenBulkSectionAccess<'region, 'world, 'prof
                 let local_y = usize::from(pos.y());
                 let local_z = usize::from(pos.z());
                 let old_state = section_guard.states.get(local_x, local_y, local_z);
-                if let Some(state) = replacement(old_state) {
+                if let Some(state) = replacement(pos, old_state) {
                     let old_state = Self::set_bulk_block_state(
                         &chunk.guard,
                         &mut section_guard,

@@ -96,6 +96,15 @@ impl FeatureDecorationRunner {
                         placement,
                     );
                 }
+                TreeDecorator::ShelfMushroom { probability } => {
+                    Self::place_shelf_mushroom_tree_decorator(
+                        region,
+                        registry,
+                        random,
+                        *probability,
+                        placement,
+                    );
+                }
             }
         }
     }
@@ -625,13 +634,10 @@ impl FeatureDecorationRunner {
 
         if random.next_f32() < ground_probability {
             let pale_moss_patch_key = Identifier::vanilla_static("pale_moss_patch");
-            let Some(pale_moss_patch) = registry.configured_features.by_key(&pale_moss_patch_key)
-            else {
-                panic!(
-                    "pale moss tree decorator references unknown configured feature {pale_moss_patch_key}"
-                );
+            let Some(pale_moss_patch) = registry.features.by_key(&pale_moss_patch_key) else {
+                panic!("pale moss tree decorator references unknown feature {pale_moss_patch_key}");
             };
-            Self::place_configured_feature_kind(
+            Self::place_feature_kind(
                 region,
                 registry,
                 random,
@@ -693,6 +699,182 @@ impl FeatureDecorationRunner {
             )
             .set_value(&BlockStateProperties::NATURAL, true);
         placement.set_decoration(region, target_pos, state);
+    }
+
+    fn place_shelf_mushroom_tree_decorator(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        probability: f32,
+        placement: &mut TreePlacement,
+    ) {
+        if random.next_f32() >= probability {
+            return;
+        }
+
+        let logs = Self::sorted_tree_positions(&placement.trunks);
+        if logs.is_empty() {
+            return;
+        }
+
+        if Self::shelf_mushroom_is_fallen_log(&logs) {
+            Self::place_shelf_mushrooms_on_fallen_log(region, registry, random, &logs, placement);
+        } else {
+            Self::place_shelf_mushrooms_on_standing_tree(
+                region, registry, random, &logs, placement,
+            );
+        }
+    }
+
+    fn place_shelf_mushrooms_on_standing_tree(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        logs: &[BlockPos],
+        placement: &mut TreePlacement,
+    ) {
+        let directions = Self::pick_shelf_mushroom_directions(random);
+        let tree_base_y = logs[0].y();
+
+        for log in logs.iter().copied() {
+            if !Self::shelf_mushroom_is_within_decoratable_height(log, tree_base_y) {
+                continue;
+            }
+
+            for facing in directions {
+                if random.next_f32() <= 0.25
+                    && Self::try_place_shelf_mushroom_on_standing_tree(
+                        region, registry, random, placement, log, facing,
+                    )
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn place_shelf_mushrooms_on_fallen_log(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        logs: &[BlockPos],
+        placement: &mut TreePlacement,
+    ) {
+        let directions = Self::shelf_mushroom_directions_perpendicular_to_fallen_log(logs);
+
+        for log in logs.iter().copied() {
+            for facing in directions {
+                if random.next_f32() <= 0.25 {
+                    Self::try_place_shelf_mushroom_on_fallen_tree(
+                        region, registry, random, placement, log, facing,
+                    );
+                }
+            }
+        }
+    }
+
+    fn try_place_shelf_mushroom_on_standing_tree(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        placement: &mut TreePlacement,
+        log_pos: BlockPos,
+        facing: Direction,
+    ) -> bool {
+        let mushroom_pos = Self::shelf_mushroom_pos_for(log_pos, facing);
+        if !region.block_state(mushroom_pos).is_replaceable() {
+            return false;
+        }
+
+        if Self::has_shelf_mushroom_at(region, mushroom_pos.below()) {
+            return false;
+        }
+
+        Self::place_shelf_mushroom(region, registry, random, placement, mushroom_pos, facing);
+        true
+    }
+
+    fn try_place_shelf_mushroom_on_fallen_tree(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        placement: &mut TreePlacement,
+        log_pos: BlockPos,
+        facing: Direction,
+    ) {
+        let mushroom_pos = Self::shelf_mushroom_pos_for(log_pos, facing);
+        if !region.block_state(mushroom_pos).is_replaceable() {
+            return;
+        }
+
+        if Self::has_horizontally_adjacent_shelf_mushroom(region, mushroom_pos)
+            || Self::has_horizontally_adjacent_shelf_mushroom(region, log_pos)
+        {
+            return;
+        }
+
+        Self::place_shelf_mushroom(region, registry, random, placement, mushroom_pos, facing);
+    }
+
+    fn shelf_mushroom_is_fallen_log(logs: &[BlockPos]) -> bool {
+        logs.first()
+            .is_some_and(|first| logs.last().is_some_and(|last| first.y() == last.y()))
+    }
+
+    fn pick_shelf_mushroom_directions(random: &mut WorldgenRandom) -> [Direction; 2] {
+        let first = Self::random_horizontal_direction(random);
+        [first, first.rotate_y_clockwise()]
+    }
+
+    fn shelf_mushroom_directions_perpendicular_to_fallen_log(logs: &[BlockPos]) -> [Direction; 2] {
+        let first = logs[0];
+        let last = logs[logs.len() - 1];
+        if first.x() != last.x() {
+            [Direction::North, Direction::South]
+        } else {
+            [Direction::East, Direction::West]
+        }
+    }
+
+    fn shelf_mushroom_is_within_decoratable_height(pos: BlockPos, tree_base_y: i32) -> bool {
+        let dy = pos.y() - tree_base_y;
+        (1..=4).contains(&dy)
+    }
+
+    fn shelf_mushroom_pos_for(log_pos: BlockPos, facing: Direction) -> BlockPos {
+        log_pos.relative(facing.opposite())
+    }
+
+    fn place_shelf_mushroom(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        placement: &mut TreePlacement,
+        pos: BlockPos,
+        facing: Direction,
+    ) {
+        let state = registry
+            .blocks
+            .get_default_state_id(&vanilla_blocks::SHELF_MUSHROOM)
+            .set_value(
+                &BlockStateProperties::AGE_1,
+                random.next_i32_bounded(2) as u8,
+            )
+            .set_value(&BlockStateProperties::HORIZONTAL_FACING, facing);
+        placement.set_decoration(region, pos, state);
+    }
+
+    fn has_shelf_mushroom_at(region: &WorldGenRegion<'_>, pos: BlockPos) -> bool {
+        region.block_state(pos).get_block() == &vanilla_blocks::SHELF_MUSHROOM
+    }
+
+    fn has_horizontally_adjacent_shelf_mushroom(
+        region: &WorldGenRegion<'_>,
+        pos: BlockPos,
+    ) -> bool {
+        Self::VANILLA_HORIZONTAL_DIRECTIONS
+            .iter()
+            .any(|direction| Self::has_shelf_mushroom_at(region, pos.relative(*direction)))
     }
 
     fn add_pale_moss_hanger(

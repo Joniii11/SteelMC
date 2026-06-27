@@ -47,6 +47,12 @@ impl FeatureDecorationRunner {
                 placer.height_rand_a,
                 placer.height_rand_b,
             ),
+            TrunkPlacer::Poplar(placer) => Self::sample_tree_height(
+                random,
+                placer.base_height,
+                placer.height_rand_a,
+                placer.height_rand_b,
+            ),
         }
     }
 
@@ -146,6 +152,16 @@ impl FeatureDecorationRunner {
                 placement,
             ),
             TrunkPlacer::Cherry(placer) => Self::place_cherry_tree_trunk(
+                region,
+                registry,
+                random,
+                tree_height,
+                origin,
+                config,
+                placer,
+                placement,
+            ),
+            TrunkPlacer::Poplar(placer) => Self::place_poplar_tree_trunk(
                 region,
                 registry,
                 random,
@@ -724,6 +740,63 @@ impl FeatureDecorationRunner {
         }
     }
 
+    fn place_poplar_tree_trunk(
+        region: &mut WorldGenRegion<'_>,
+        registry: &Registry,
+        random: &mut WorldgenRandom,
+        tree_height: i32,
+        origin: BlockPos,
+        config: &TreeConfiguration,
+        placer: &PoplarTrunkPlacer,
+        placement: &mut TreePlacement,
+    ) -> Vec<FoliageAttachment> {
+        Self::place_below_trunk_block(region, registry, random, origin.below(), config, placement);
+        let trunk_height_up_to_foliage_branches =
+            tree_height - placer.trunk_height_above_branches.sample(random);
+
+        for y in 0..tree_height {
+            let pos = origin.above_n(y);
+            let _ = Self::place_tree_log(region, registry, random, pos, config, placement);
+            let branch_directions = Self::poplar_random_branch_directions(random);
+            if trunk_height_up_to_foliage_branches - 1 != y {
+                continue;
+            }
+
+            let branch_amount = placer.branch_amount.sample(random);
+            let Ok(branch_amount) = usize::try_from(branch_amount) else {
+                panic!("poplar branch amount is negative");
+            };
+            for branch_index in 0..branch_amount {
+                let Some(branch_direction) = branch_directions.get(branch_index).copied() else {
+                    panic!("poplar branch amount exceeds horizontal direction count");
+                };
+                let branch_pos = pos.relative(branch_direction);
+                let _ = Self::place_tree_log_with_axis(
+                    region,
+                    registry,
+                    random,
+                    branch_pos,
+                    branch_direction.axis(),
+                    config,
+                    placement,
+                );
+            }
+        }
+
+        vec![FoliageAttachment {
+            pos: origin.above_n(trunk_height_up_to_foliage_branches),
+            radius_offset: 0,
+            double_trunk: false,
+        }]
+    }
+
+    fn poplar_random_branch_directions(random: &mut WorldgenRandom) -> Vec<Direction> {
+        Self::shuffled_directions(random, Self::VANILLA_DIRECTION_VALUES)
+            .into_iter()
+            .filter(|direction| direction.is_horizontal())
+            .collect()
+    }
+
     fn place_dark_oak_tree_trunk(
         region: &mut WorldGenRegion<'_>,
         registry: &Registry,
@@ -1101,7 +1174,7 @@ impl FeatureDecorationRunner {
         Self::place_tree_log_with_axis(region, registry, random, pos, axis, config, placement)
     }
 
-    fn with_axis_if_present(state: BlockStateId, axis: Axis) -> BlockStateId {
+    pub(super) fn with_axis_if_present(state: BlockStateId, axis: Axis) -> BlockStateId {
         if state.try_get_value(&BlockStateProperties::AXIS).is_some() {
             state.set_value(&BlockStateProperties::AXIS, axis)
         } else {
