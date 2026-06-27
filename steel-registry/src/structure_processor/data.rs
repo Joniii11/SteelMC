@@ -82,6 +82,11 @@ pub enum StructureRuleTestData {
     TagMatch { tag: Identifier },
     #[serde(rename = "minecraft:blockstate_match")]
     BlockStateMatch { block_state: BlockStateData },
+    #[serde(rename = "minecraft:random_blockstate_match")]
+    RandomBlockStateMatch {
+        block_state: BlockStateData,
+        probability: f32,
+    },
 }
 
 /// Position rule tests used by `RuleProcessor`.

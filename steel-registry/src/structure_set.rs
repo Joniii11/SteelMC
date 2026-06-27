@@ -69,6 +69,8 @@ pub enum PlacementData {
         /// Block offset from the placement chunk used by `/locate`.
         locate_offset: IVec3,
     },
+    /// Places a structure at the chunk generator's dimension origin.
+    DimensionOrigin,
 }
 
 /// Spread type for random spread placement.

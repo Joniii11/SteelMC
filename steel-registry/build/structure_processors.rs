@@ -223,6 +223,18 @@ fn generate_rule_test(data: &StructureRuleTestData) -> TokenStream {
             let block_state = generate_block_state_data(block_state);
             quote! { StructureRuleTestData::BlockStateMatch { block_state: #block_state } }
         }
+        StructureRuleTestData::RandomBlockStateMatch {
+            block_state,
+            probability,
+        } => {
+            let block_state = generate_block_state_data(block_state);
+            quote! {
+                StructureRuleTestData::RandomBlockStateMatch {
+                    block_state: #block_state,
+                    probability: #probability,
+                }
+            }
+        }
     }
 }
 

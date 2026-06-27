@@ -42,6 +42,11 @@ pub trait StructureBiomeProvider {
     /// Every biome this provider can produce.
     fn possible_biomes(&self) -> FxHashSet<Identifier>;
 
+    /// Vanilla's `ChunkGenerator.getOrigin`, expressed as a chunk position.
+    fn dimension_origin(&self) -> ChunkPos {
+        ChunkPos::new(0, 0)
+    }
+
     /// Vanilla's `BiomeSource.findBiomeHorizontal(findClosest=false, skipSteps=1)`.
     fn find_biome_horizontal(
         &self,
@@ -56,6 +61,10 @@ pub trait StructureBiomeProvider {
 impl StructureBiomeProvider for BiomeSourceKind {
     fn possible_biomes(&self) -> FxHashSet<Identifier> {
         BiomeSourceKind::possible_biomes(self)
+    }
+
+    fn dimension_origin(&self) -> ChunkPos {
+        ChunkPos::from_block_pos(self.initial_spawn_search_origin())
     }
 
     fn find_biome_horizontal(
@@ -128,6 +137,7 @@ impl StructureBiomeProvider for FixedStructureBiomeProvider {
 /// implementation dispatch.
 pub struct StructureGenerator {
     seed: i64,
+    dimension_origin: ChunkPos,
     structure_sets: Vec<(Identifier, StructureSet)>,
     structure_set_indices: FxHashMap<Identifier, usize>,
     structure_data: FxHashMap<Identifier, StructureRef>,
@@ -412,6 +422,7 @@ fn validate_structure_sets(structure_sets: &[(Identifier, StructureSet)]) {
                     "Structure set {set_key} has negative ring count {count}"
                 );
             }
+            PlacementKind::DimensionOrigin => {}
         }
     }
 }
@@ -528,6 +539,7 @@ impl StructureGenerator {
             })
             .collect();
 
+        let dimension_origin = biome_provider.dimension_origin();
         let structure_set_indices: FxHashMap<Identifier, usize> = structure_sets
             .iter()
             .enumerate()
@@ -566,6 +578,7 @@ impl StructureGenerator {
 
         Self {
             seed,
+            dimension_origin,
             structure_sets,
             structure_set_indices,
             structure_data,
@@ -690,10 +703,13 @@ impl StructureGenerator {
         };
         let (_, set) = &self.structure_sets[set_index];
         let rings = self.rings_for_set(set_key);
-        if !set
-            .placement
-            .is_structure_chunk(self.seed, source_x, source_z, rings)
-        {
+        if !set.placement.is_structure_chunk(
+            self.seed,
+            source_x,
+            source_z,
+            rings,
+            self.dimension_origin,
+        ) {
             return false;
         }
 
@@ -884,6 +900,7 @@ mod tests {
 
         StructureGenerator {
             seed: 0,
+            dimension_origin: ChunkPos::new(0, 0),
             structure_sets: sets,
             structure_set_indices,
             structure_data: FxHashMap::default(),

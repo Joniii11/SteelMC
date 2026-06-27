@@ -1908,6 +1908,18 @@ impl StructureTemplate {
                         "structure processor block-state predicate",
                     )
             }
+            StructureRuleTestData::RandomBlockStateMatch {
+                block_state,
+                probability,
+            } => {
+                state
+                    == WorldgenStateResolver::block_state_from_data(
+                        registry,
+                        block_state,
+                        "structure processor random block-state predicate",
+                    )
+                    && random.next_f32() < *probability
+            }
         }
     }
 

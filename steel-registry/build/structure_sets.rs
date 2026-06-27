@@ -22,7 +22,8 @@ struct StructureEntryJson {
 struct PlacementJson {
     #[serde(rename = "type")]
     placement_type: String,
-    salt: i32,
+    #[serde(default)]
+    salt: Option<i32>,
     #[serde(default = "default_frequency")]
     frequency: f32,
     #[serde(default)]
@@ -1176,7 +1177,7 @@ pub(crate) fn build() -> TokenStream {
                         "Structure set {set_name} has spacing {spacing} <= separation {separation}"
                     );
                 }
-                let salt = set.placement.salt;
+                let salt = required(set.placement.salt, set_name, "placement.salt");
                 let spread_type = generate_spread_type(&set.placement.spread_type);
 
                 let exclusion = if let Some(ez) = &set.placement.exclusion_zone {
@@ -1224,7 +1225,7 @@ pub(crate) fn build() -> TokenStream {
                 if count < 0 {
                     panic!("Structure set {set_name} has negative ring count {count}");
                 }
-                let salt = set.placement.salt;
+                let salt = required(set.placement.salt, set_name, "placement.salt");
 
                 // Resolve preferred biomes from tag reference (e.g., "#minecraft:stronghold_biased_to")
                 let tag_ref = required(
@@ -1265,6 +1266,7 @@ pub(crate) fn build() -> TokenStream {
                     }
                 }
             }
+            "minecraft:dimension_origin" => quote! { PlacementData::DimensionOrigin },
             other => panic!("Unknown placement type: {other}"),
         };
 
