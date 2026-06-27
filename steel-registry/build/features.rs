@@ -1,4 +1,4 @@
-//! Build-time codegen for configured and placed feature registries.
+//! Build-time codegen for feature and placed feature registries.
 
 use std::fs;
 
@@ -63,9 +63,9 @@ fn generate_fluid_ref(identifier: &Identifier) -> TokenStream {
     quote! { &vanilla_fluids::#ident }
 }
 
-fn generate_configured_feature_entry_ref(identifier: &Identifier) -> TokenStream {
-    let ident = vanilla_registry_ident(identifier, "configured feature");
-    quote! { &crate::vanilla_configured_features::#ident }
+fn generate_feature_entry_ref(identifier: &Identifier) -> TokenStream {
+    let ident = vanilla_registry_ident(identifier, "feature");
+    quote! { &crate::vanilla_features::#ident }
 }
 
 fn generate_placed_feature_entry_ref(identifier: &Identifier) -> TokenStream {
@@ -582,15 +582,15 @@ fn generate_block_predicate(predicate: &BlockPredicate) -> TokenStream {
     }
 }
 
-fn generate_configured_feature_ref(feature: &ConfiguredFeatureRef) -> TokenStream {
+fn generate_feature_ref(feature: &FeatureRef) -> TokenStream {
     match feature {
-        ConfiguredFeatureRef::Reference(identifier) => {
-            let reference = generate_configured_feature_entry_ref(identifier);
-            quote! { ConfiguredFeatureRef::Reference(#reference) }
+        FeatureRef::Reference(identifier) => {
+            let reference = generate_feature_entry_ref(identifier);
+            quote! { FeatureRef::Reference(#reference) }
         }
-        ConfiguredFeatureRef::Inline(kind) => {
-            let kind = generate_box(kind.as_ref(), generate_configured_feature_kind);
-            quote! { ConfiguredFeatureRef::Inline(#kind) }
+        FeatureRef::Inline(kind) => {
+            let kind = generate_box(kind.as_ref(), generate_feature_kind);
+            quote! { FeatureRef::Inline(#kind) }
         }
     }
 }
@@ -609,7 +609,7 @@ fn generate_placed_feature_ref(feature: &PlacedFeatureRef) -> TokenStream {
 }
 
 fn generate_placed_feature_data(data: &PlacedFeatureData) -> TokenStream {
-    let feature = generate_configured_feature_ref(&data.feature);
+    let feature = generate_feature_ref(&data.feature);
     let placement = generate_vec(&data.placement, generate_placement_modifier);
     quote! {
         PlacedFeatureData {
@@ -834,6 +834,19 @@ fn generate_rule_test(rule: &RuleTest) -> TokenStream {
             let tag = generate_identifier(tag);
             quote! { RuleTest::TagMatch { tag: #tag } }
         }
+        RuleTest::AllOf { rules } => {
+            let rules = generate_vec(rules, generate_rule_test);
+            quote! { RuleTest::AllOf { rules: #rules } }
+        }
+        RuleTest::HeightMatch {
+            min_inclusive,
+            max_inclusive,
+        } => quote! {
+            RuleTest::HeightMatch {
+                min_inclusive: #min_inclusive,
+                max_inclusive: #max_inclusive,
+            }
+        },
     }
 }
 
@@ -958,6 +971,23 @@ fn generate_trunk_placer(placer: &TrunkPlacer) -> TokenStream {
                 })
             }
         }
+        TrunkPlacer::Poplar(placer) => {
+            let base_height = placer.base_height;
+            let height_rand_a = placer.height_rand_a;
+            let height_rand_b = placer.height_rand_b;
+            let trunk_height_above_branches =
+                generate_int_provider(&placer.trunk_height_above_branches);
+            let branch_amount = generate_int_provider(&placer.branch_amount);
+            quote! {
+                TrunkPlacer::Poplar(PoplarTrunkPlacer {
+                    base_height: #base_height,
+                    height_rand_a: #height_rand_a,
+                    height_rand_b: #height_rand_b,
+                    trunk_height_above_branches: #trunk_height_above_branches,
+                    branch_amount: #branch_amount,
+                })
+            }
+        }
     }
 }
 
@@ -1067,6 +1097,20 @@ fn generate_foliage_placer(placer: &FoliagePlacer) -> TokenStream {
                     corner_hole_chance: #corner_hole_chance,
                     hanging_leaves_chance: #hanging_leaves_chance,
                     hanging_leaves_extension_chance: #hanging_leaves_extension_chance,
+                })
+            }
+        }
+        FoliagePlacer::Poplar(placer) => {
+            let radius = generate_int_provider(&placer.radius);
+            let offset = generate_int_provider(&placer.offset);
+            let height = generate_int_provider(&placer.height);
+            let side_hole_chance = placer.side_hole_chance;
+            quote! {
+                FoliagePlacer::Poplar(PoplarFoliagePlacer {
+                    radius: #radius,
+                    offset: #offset,
+                    height: #height,
+                    side_hole_chance: #side_hole_chance,
                 })
             }
         }
@@ -1241,6 +1285,9 @@ fn generate_tree_decorator(decorator: &TreeDecorator) -> TokenStream {
                 ground_probability: #ground_probability,
             }
         },
+        TreeDecorator::ShelfMushroom { probability } => {
+            quote! { TreeDecorator::ShelfMushroom { probability: #probability } }
+        }
     }
 }
 
@@ -1261,7 +1308,7 @@ fn generate_huge_mushroom_kind(
     let foliage_radius = config.foliage_radius;
     let can_place_on = generate_block_predicate(&config.can_place_on);
     quote! {
-        ConfiguredFeatureKind::#variant(HugeMushroomConfiguration {
+        FeatureKind::#variant(HugeMushroomConfiguration {
             cap_provider: #cap_provider,
             stem_provider: #stem_provider,
             foliage_radius: #foliage_radius,
@@ -1274,44 +1321,44 @@ fn generate_huge_mushroom_kind(
     clippy::too_many_lines,
     reason = "keeps feature registry codegen aligned with the runtime feature enum"
 )]
-fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream {
+fn generate_feature_kind(kind: &FeatureKind) -> TokenStream {
     match kind {
-        ConfiguredFeatureKind::Bamboo(config) => {
+        FeatureKind::Bamboo(config) => {
             let probability = config.probability;
             quote! {
-                ConfiguredFeatureKind::Bamboo(BambooConfiguration {
+                FeatureKind::Bamboo(BambooConfiguration {
                     probability: #probability,
                 })
             }
         }
-        ConfiguredFeatureKind::BasaltColumns(config) => {
+        FeatureKind::BasaltColumns(config) => {
             let height = generate_int_provider(&config.height);
             let reach = generate_int_provider(&config.reach);
             quote! {
-                ConfiguredFeatureKind::BasaltColumns(BasaltColumnsConfiguration {
+                FeatureKind::BasaltColumns(BasaltColumnsConfiguration {
                     height: #height,
                     reach: #reach,
                 })
             }
         }
-        ConfiguredFeatureKind::BasaltPillar => quote! { ConfiguredFeatureKind::BasaltPillar },
-        ConfiguredFeatureKind::BlockBlob(config) => {
+        FeatureKind::BasaltPillar => quote! { FeatureKind::BasaltPillar },
+        FeatureKind::BlockBlob(config) => {
             let state = generate_block_state_data(&config.state);
             let can_place_on = generate_block_predicate(&config.can_place_on);
             quote! {
-                ConfiguredFeatureKind::BlockBlob(BlockBlobConfiguration {
+                FeatureKind::BlockBlob(BlockBlobConfiguration {
                     state: #state,
                     can_place_on: #can_place_on,
                 })
             }
         }
-        ConfiguredFeatureKind::BlockColumn(config) => {
+        FeatureKind::BlockColumn(config) => {
             let direction = generate_direction(config.direction);
             let allowed_placement = generate_block_predicate(&config.allowed_placement);
             let layers = generate_vec(&config.layers, generate_block_column_layer);
             let prioritize_tip = config.prioritize_tip;
             quote! {
-                ConfiguredFeatureKind::BlockColumn(BlockColumnConfiguration {
+                FeatureKind::BlockColumn(BlockColumnConfiguration {
                     direction: #direction,
                     allowed_placement: #allowed_placement,
                     layers: #layers,
@@ -1319,27 +1366,27 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::BlockPile(config) => {
+        FeatureKind::BlockPile(config) => {
             let state_provider = generate_block_state_provider(&config.state_provider);
             quote! {
-                ConfiguredFeatureKind::BlockPile(BlockPileConfiguration {
+                FeatureKind::BlockPile(BlockPileConfiguration {
                     state_provider: #state_provider,
                 })
             }
         }
-        ConfiguredFeatureKind::BlueIce => quote! { ConfiguredFeatureKind::BlueIce },
-        ConfiguredFeatureKind::BonusChest => quote! { ConfiguredFeatureKind::BonusChest },
-        ConfiguredFeatureKind::ChorusPlant => quote! { ConfiguredFeatureKind::ChorusPlant },
-        ConfiguredFeatureKind::CoralClaw => quote! { ConfiguredFeatureKind::CoralClaw },
-        ConfiguredFeatureKind::CoralMushroom => quote! { ConfiguredFeatureKind::CoralMushroom },
-        ConfiguredFeatureKind::CoralTree => quote! { ConfiguredFeatureKind::CoralTree },
-        ConfiguredFeatureKind::DeltaFeature(config) => {
+        FeatureKind::BlueIce => quote! { FeatureKind::BlueIce },
+        FeatureKind::BonusChest => quote! { FeatureKind::BonusChest },
+        FeatureKind::ChorusPlant => quote! { FeatureKind::ChorusPlant },
+        FeatureKind::CoralClaw => quote! { FeatureKind::CoralClaw },
+        FeatureKind::CoralMushroom => quote! { FeatureKind::CoralMushroom },
+        FeatureKind::CoralTree => quote! { FeatureKind::CoralTree },
+        FeatureKind::DeltaFeature(config) => {
             let contents = generate_block_state_data(&config.contents);
             let rim = generate_block_state_data(&config.rim);
             let size = generate_int_provider(&config.size);
             let rim_size = generate_int_provider(&config.rim_size);
             quote! {
-                ConfiguredFeatureKind::DeltaFeature(DeltaFeatureConfiguration {
+                FeatureKind::DeltaFeature(DeltaFeatureConfiguration {
                     contents: #contents,
                     rim: #rim,
                     size: #size,
@@ -1347,14 +1394,14 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::DesertWell => quote! { ConfiguredFeatureKind::DesertWell },
-        ConfiguredFeatureKind::Disk(config) => {
+        FeatureKind::DesertWell => quote! { FeatureKind::DesertWell },
+        FeatureKind::Disk(config) => {
             let state_provider = generate_block_state_provider(&config.state_provider);
             let target = generate_block_predicate(&config.target);
             let radius = generate_int_provider(&config.radius);
             let half_height = config.half_height;
             quote! {
-                ConfiguredFeatureKind::Disk(DiskConfiguration {
+                FeatureKind::Disk(DiskConfiguration {
                     state_provider: #state_provider,
                     target: #target,
                     radius: #radius,
@@ -1362,7 +1409,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::DripstoneCluster(config) => {
+        FeatureKind::DripstoneCluster(config) => {
             let floor_to_ceiling_search_range = config.floor_to_ceiling_search_range;
             let height = generate_int_provider(&config.height);
             let radius = generate_int_provider(&config.radius);
@@ -1380,7 +1427,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let max_distance_from_edge_affecting_chance_of_dripstone_column =
                 config.max_distance_from_edge_affecting_chance_of_dripstone_column;
             quote! {
-                ConfiguredFeatureKind::DripstoneCluster(DripstoneClusterConfiguration {
+                FeatureKind::DripstoneCluster(DripstoneClusterConfiguration {
                     floor_to_ceiling_search_range: #floor_to_ceiling_search_range,
                     height: #height,
                     radius: #radius,
@@ -1395,7 +1442,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::SpeleothemCluster(config) => {
+        FeatureKind::SpeleothemCluster(config) => {
             let base_block = generate_block_state_data(&config.base_block);
             let pointed_block = generate_block_state_data(&config.pointed_block);
             let replaceable_blocks = generate_block_holder_set(&config.replaceable_blocks);
@@ -1416,7 +1463,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let max_distance_from_center_affecting_height_bias =
                 config.max_distance_from_center_affecting_height_bias;
             quote! {
-                ConfiguredFeatureKind::SpeleothemCluster(SpeleothemClusterConfiguration {
+                FeatureKind::SpeleothemCluster(SpeleothemClusterConfiguration {
                     base_block: #base_block,
                     pointed_block: #pointed_block,
                     replaceable_blocks: #replaceable_blocks,
@@ -1434,37 +1481,45 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::EndGateway(config) => {
+        FeatureKind::EndGateway(config) => {
             let exit = generate_option(&config.exit, generate_offset);
             let exact = config.exact;
             quote! {
-                ConfiguredFeatureKind::EndGateway(EndGatewayConfiguration {
+                FeatureKind::EndGateway(EndGatewayConfiguration {
                     exit: #exit,
                     exact: #exact,
                 })
             }
         }
-        ConfiguredFeatureKind::EndIsland => quote! { ConfiguredFeatureKind::EndIsland },
-        ConfiguredFeatureKind::EndPlatform => quote! { ConfiguredFeatureKind::EndPlatform },
-        ConfiguredFeatureKind::EndSpike(config) => {
+        FeatureKind::EndIsland => quote! { FeatureKind::EndIsland },
+        FeatureKind::EndPlatform => quote! { FeatureKind::EndPlatform },
+        FeatureKind::EndPodium(config) => {
+            let active = config.active;
+            quote! {
+                FeatureKind::EndPodium(EndPodiumConfiguration {
+                    active: #active,
+                })
+            }
+        }
+        FeatureKind::EndSpike(config) => {
             let spikes = generate_vec(&config.spikes, generate_end_spike);
             let crystal_invulnerable = config.crystal_invulnerable;
             let crystal_beam_target = generate_option(&config.crystal_beam_target, generate_offset);
             quote! {
-                ConfiguredFeatureKind::EndSpike(EndSpikeConfiguration {
+                FeatureKind::EndSpike(EndSpikeConfiguration {
                     spikes: #spikes,
                     crystal_invulnerable: #crystal_invulnerable,
                     crystal_beam_target: #crystal_beam_target,
                 })
             }
         }
-        ConfiguredFeatureKind::FallenTree(config) => {
+        FeatureKind::FallenTree(config) => {
             let trunk_provider = generate_block_state_provider(&config.trunk_provider);
             let log_length = generate_int_provider(&config.log_length);
             let stump_decorators = generate_vec(&config.stump_decorators, generate_tree_decorator);
             let log_decorators = generate_vec(&config.log_decorators, generate_tree_decorator);
             quote! {
-                ConfiguredFeatureKind::FallenTree(FallenTreeConfiguration {
+                FeatureKind::FallenTree(FallenTreeConfiguration {
                     trunk_provider: #trunk_provider,
                     log_length: #log_length,
                     stump_decorators: #stump_decorators,
@@ -1472,14 +1527,14 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::Fossil(config) => {
+        FeatureKind::Fossil(config) => {
             let fossil_structures = generate_vec(&config.fossil_structures, generate_identifier);
             let overlay_structures = generate_vec(&config.overlay_structures, generate_identifier);
             let fossil_processors = generate_identifier(&config.fossil_processors);
             let overlay_processors = generate_identifier(&config.overlay_processors);
             let max_empty_corners_allowed = config.max_empty_corners_allowed;
             quote! {
-                ConfiguredFeatureKind::Fossil(FossilConfiguration {
+                FeatureKind::Fossil(FossilConfiguration {
                     fossil_structures: #fossil_structures,
                     overlay_structures: #overlay_structures,
                     fossil_processors: #fossil_processors,
@@ -1488,8 +1543,8 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::FreezeTopLayer => quote! { ConfiguredFeatureKind::FreezeTopLayer },
-        ConfiguredFeatureKind::Geode(config) => {
+        FeatureKind::FreezeTopLayer => quote! { FeatureKind::FreezeTopLayer },
+        FeatureKind::Geode(config) => {
             let blocks = generate_geode_block_settings(&config.blocks);
             let layers = generate_geode_layer_settings(&config.layers);
             let crack = generate_geode_crack_settings(&config.crack);
@@ -1504,7 +1559,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let invalid_blocks_threshold = config.invalid_blocks_threshold;
             let noise_multiplier = config.noise_multiplier;
             quote! {
-                ConfiguredFeatureKind::Geode(GeodeConfiguration {
+                FeatureKind::Geode(GeodeConfiguration {
                     blocks: #blocks,
                     layers: #layers,
                     crack: #crack,
@@ -1521,11 +1576,11 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::GlowstoneBlob => quote! { ConfiguredFeatureKind::GlowstoneBlob },
-        ConfiguredFeatureKind::HugeBrownMushroom(config) => {
+        FeatureKind::GlowstoneBlob => quote! { FeatureKind::GlowstoneBlob },
+        FeatureKind::HugeBrownMushroom(config) => {
             generate_huge_mushroom_kind("HugeBrownMushroom", config)
         }
-        ConfiguredFeatureKind::HugeFungus(config) => {
+        FeatureKind::HugeFungus(config) => {
             let valid_base_block = generate_block_state_data(&config.valid_base_block);
             let stem_state = generate_block_state_data(&config.stem_state);
             let hat_state = generate_block_state_data(&config.hat_state);
@@ -1533,7 +1588,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let replaceable_blocks = generate_block_predicate(&config.replaceable_blocks);
             let planted = config.planted;
             quote! {
-                ConfiguredFeatureKind::HugeFungus(HugeFungusConfiguration {
+                FeatureKind::HugeFungus(HugeFungusConfiguration {
                     valid_base_block: #valid_base_block,
                     stem_state: #stem_state,
                     hat_state: #hat_state,
@@ -1543,15 +1598,15 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::HugeRedMushroom(config) => {
+        FeatureKind::HugeRedMushroom(config) => {
             generate_huge_mushroom_kind("HugeRedMushroom", config)
         }
-        ConfiguredFeatureKind::Iceberg(state) => {
+        FeatureKind::Iceberg(state) => {
             let state = generate_block_state_data(state);
-            quote! { ConfiguredFeatureKind::Iceberg(#state) }
+            quote! { FeatureKind::Iceberg(#state) }
         }
-        ConfiguredFeatureKind::Kelp => quote! { ConfiguredFeatureKind::Kelp },
-        ConfiguredFeatureKind::Lake(config) => {
+        FeatureKind::Kelp => quote! { FeatureKind::Kelp },
+        FeatureKind::Lake(config) => {
             let fluid = generate_block_state_provider(&config.fluid);
             let barrier = generate_block_state_provider(&config.barrier);
             let can_place_feature = generate_block_predicate(&config.can_place_feature);
@@ -1560,7 +1615,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let can_replace_with_barrier =
                 generate_block_predicate(&config.can_replace_with_barrier);
             quote! {
-                ConfiguredFeatureKind::Lake(LakeConfiguration {
+                FeatureKind::Lake(LakeConfiguration {
                     fluid: #fluid,
                     barrier: #barrier,
                     can_place_feature: #can_place_feature,
@@ -1569,7 +1624,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::LargeDripstone(config) => {
+        FeatureKind::LargeDripstone(config) => {
             let replaceable_blocks = generate_block_holder_set(&config.replaceable_blocks);
             let floor_to_ceiling_search_range = config.floor_to_ceiling_search_range;
             let column_radius = generate_int_provider(&config.column_radius);
@@ -1582,7 +1637,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let min_radius_for_wind = config.min_radius_for_wind;
             let min_bluntness_for_wind = config.min_bluntness_for_wind;
             quote! {
-                ConfiguredFeatureKind::LargeDripstone(LargeDripstoneConfiguration {
+                FeatureKind::LargeDripstone(LargeDripstoneConfiguration {
                     replaceable_blocks: #replaceable_blocks,
                     floor_to_ceiling_search_range: #floor_to_ceiling_search_range,
                     column_radius: #column_radius,
@@ -1596,8 +1651,8 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::MonsterRoom => quote! { ConfiguredFeatureKind::MonsterRoom },
-        ConfiguredFeatureKind::MultifaceGrowth(config) => {
+        FeatureKind::MonsterRoom => quote! { FeatureKind::MonsterRoom },
+        FeatureKind::MultifaceGrowth(config) => {
             let block = generate_block_ref(&config.block);
             let search_range = config.search_range;
             let can_place_on_floor = config.can_place_on_floor;
@@ -1606,7 +1661,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let chance_of_spreading = config.chance_of_spreading;
             let can_be_placed_on = generate_vec(&config.can_be_placed_on, generate_block_ref);
             quote! {
-                ConfiguredFeatureKind::MultifaceGrowth(MultifaceGrowthConfiguration {
+                FeatureKind::MultifaceGrowth(MultifaceGrowthConfiguration {
                     block: #block,
                     search_range: #search_range,
                     can_place_on_floor: #can_place_on_floor,
@@ -1617,49 +1672,49 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::NetherForestVegetation(config) => {
+        FeatureKind::NetherForestVegetation(config) => {
             let state_provider = generate_block_state_provider(&config.state_provider);
             let spread_width = config.spread_width;
             let spread_height = config.spread_height;
             quote! {
-                ConfiguredFeatureKind::NetherForestVegetation(NetherForestVegetationConfiguration {
+                FeatureKind::NetherForestVegetation(NetherForestVegetationConfiguration {
                     state_provider: #state_provider,
                     spread_width: #spread_width,
                     spread_height: #spread_height,
                 })
             }
         }
-        ConfiguredFeatureKind::NetherrackReplaceBlobs(config) => {
+        FeatureKind::NetherrackReplaceBlobs(config) => {
             let target = generate_block_state_data(&config.target);
             let state = generate_block_state_data(&config.state);
             let radius = generate_int_provider(&config.radius);
             quote! {
-                ConfiguredFeatureKind::NetherrackReplaceBlobs(NetherrackReplaceBlobsConfiguration {
+                FeatureKind::NetherrackReplaceBlobs(NetherrackReplaceBlobsConfiguration {
                     target: #target,
                     state: #state,
                     radius: #radius,
                 })
             }
         }
-        ConfiguredFeatureKind::Ore(config) => {
+        FeatureKind::Ore(config) => {
             let targets = generate_vec(&config.targets, generate_ore_target);
             let size = config.size;
             let discard_chance_on_air_exposure = config.discard_chance_on_air_exposure;
             quote! {
-                ConfiguredFeatureKind::Ore(OreConfiguration {
+                FeatureKind::Ore(OreConfiguration {
                     targets: #targets,
                     size: #size,
                     discard_chance_on_air_exposure: #discard_chance_on_air_exposure,
                 })
             }
         }
-        ConfiguredFeatureKind::PointedDripstone(config) => {
+        FeatureKind::PointedDripstone(config) => {
             let chance_of_taller_dripstone = config.chance_of_taller_dripstone;
             let chance_of_directional_spread = config.chance_of_directional_spread;
             let chance_of_spread_radius2 = config.chance_of_spread_radius2;
             let chance_of_spread_radius3 = config.chance_of_spread_radius3;
             quote! {
-                ConfiguredFeatureKind::PointedDripstone(PointedDripstoneConfiguration {
+                FeatureKind::PointedDripstone(PointedDripstoneConfiguration {
                     chance_of_taller_dripstone: #chance_of_taller_dripstone,
                     chance_of_directional_spread: #chance_of_directional_spread,
                     chance_of_spread_radius2: #chance_of_spread_radius2,
@@ -1667,35 +1722,35 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::RandomBooleanSelector(config) => {
+        FeatureKind::RandomBooleanSelector(config) => {
             let feature_true = generate_placed_feature_ref(&config.feature_true);
             let feature_false = generate_placed_feature_ref(&config.feature_false);
             quote! {
-                ConfiguredFeatureKind::RandomBooleanSelector(RandomBooleanSelectorConfiguration {
+                FeatureKind::RandomBooleanSelector(RandomBooleanSelectorConfiguration {
                     feature_true: #feature_true,
                     feature_false: #feature_false,
                 })
             }
         }
-        ConfiguredFeatureKind::RandomSelector(config) => {
+        FeatureKind::RandomSelector(config) => {
             let features = generate_vec(&config.features, generate_weighted_placed_feature);
             let default = generate_placed_feature_ref(&config.default);
             quote! {
-                ConfiguredFeatureKind::RandomSelector(RandomSelectorConfiguration {
+                FeatureKind::RandomSelector(RandomSelectorConfiguration {
                     features: #features,
                     default: #default,
                 })
             }
         }
-        ConfiguredFeatureKind::WeightedRandomSelector(config) => {
+        FeatureKind::WeightedRandomSelector(config) => {
             let features = generate_vec(&config.features, generate_weighted_random_placed_feature);
             quote! {
-                ConfiguredFeatureKind::WeightedRandomSelector(WeightedRandomFeatureConfiguration {
+                FeatureKind::WeightedRandomSelector(WeightedRandomFeatureConfiguration {
                     features: #features,
                 })
             }
         }
-        ConfiguredFeatureKind::RootSystem(config) => {
+        FeatureKind::RootSystem(config) => {
             let feature = generate_placed_feature_ref(&config.feature);
             let required_vertical_space_for_tree = config.required_vertical_space_for_tree;
             let level_test_distance = config.level_test_distance;
@@ -1713,7 +1768,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let root_replaceable = generate_block_holder_set(&config.root_replaceable);
             let allowed_tree_position = generate_block_predicate(&config.allowed_tree_position);
             quote! {
-                ConfiguredFeatureKind::RootSystem(RootSystemConfiguration {
+                FeatureKind::RootSystem(RootSystemConfiguration {
                     feature: #feature,
                     required_vertical_space_for_tree: #required_vertical_space_for_tree,
                     level_test_distance: #level_test_distance,
@@ -1732,19 +1787,19 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::ScatteredOre(config) => {
+        FeatureKind::ScatteredOre(config) => {
             let targets = generate_vec(&config.targets, generate_ore_target);
             let size = config.size;
             let discard_chance_on_air_exposure = config.discard_chance_on_air_exposure;
             quote! {
-                ConfiguredFeatureKind::ScatteredOre(OreConfiguration {
+                FeatureKind::ScatteredOre(OreConfiguration {
                     targets: #targets,
                     size: #size,
                     discard_chance_on_air_exposure: #discard_chance_on_air_exposure,
                 })
             }
         }
-        ConfiguredFeatureKind::SculkPatch(config) => {
+        FeatureKind::SculkPatch(config) => {
             let charge_count = config.charge_count;
             let amount_per_charge = config.amount_per_charge;
             let spread_attempts = config.spread_attempts;
@@ -1753,7 +1808,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let extra_rare_growths = generate_int_provider(&config.extra_rare_growths);
             let catalyst_chance = config.catalyst_chance;
             quote! {
-                ConfiguredFeatureKind::SculkPatch(SculkPatchConfiguration {
+                FeatureKind::SculkPatch(SculkPatchConfiguration {
                     charge_count: #charge_count,
                     amount_per_charge: #amount_per_charge,
                     spread_attempts: #spread_attempts,
@@ -1764,49 +1819,49 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::SeaPickle(config) => {
+        FeatureKind::SeaPickle(config) => {
             let count = generate_int_provider(&config.count);
             quote! {
-                ConfiguredFeatureKind::SeaPickle(SeaPickleConfiguration {
+                FeatureKind::SeaPickle(SeaPickleConfiguration {
                     count: #count,
                 })
             }
         }
-        ConfiguredFeatureKind::Seagrass(config) => {
+        FeatureKind::Seagrass(config) => {
             let probability = config.probability;
             quote! {
-                ConfiguredFeatureKind::Seagrass(SeagrassConfiguration {
+                FeatureKind::Seagrass(SeagrassConfiguration {
                     probability: #probability,
                 })
             }
         }
-        ConfiguredFeatureKind::Sequence(config) => {
+        FeatureKind::Sequence(config) => {
             let features = generate_vec(&config.features, generate_placed_feature_ref);
             quote! {
-                ConfiguredFeatureKind::Sequence(CompositeFeatureConfiguration {
+                FeatureKind::Sequence(CompositeFeatureConfiguration {
                     features: #features,
                 })
             }
         }
-        ConfiguredFeatureKind::SimpleBlock(config) => {
+        FeatureKind::SimpleBlock(config) => {
             let to_place = generate_block_state_provider(&config.to_place);
             let schedule_tick = config.schedule_tick;
             quote! {
-                ConfiguredFeatureKind::SimpleBlock(SimpleBlockConfiguration {
+                FeatureKind::SimpleBlock(SimpleBlockConfiguration {
                     to_place: #to_place,
                     schedule_tick: #schedule_tick,
                 })
             }
         }
-        ConfiguredFeatureKind::SimpleRandomSelector(config) => {
+        FeatureKind::SimpleRandomSelector(config) => {
             let features = generate_vec(&config.features, generate_placed_feature_ref);
             quote! {
-                ConfiguredFeatureKind::SimpleRandomSelector(SimpleRandomSelectorConfiguration {
+                FeatureKind::SimpleRandomSelector(SimpleRandomSelectorConfiguration {
                     features: #features,
                 })
             }
         }
-        ConfiguredFeatureKind::Speleothem(config) => {
+        FeatureKind::Speleothem(config) => {
             let base_block = generate_block_state_data(&config.base_block);
             let pointed_block = generate_block_state_data(&config.pointed_block);
             let replaceable_blocks = generate_block_holder_set(&config.replaceable_blocks);
@@ -1815,7 +1870,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let chance_of_spread_radius2 = config.chance_of_spread_radius2;
             let chance_of_spread_radius3 = config.chance_of_spread_radius3;
             quote! {
-                ConfiguredFeatureKind::Speleothem(SpeleothemConfiguration {
+                FeatureKind::Speleothem(SpeleothemConfiguration {
                     base_block: #base_block,
                     pointed_block: #pointed_block,
                     replaceable_blocks: #replaceable_blocks,
@@ -1826,26 +1881,26 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::Spike(config) => {
+        FeatureKind::Spike(config) => {
             let state = generate_block_state_data(&config.state);
             let can_place_on = generate_block_predicate(&config.can_place_on);
             let can_replace = generate_block_predicate(&config.can_replace);
             quote! {
-                ConfiguredFeatureKind::Spike(SpikeConfiguration {
+                FeatureKind::Spike(SpikeConfiguration {
                     state: #state,
                     can_place_on: #can_place_on,
                     can_replace: #can_replace,
                 })
             }
         }
-        ConfiguredFeatureKind::SpringFeature(config) => {
+        FeatureKind::SpringFeature(config) => {
             let state = generate_fluid_state_data(&config.state);
             let requires_block_below = config.requires_block_below;
             let rock_count = config.rock_count;
             let hole_count = config.hole_count;
             let valid_blocks = generate_block_holder_set(&config.valid_blocks);
             quote! {
-                ConfiguredFeatureKind::SpringFeature(SpringConfiguration {
+                FeatureKind::SpringFeature(SpringConfiguration {
                     state: #state,
                     requires_block_below: #requires_block_below,
                     rock_count: #rock_count,
@@ -1854,15 +1909,15 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::Template(config) => {
+        FeatureKind::Template(config) => {
             let templates = generate_vec(&config.templates, generate_weighted_template_entry);
             quote! {
-                ConfiguredFeatureKind::Template(TemplateFeatureConfiguration {
+                FeatureKind::Template(TemplateFeatureConfiguration {
                     templates: #templates,
                 })
             }
         }
-        ConfiguredFeatureKind::Tree(config) => {
+        FeatureKind::Tree(config) => {
             let trunk_provider = generate_block_state_provider(&config.trunk_provider);
             let below_trunk_provider = generate_block_state_provider(&config.below_trunk_provider);
             let foliage_provider = generate_block_state_provider(&config.foliage_provider);
@@ -1873,7 +1928,7 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
             let root_placer = generate_option(&config.root_placer, generate_root_placer);
             let ignore_vines = config.ignore_vines;
             quote! {
-                ConfiguredFeatureKind::Tree(TreeConfiguration {
+                FeatureKind::Tree(TreeConfiguration {
                     trunk_provider: #trunk_provider,
                     below_trunk_provider: #below_trunk_provider,
                     foliage_provider: #foliage_provider,
@@ -1886,42 +1941,42 @@ fn generate_configured_feature_kind(kind: &ConfiguredFeatureKind) -> TokenStream
                 })
             }
         }
-        ConfiguredFeatureKind::TwistingVines(config) => {
+        FeatureKind::TwistingVines(config) => {
             let spread_width = config.spread_width;
             let spread_height = config.spread_height;
             let max_height = config.max_height;
             quote! {
-                ConfiguredFeatureKind::TwistingVines(TwistingVinesConfiguration {
+                FeatureKind::TwistingVines(TwistingVinesConfiguration {
                     spread_width: #spread_width,
                     spread_height: #spread_height,
                     max_height: #max_height,
                 })
             }
         }
-        ConfiguredFeatureKind::UnderwaterMagma(config) => {
+        FeatureKind::UnderwaterMagma(config) => {
             let floor_search_range = config.floor_search_range;
             let placement_radius_around_floor = config.placement_radius_around_floor;
             let placement_probability_per_valid_position =
                 config.placement_probability_per_valid_position;
             quote! {
-                ConfiguredFeatureKind::UnderwaterMagma(UnderwaterMagmaConfiguration {
+                FeatureKind::UnderwaterMagma(UnderwaterMagmaConfiguration {
                     floor_search_range: #floor_search_range,
                     placement_radius_around_floor: #placement_radius_around_floor,
                     placement_probability_per_valid_position: #placement_probability_per_valid_position,
                 })
             }
         }
-        ConfiguredFeatureKind::VegetationPatch(config) => {
+        FeatureKind::VegetationPatch(config) => {
             generate_vegetation_patch_kind("VegetationPatch", config)
         }
-        ConfiguredFeatureKind::Vines => quote! { ConfiguredFeatureKind::Vines },
-        ConfiguredFeatureKind::VoidStartPlatform => {
-            quote! { ConfiguredFeatureKind::VoidStartPlatform }
+        FeatureKind::Vines => quote! { FeatureKind::Vines },
+        FeatureKind::VoidStartPlatform => {
+            quote! { FeatureKind::VoidStartPlatform }
         }
-        ConfiguredFeatureKind::WaterloggedVegetationPatch(config) => {
+        FeatureKind::WaterloggedVegetationPatch(config) => {
             generate_vegetation_patch_kind("WaterloggedVegetationPatch", config)
         }
-        ConfiguredFeatureKind::WeepingVines => quote! { ConfiguredFeatureKind::WeepingVines },
+        FeatureKind::WeepingVines => quote! { FeatureKind::WeepingVines },
     }
 }
 
@@ -1941,7 +1996,7 @@ fn generate_vegetation_patch_kind(
     let xz_radius = generate_int_provider(&config.xz_radius);
     let extra_edge_column_chance = config.extra_edge_column_chance;
     quote! {
-        ConfiguredFeatureKind::#variant(VegetationPatchConfiguration {
+        FeatureKind::#variant(VegetationPatchConfiguration {
             replaceable: #replaceable,
             ground_state: #ground_state,
             vegetation_feature: #vegetation_feature,
@@ -1956,8 +2011,8 @@ fn generate_vegetation_patch_kind(
     }
 }
 
-pub(crate) fn build_configured() -> TokenStream {
-    let dir = "../steel-utils/build_assets/builtin_datapacks/minecraft/worldgen/configured_feature";
+pub(crate) fn build_features() -> TokenStream {
+    let dir = "../steel-utils/build_assets/builtin_datapacks/minecraft/worldgen/feature";
     println!("cargo:rerun-if-changed={dir}");
 
     let mut entries = Vec::new();
@@ -1966,9 +2021,9 @@ pub(crate) fn build_configured() -> TokenStream {
         let path = entry.path();
         let content =
             fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {name}: {err}"));
-        let kind = serde_json::from_str::<ConfiguredFeatureKind>(&content)
-            .unwrap_or_else(|err| panic!("failed to parse configured feature {name}: {err}"));
-        entries.push((name, generate_configured_feature_kind(&kind)));
+        let kind = serde_json::from_str::<FeatureKind>(&content)
+            .unwrap_or_else(|err| panic!("failed to parse feature {name}: {err}"));
+        entries.push((name, generate_feature_kind(&kind)));
     }
 
     let mut stream = TokenStream::new();
@@ -1987,8 +2042,8 @@ pub(crate) fn build_configured() -> TokenStream {
     for (name, kind) in &entries {
         let ident = Ident::new(&name.to_shouty_snake_case(), Span::call_site());
         stream.extend(quote! {
-            pub static #ident: LazyLock<ConfiguredFeature> = LazyLock::new(|| {
-                ConfiguredFeature {
+            pub static #ident: LazyLock<Feature> = LazyLock::new(|| {
+                Feature {
                     key: Identifier::vanilla_static(#name),
                     kind: #kind,
                     id: OnceLock::new(),
@@ -2001,7 +2056,7 @@ pub(crate) fn build_configured() -> TokenStream {
     }
 
     stream.extend(quote! {
-        pub fn register_configured_features(registry: &mut ConfiguredFeatureRegistry) {
+        pub fn register_features(registry: &mut FeatureRegistry) {
             #register
         }
     });

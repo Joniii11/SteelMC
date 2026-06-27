@@ -1,6 +1,6 @@
 //! Build-time JSON codec for vanilla worldgen feature registry data.
 //!
-//! These types mirror vanilla's configured feature, placed feature, placement
+//! These types mirror vanilla's feature, placed feature, placement
 //! modifier, provider, predicate, and tree-shape codec data. Runtime feature
 //! data in `src/feature/data.rs` can use typed registry refs because this module
 //! owns the extracted JSON decoding step.
@@ -8,20 +8,20 @@
 use crate::shared_structs::deserialize_tag_identifier;
 pub use crate::shared_structs::{BlockStateData, FluidStateData};
 use serde::{Deserialize, Deserializer, de::Error as _};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use steel_utils::{
     Direction, Identifier, Rotation,
     value_providers::{FloatProvider, HeightProvider, IntProvider, UniformIntProvider},
 };
 
-/// A configured feature reference, either a registry key or an inline configured feature.
+/// A feature reference, either a registry key or an inline feature.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum ConfiguredFeatureRef {
-    /// Registry-backed configured feature.
+pub enum FeatureRef {
+    /// Registry-backed feature.
     Reference(Identifier),
-    /// Inline configured feature.
-    Inline(Box<ConfiguredFeatureKind>),
+    /// Inline feature.
+    Inline(Box<FeatureKind>),
 }
 
 /// A placed feature reference, either a registry key or an inline placed feature.
@@ -34,24 +34,24 @@ pub enum PlacedFeatureRef {
     Inline(Box<PlacedFeatureData>),
 }
 
-/// A placed feature: configured feature plus ordered placement modifiers.
+/// A placed feature: feature plus ordered placement modifiers.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlacedFeatureData {
-    /// Configured feature reference.
-    pub feature: ConfiguredFeatureRef,
+    /// Feature reference.
+    pub feature: FeatureRef,
     /// Ordered placement modifier chain.
     #[serde(default)]
     pub placement: Vec<PlacementModifier>,
 }
 
-/// A configured feature kind with its typed configuration.
+/// A feature kind with its typed configuration.
 #[derive(Debug, Clone)]
 #[expect(
     clippy::large_enum_variant,
     reason = "typed feature configs are registry data moved by reference; boxing individual variants would add noise before placement implementations use them"
 )]
-pub enum ConfiguredFeatureKind {
+pub enum FeatureKind {
     Bamboo(BambooConfiguration),
     BasaltColumns(BasaltColumnsConfiguration),
     BasaltPillar,
@@ -71,6 +71,7 @@ pub enum ConfiguredFeatureKind {
     EndGateway(EndGatewayConfiguration),
     EndIsland,
     EndPlatform,
+    EndPodium(EndPodiumConfiguration),
     EndSpike(EndSpikeConfiguration),
     FallenTree(FallenTreeConfiguration),
     Fossil(FossilConfiguration),
@@ -116,26 +117,26 @@ pub enum ConfiguredFeatureKind {
     WeepingVines,
 }
 
-impl<'de> Deserialize<'de> for ConfiguredFeatureKind {
+impl<'de> Deserialize<'de> for FeatureKind {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Raw {
             #[serde(rename = "type")]
             feature_type: Identifier,
-            #[serde(default)]
-            config: Value,
+            #[serde(flatten)]
+            config: Map<String, Value>,
         }
 
         let raw = Raw::deserialize(deserializer)?;
-        deserialize_configured_feature_kind(raw.feature_type, raw.config).map_err(D::Error::custom)
+        deserialize_feature_kind(raw.feature_type, Value::Object(raw.config))
+            .map_err(D::Error::custom)
     }
 }
 
-fn deserialize_configured_feature_kind(
+fn deserialize_feature_kind(
     feature_type: Identifier,
     config: Value,
-) -> Result<ConfiguredFeatureKind, String> {
+) -> Result<FeatureKind, String> {
     macro_rules! parse {
         ($ty:ty) => {
             serde_json::from_value::<$ty>(config).map_err(|err| err.to_string())
@@ -143,51 +144,42 @@ fn deserialize_configured_feature_kind(
     }
 
     Ok(match feature_type.to_string().as_str() {
-        "minecraft:bamboo" => ConfiguredFeatureKind::Bamboo(parse!(BambooConfiguration)?),
+        "minecraft:bamboo" => FeatureKind::Bamboo(parse!(BambooConfiguration)?),
         "minecraft:basalt_columns" => {
-            ConfiguredFeatureKind::BasaltColumns(parse!(BasaltColumnsConfiguration)?)
+            FeatureKind::BasaltColumns(parse!(BasaltColumnsConfiguration)?)
         }
-        "minecraft:basalt_pillar" => ConfiguredFeatureKind::BasaltPillar,
-        "minecraft:block_blob" => ConfiguredFeatureKind::BlockBlob(parse!(BlockBlobConfiguration)?),
-        "minecraft:block_column" => {
-            ConfiguredFeatureKind::BlockColumn(parse!(BlockColumnConfiguration)?)
-        }
-        "minecraft:block_pile" => ConfiguredFeatureKind::BlockPile(parse!(BlockPileConfiguration)?),
-        "minecraft:blue_ice" => ConfiguredFeatureKind::BlueIce,
-        "minecraft:bonus_chest" => ConfiguredFeatureKind::BonusChest,
-        "minecraft:chorus_plant" => ConfiguredFeatureKind::ChorusPlant,
-        "minecraft:coral_claw" => ConfiguredFeatureKind::CoralClaw,
-        "minecraft:coral_mushroom" => ConfiguredFeatureKind::CoralMushroom,
-        "minecraft:coral_tree" => ConfiguredFeatureKind::CoralTree,
-        "minecraft:delta_feature" => {
-            ConfiguredFeatureKind::DeltaFeature(parse!(DeltaFeatureConfiguration)?)
-        }
-        "minecraft:desert_well" => ConfiguredFeatureKind::DesertWell,
-        "minecraft:disk" => ConfiguredFeatureKind::Disk(parse!(DiskConfiguration)?),
+        "minecraft:basalt_pillar" => FeatureKind::BasaltPillar,
+        "minecraft:block_blob" => FeatureKind::BlockBlob(parse!(BlockBlobConfiguration)?),
+        "minecraft:block_column" => FeatureKind::BlockColumn(parse!(BlockColumnConfiguration)?),
+        "minecraft:block_pile" => FeatureKind::BlockPile(parse!(BlockPileConfiguration)?),
+        "minecraft:blue_ice" => FeatureKind::BlueIce,
+        "minecraft:bonus_chest" => FeatureKind::BonusChest,
+        "minecraft:chorus_plant" => FeatureKind::ChorusPlant,
+        "minecraft:coral_claw" => FeatureKind::CoralClaw,
+        "minecraft:coral_mushroom" => FeatureKind::CoralMushroom,
+        "minecraft:coral_tree" => FeatureKind::CoralTree,
+        "minecraft:delta_feature" => FeatureKind::DeltaFeature(parse!(DeltaFeatureConfiguration)?),
+        "minecraft:desert_well" => FeatureKind::DesertWell,
+        "minecraft:disk" => FeatureKind::Disk(parse!(DiskConfiguration)?),
         "minecraft:dripstone_cluster" => {
-            ConfiguredFeatureKind::DripstoneCluster(parse!(DripstoneClusterConfiguration)?)
+            FeatureKind::DripstoneCluster(parse!(DripstoneClusterConfiguration)?)
         }
-        "minecraft:end_gateway" => {
-            ConfiguredFeatureKind::EndGateway(parse!(EndGatewayConfiguration)?)
-        }
-        "minecraft:end_island" => ConfiguredFeatureKind::EndIsland,
-        "minecraft:end_platform" => ConfiguredFeatureKind::EndPlatform,
-        "minecraft:end_spike" => ConfiguredFeatureKind::EndSpike(parse!(EndSpikeConfiguration)?),
-        "minecraft:fallen_tree" => {
-            ConfiguredFeatureKind::FallenTree(parse!(FallenTreeConfiguration)?)
-        }
-        "minecraft:fossil" => ConfiguredFeatureKind::Fossil(parse!(FossilConfiguration)?),
-        "minecraft:freeze_top_layer" => ConfiguredFeatureKind::FreezeTopLayer,
-        "minecraft:geode" => ConfiguredFeatureKind::Geode(parse!(GeodeConfiguration)?),
-        "minecraft:glowstone_blob" => ConfiguredFeatureKind::GlowstoneBlob,
+        "minecraft:end_gateway" => FeatureKind::EndGateway(parse!(EndGatewayConfiguration)?),
+        "minecraft:end_island" => FeatureKind::EndIsland,
+        "minecraft:end_platform" => FeatureKind::EndPlatform,
+        "minecraft:end_podium" => FeatureKind::EndPodium(parse!(EndPodiumConfiguration)?),
+        "minecraft:end_spike" => FeatureKind::EndSpike(parse!(EndSpikeConfiguration)?),
+        "minecraft:fallen_tree" => FeatureKind::FallenTree(parse!(FallenTreeConfiguration)?),
+        "minecraft:fossil" => FeatureKind::Fossil(parse!(FossilConfiguration)?),
+        "minecraft:freeze_top_layer" => FeatureKind::FreezeTopLayer,
+        "minecraft:geode" => FeatureKind::Geode(parse!(GeodeConfiguration)?),
+        "minecraft:glowstone_blob" => FeatureKind::GlowstoneBlob,
         "minecraft:huge_brown_mushroom" => {
-            ConfiguredFeatureKind::HugeBrownMushroom(parse!(HugeMushroomConfiguration)?)
+            FeatureKind::HugeBrownMushroom(parse!(HugeMushroomConfiguration)?)
         }
-        "minecraft:huge_fungus" => {
-            ConfiguredFeatureKind::HugeFungus(parse!(HugeFungusConfiguration)?)
-        }
+        "minecraft:huge_fungus" => FeatureKind::HugeFungus(parse!(HugeFungusConfiguration)?),
         "minecraft:huge_red_mushroom" => {
-            ConfiguredFeatureKind::HugeRedMushroom(parse!(HugeMushroomConfiguration)?)
+            FeatureKind::HugeRedMushroom(parse!(HugeMushroomConfiguration)?)
         }
         "minecraft:iceberg" => {
             #[derive(Deserialize)]
@@ -195,84 +187,70 @@ fn deserialize_configured_feature_kind(
             struct IcebergConfig {
                 state: BlockStateData,
             }
-            ConfiguredFeatureKind::Iceberg(parse!(IcebergConfig)?.state)
+            FeatureKind::Iceberg(parse!(IcebergConfig)?.state)
         }
-        "minecraft:kelp" => ConfiguredFeatureKind::Kelp,
-        "minecraft:lake" => ConfiguredFeatureKind::Lake(parse!(LakeConfiguration)?),
+        "minecraft:kelp" => FeatureKind::Kelp,
+        "minecraft:lake" => FeatureKind::Lake(parse!(LakeConfiguration)?),
         "minecraft:large_dripstone" => {
-            ConfiguredFeatureKind::LargeDripstone(parse!(LargeDripstoneConfiguration)?)
+            FeatureKind::LargeDripstone(parse!(LargeDripstoneConfiguration)?)
         }
-        "minecraft:monster_room" => ConfiguredFeatureKind::MonsterRoom,
+        "minecraft:monster_room" => FeatureKind::MonsterRoom,
         "minecraft:multiface_growth" => {
-            ConfiguredFeatureKind::MultifaceGrowth(parse!(MultifaceGrowthConfiguration)?)
+            FeatureKind::MultifaceGrowth(parse!(MultifaceGrowthConfiguration)?)
         }
-        "minecraft:nether_forest_vegetation" => ConfiguredFeatureKind::NetherForestVegetation(
-            parse!(NetherForestVegetationConfiguration)?,
-        ),
-        "minecraft:netherrack_replace_blobs" => ConfiguredFeatureKind::NetherrackReplaceBlobs(
-            parse!(NetherrackReplaceBlobsConfiguration)?,
-        ),
-        "minecraft:ore" => ConfiguredFeatureKind::Ore(parse!(OreConfiguration)?),
+        "minecraft:nether_forest_vegetation" => {
+            FeatureKind::NetherForestVegetation(parse!(NetherForestVegetationConfiguration)?)
+        }
+        "minecraft:netherrack_replace_blobs" => {
+            FeatureKind::NetherrackReplaceBlobs(parse!(NetherrackReplaceBlobsConfiguration)?)
+        }
+        "minecraft:ore" => FeatureKind::Ore(parse!(OreConfiguration)?),
         "minecraft:pointed_dripstone" => {
-            ConfiguredFeatureKind::PointedDripstone(parse!(PointedDripstoneConfiguration)?)
+            FeatureKind::PointedDripstone(parse!(PointedDripstoneConfiguration)?)
         }
-        "minecraft:random_boolean_selector" => ConfiguredFeatureKind::RandomBooleanSelector(
-            parse!(RandomBooleanSelectorConfiguration)?,
-        ),
+        "minecraft:random_boolean_selector" => {
+            FeatureKind::RandomBooleanSelector(parse!(RandomBooleanSelectorConfiguration)?)
+        }
         "minecraft:random_selector" => {
-            ConfiguredFeatureKind::RandomSelector(parse!(RandomSelectorConfiguration)?)
+            FeatureKind::RandomSelector(parse!(RandomSelectorConfiguration)?)
         }
-        "minecraft:weighted_random_selector" => ConfiguredFeatureKind::WeightedRandomSelector(
-            parse!(WeightedRandomFeatureConfiguration)?,
-        ),
-        "minecraft:root_system" => {
-            ConfiguredFeatureKind::RootSystem(parse!(RootSystemConfiguration)?)
+        "minecraft:weighted_random_selector" => {
+            FeatureKind::WeightedRandomSelector(parse!(WeightedRandomFeatureConfiguration)?)
         }
-        "minecraft:scattered_ore" => ConfiguredFeatureKind::ScatteredOre(parse!(OreConfiguration)?),
-        "minecraft:sculk_patch" => {
-            ConfiguredFeatureKind::SculkPatch(parse!(SculkPatchConfiguration)?)
-        }
-        "minecraft:sea_pickle" => ConfiguredFeatureKind::SeaPickle(parse!(SeaPickleConfiguration)?),
-        "minecraft:seagrass" => ConfiguredFeatureKind::Seagrass(parse!(SeagrassConfiguration)?),
-        "minecraft:sequence" => {
-            ConfiguredFeatureKind::Sequence(parse!(CompositeFeatureConfiguration)?)
-        }
-        "minecraft:simple_block" => {
-            ConfiguredFeatureKind::SimpleBlock(parse!(SimpleBlockConfiguration)?)
-        }
+        "minecraft:root_system" => FeatureKind::RootSystem(parse!(RootSystemConfiguration)?),
+        "minecraft:scattered_ore" => FeatureKind::ScatteredOre(parse!(OreConfiguration)?),
+        "minecraft:sculk_patch" => FeatureKind::SculkPatch(parse!(SculkPatchConfiguration)?),
+        "minecraft:sea_pickle" => FeatureKind::SeaPickle(parse!(SeaPickleConfiguration)?),
+        "minecraft:seagrass" => FeatureKind::Seagrass(parse!(SeagrassConfiguration)?),
+        "minecraft:sequence" => FeatureKind::Sequence(parse!(CompositeFeatureConfiguration)?),
+        "minecraft:simple_block" => FeatureKind::SimpleBlock(parse!(SimpleBlockConfiguration)?),
         "minecraft:simple_random_selector" => {
-            ConfiguredFeatureKind::SimpleRandomSelector(parse!(SimpleRandomSelectorConfiguration)?)
+            FeatureKind::SimpleRandomSelector(parse!(SimpleRandomSelectorConfiguration)?)
         }
-        "minecraft:speleothem" => {
-            ConfiguredFeatureKind::Speleothem(parse!(SpeleothemConfiguration)?)
-        }
+        "minecraft:speleothem" => FeatureKind::Speleothem(parse!(SpeleothemConfiguration)?),
         "minecraft:speleothem_cluster" => {
-            ConfiguredFeatureKind::SpeleothemCluster(parse!(SpeleothemClusterConfiguration)?)
+            FeatureKind::SpeleothemCluster(parse!(SpeleothemClusterConfiguration)?)
         }
-        "minecraft:spike" => ConfiguredFeatureKind::Spike(parse!(SpikeConfiguration)?),
-        "minecraft:spring_feature" => {
-            ConfiguredFeatureKind::SpringFeature(parse!(SpringConfiguration)?)
-        }
-        "minecraft:template" => {
-            ConfiguredFeatureKind::Template(parse!(TemplateFeatureConfiguration)?)
-        }
-        "minecraft:tree" => ConfiguredFeatureKind::Tree(parse!(TreeConfiguration)?),
+        "minecraft:spike" => FeatureKind::Spike(parse!(SpikeConfiguration)?),
+        "minecraft:spring_feature" => FeatureKind::SpringFeature(parse!(SpringConfiguration)?),
+        "minecraft:template" => FeatureKind::Template(parse!(TemplateFeatureConfiguration)?),
+        "minecraft:tree" => FeatureKind::Tree(parse!(TreeConfiguration)?),
         "minecraft:twisting_vines" => {
-            ConfiguredFeatureKind::TwistingVines(parse!(TwistingVinesConfiguration)?)
+            FeatureKind::TwistingVines(parse!(TwistingVinesConfiguration)?)
         }
         "minecraft:underwater_magma" => {
-            ConfiguredFeatureKind::UnderwaterMagma(parse!(UnderwaterMagmaConfiguration)?)
+            FeatureKind::UnderwaterMagma(parse!(UnderwaterMagmaConfiguration)?)
         }
         "minecraft:vegetation_patch" => {
-            ConfiguredFeatureKind::VegetationPatch(parse!(VegetationPatchConfiguration)?)
+            FeatureKind::VegetationPatch(parse!(VegetationPatchConfiguration)?)
         }
-        "minecraft:vines" => ConfiguredFeatureKind::Vines,
-        "minecraft:void_start_platform" => ConfiguredFeatureKind::VoidStartPlatform,
+        "minecraft:vines" => FeatureKind::Vines,
+        "minecraft:void_start_platform" => FeatureKind::VoidStartPlatform,
         "minecraft:waterlogged_vegetation_patch" => {
-            ConfiguredFeatureKind::WaterloggedVegetationPatch(parse!(VegetationPatchConfiguration)?)
+            FeatureKind::WaterloggedVegetationPatch(parse!(VegetationPatchConfiguration)?)
         }
-        "minecraft:weeping_vines" => ConfiguredFeatureKind::WeepingVines,
-        other => return Err(format!("unknown configured feature type `{other}`")),
+        "minecraft:weeping_vines" => FeatureKind::WeepingVines,
+        other => return Err(format!("unknown feature type `{other}`")),
     })
 }
 
@@ -733,6 +711,13 @@ pub struct EndGatewayConfiguration {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct EndPodiumConfiguration {
+    #[serde(default)]
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EndSpikeConfiguration {
     #[serde(default)]
     pub spikes: Vec<EndSpike>,
@@ -1033,6 +1018,13 @@ pub enum RuleTest {
     BlockMatch { block: Identifier },
     #[serde(rename = "minecraft:tag_match")]
     TagMatch { tag: Identifier },
+    #[serde(rename = "minecraft:all_of")]
+    AllOf { rules: Vec<RuleTest> },
+    #[serde(rename = "minecraft:height_match")]
+    HeightMatch {
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1272,6 +1264,8 @@ pub enum TrunkPlacer {
     UpwardsBranching(UpwardsBranchingTrunkPlacer),
     #[serde(rename = "minecraft:cherry_trunk_placer")]
     Cherry(CherryTrunkPlacer),
+    #[serde(rename = "minecraft:poplar_trunk_placer")]
+    Poplar(PoplarTrunkPlacer),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1318,6 +1312,16 @@ pub struct CherryTrunkPlacer {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PoplarTrunkPlacer {
+    pub base_height: i32,
+    pub height_rand_a: i32,
+    pub height_rand_b: i32,
+    pub trunk_height_above_branches: IntProvider,
+    pub branch_amount: IntProvider,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
 pub enum FoliagePlacer {
     #[serde(rename = "minecraft:blob_foliage_placer")]
@@ -1342,6 +1346,8 @@ pub enum FoliagePlacer {
     RandomSpread(RandomSpreadFoliagePlacer),
     #[serde(rename = "minecraft:cherry_foliage_placer")]
     Cherry(CherryFoliagePlacer),
+    #[serde(rename = "minecraft:poplar_foliage_placer")]
+    Poplar(PoplarFoliagePlacer),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1402,6 +1408,15 @@ pub struct CherryFoliagePlacer {
     pub corner_hole_chance: f32,
     pub hanging_leaves_chance: f32,
     pub hanging_leaves_extension_chance: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PoplarFoliagePlacer {
+    pub radius: IntProvider,
+    pub offset: IntProvider,
+    pub height: IntProvider,
+    pub side_hole_chance: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1509,6 +1524,8 @@ pub enum TreeDecorator {
         trunk_probability: f32,
         ground_probability: f32,
     },
+    #[serde(rename = "minecraft:shelf_mushroom")]
+    ShelfMushroom { probability: f32 },
 }
 
 #[derive(Debug, Clone, Deserialize)]

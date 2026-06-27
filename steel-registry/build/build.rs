@@ -142,7 +142,7 @@ const STRUCTURE_PROCESSORS: &str = "structure_processors";
 const TEMPLATE_POOLS: &str = "template_pools";
 const WORLD_CLOCKS: &str = "world_clocks";
 const CARVERS: &str = "configured_carvers";
-const CONFIGURED_FEATURES: &str = "configured_features";
+const FEATURES: &str = "features";
 const PLACED_FEATURES: &str = "placed_features";
 
 pub fn main() {
@@ -226,7 +226,7 @@ pub fn main() {
         (enchantment_tags::build(), ENCHANTMENT_TAGS),
         (enchantments::build(), ENCHANTMENTS),
         (carvers::build(), CARVERS),
-        (features::build_configured(), CONFIGURED_FEATURES),
+        (features::build_features(), FEATURES),
         (features::build_placed(), PLACED_FEATURES),
     ];
 

@@ -1,4 +1,3 @@
-use rustc_hash::FxHashMap;
 use std::fs;
 
 use crate::generator_functions::{generate_identifier, generate_option};
@@ -10,10 +9,8 @@ use steel_utils::Identifier;
 
 #[derive(Deserialize, Debug)]
 pub struct TrimMaterialJson {
-    asset_name: String,
+    palette_id: Identifier,
     description: StyledTextComponent,
-    #[serde(default)]
-    override_armor_assets: FxHashMap<Identifier, String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -21,20 +18,6 @@ pub struct StyledTextComponent {
     translate: String,
     #[serde(default)]
     color: Option<String>,
-}
-
-fn generate_hashmap_resource_string(map: &FxHashMap<Identifier, String>) -> TokenStream {
-    if map.is_empty() {
-        return quote! { FxHashMap::default() };
-    }
-    let entries: Vec<_> = map
-        .iter()
-        .map(|(k, v)| {
-            let key = generate_identifier(k);
-            quote! { (#key, #v.to_string()) }
-        })
-        .collect();
-    quote! { FxHashMap::from_iter([#(#entries),*]) }
 }
 
 pub(crate) fn build() -> TokenStream {
@@ -66,7 +49,6 @@ pub(crate) fn build() -> TokenStream {
         use steel_utils::Identifier;
         use std::borrow::Cow;
         use std::sync::LazyLock;
-        use rustc_hash::FxHashMap;
     });
 
     // Generate static trim material definitions
@@ -79,24 +61,21 @@ pub(crate) fn build() -> TokenStream {
         let trim_material_name_str = trim_material_name.clone();
 
         let key = quote! { Identifier::vanilla_static(#trim_material_name_str) };
-        let asset_name = &trim_material.asset_name;
+        let palette_id = generate_identifier(&trim_material.palette_id);
         let translate = &trim_material.description.translate;
         let color = generate_option(&trim_material.description.color, |s| {
             let val = s.as_str();
             quote! { #val.to_string() }
         });
-        let override_armor_assets =
-            generate_hashmap_resource_string(&trim_material.override_armor_assets);
 
         stream.extend(quote! {
             pub static #trim_material_ident: LazyLock<TrimMaterial> = LazyLock::new(|| TrimMaterial {
                 key: #key,
-                asset_name: #asset_name.to_string(),
+                palette_id: #palette_id,
                 description: StyledTextComponent {
                     translate: #translate.to_string(),
                     color: #color,
                 },
-                override_armor_assets: #override_armor_assets,
             });
         });
 

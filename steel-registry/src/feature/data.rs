@@ -1,11 +1,11 @@
 //! Typed worldgen feature registry data.
 //!
-//! These types mirror vanilla's configured feature, placed feature, placement
+//! These types mirror vanilla's feature, placed feature, placement
 //! modifier, provider, predicate, and tree-shape data after build-time decoding.
 //! Runtime data stores typed registry refs where the referenced vanilla entry is
 //! known at build time.
 
-use super::{ConfiguredFeatureEntryRef, PlacedFeatureEntryRef};
+use super::{FeatureEntryRef, PlacedFeatureEntryRef};
 use crate::blocks::BlockRef;
 use crate::fluid::FluidRef;
 use glam::IVec3;
@@ -14,13 +14,13 @@ use steel_utils::{
     value_providers::{FloatProvider, HeightProvider, IntProvider, UniformIntProvider},
 };
 
-/// A configured feature reference, either a registry entry or an inline configured feature.
+/// A feature reference, either a registry entry or an inline feature.
 #[derive(Debug, Clone)]
-pub enum ConfiguredFeatureRef {
-    /// Registry-backed configured feature.
-    Reference(ConfiguredFeatureEntryRef),
-    /// Inline configured feature.
-    Inline(Box<ConfiguredFeatureKind>),
+pub enum FeatureRef {
+    /// Registry-backed feature.
+    Reference(FeatureEntryRef),
+    /// Inline feature.
+    Inline(Box<FeatureKind>),
 }
 
 /// A placed feature reference, either a registry entry or an inline placed feature.
@@ -32,22 +32,22 @@ pub enum PlacedFeatureRef {
     Inline(Box<PlacedFeatureData>),
 }
 
-/// A placed feature: configured feature plus ordered placement modifiers.
+/// A placed feature: feature plus ordered placement modifiers.
 #[derive(Debug, Clone)]
 pub struct PlacedFeatureData {
-    /// Configured feature reference.
-    pub feature: ConfiguredFeatureRef,
+    /// Feature reference.
+    pub feature: FeatureRef,
     /// Ordered placement modifier chain.
     pub placement: Vec<PlacementModifier>,
 }
 
-/// A configured feature kind with its typed configuration.
+/// A feature kind with its typed configuration.
 #[derive(Debug, Clone)]
 #[expect(
     clippy::large_enum_variant,
     reason = "typed feature configs are registry data moved by reference; boxing individual variants would add noise before placement implementations use them"
 )]
-pub enum ConfiguredFeatureKind {
+pub enum FeatureKind {
     Bamboo(BambooConfiguration),
     BasaltColumns(BasaltColumnsConfiguration),
     BasaltPillar,
@@ -67,6 +67,7 @@ pub enum ConfiguredFeatureKind {
     EndGateway(EndGatewayConfiguration),
     EndIsland,
     EndPlatform,
+    EndPodium(EndPodiumConfiguration),
     EndSpike(EndSpikeConfiguration),
     FallenTree(FallenTreeConfiguration),
     Fossil(FossilConfiguration),
@@ -440,6 +441,11 @@ pub struct EndGatewayConfiguration {
 }
 
 #[derive(Debug, Clone)]
+pub struct EndPodiumConfiguration {
+    pub active: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct EndSpikeConfiguration {
     pub spikes: Vec<EndSpike>,
     pub crystal_invulnerable: bool,
@@ -597,8 +603,19 @@ pub struct OreTarget {
 
 #[derive(Debug, Clone)]
 pub enum RuleTest {
-    BlockMatch { block: BlockRef },
-    TagMatch { tag: Identifier },
+    BlockMatch {
+        block: BlockRef,
+    },
+    TagMatch {
+        tag: Identifier,
+    },
+    AllOf {
+        rules: Vec<RuleTest>,
+    },
+    HeightMatch {
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -751,6 +768,7 @@ pub enum TrunkPlacer {
     Bending(BendingTrunkPlacer),
     UpwardsBranching(UpwardsBranchingTrunkPlacer),
     Cherry(CherryTrunkPlacer),
+    Poplar(PoplarTrunkPlacer),
 }
 
 #[derive(Debug, Clone)]
@@ -792,6 +810,15 @@ pub struct CherryTrunkPlacer {
 }
 
 #[derive(Debug, Clone)]
+pub struct PoplarTrunkPlacer {
+    pub base_height: i32,
+    pub height_rand_a: i32,
+    pub height_rand_b: i32,
+    pub trunk_height_above_branches: IntProvider,
+    pub branch_amount: IntProvider,
+}
+
+#[derive(Debug, Clone)]
 pub enum FoliagePlacer {
     Blob(BlobFoliagePlacer),
     Spruce(SpruceFoliagePlacer),
@@ -804,6 +831,7 @@ pub enum FoliagePlacer {
     DarkOak(FoliagePlacerBase),
     RandomSpread(RandomSpreadFoliagePlacer),
     Cherry(CherryFoliagePlacer),
+    Poplar(PoplarFoliagePlacer),
 }
 
 #[derive(Debug, Clone)]
@@ -857,6 +885,14 @@ pub struct CherryFoliagePlacer {
     pub corner_hole_chance: f32,
     pub hanging_leaves_chance: f32,
     pub hanging_leaves_extension_chance: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PoplarFoliagePlacer {
+    pub radius: IntProvider,
+    pub offset: IntProvider,
+    pub height: IntProvider,
+    pub side_hole_chance: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -937,6 +973,9 @@ pub enum TreeDecorator {
         leaves_probability: f32,
         trunk_probability: f32,
         ground_probability: f32,
+    },
+    ShelfMushroom {
+        probability: f32,
     },
 }
 

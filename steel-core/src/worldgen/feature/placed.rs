@@ -73,7 +73,7 @@ impl FeatureDecorationRunner {
         modifier_index: usize,
     ) -> bool {
         let Some(modifier) = feature.placement.get(modifier_index) else {
-            return Self::place_configured_feature(
+            return Self::place_feature(
                 region,
                 registry,
                 random,

@@ -24,8 +24,8 @@ use crate::{
     entity_data::{EntityDataSerializerRegistry, register_vanilla_entity_data_serializers},
     entity_type::EntityTypeRegistry,
     feature::{
-        ConfiguredFeatureKind, ConfiguredFeatureRef, ConfiguredFeatureRegistry, PlacedFeatureData,
-        PlacedFeatureRef, PlacedFeatureRegistry,
+        FeatureKind, FeatureRef, FeatureRegistry, PlacedFeatureData, PlacedFeatureRef,
+        PlacedFeatureRegistry,
     },
     fluid::FluidRegistry,
     frog_variant::FrogVariantRegistry,
@@ -443,8 +443,8 @@ pub mod vanilla_configured_carvers;
 
 #[expect(warnings)]
 #[rustfmt::skip]
-#[path = "generated/vanilla_configured_features.rs"]
-pub mod vanilla_configured_features;
+#[path = "generated/vanilla_features.rs"]
+pub mod vanilla_features;
 
 #[expect(warnings)]
 #[rustfmt::skip]
@@ -570,8 +570,7 @@ pub const POI_TYPE_REGISTRY: Identifier = Identifier::vanilla_static("point_of_i
 pub const WORLD_CLOCK_REGISTRY: Identifier = Identifier::vanilla_static("world_clock");
 pub const CONFIGURED_CARVER_REGISTRY: Identifier =
     Identifier::vanilla_static("worldgen/configured_carver");
-pub const CONFIGURED_FEATURE_REGISTRY: Identifier =
-    Identifier::vanilla_static("worldgen/configured_feature");
+pub const FEATURE_REGISTRY: Identifier = Identifier::vanilla_static("worldgen/feature");
 pub const PLACED_FEATURE_REGISTRY: Identifier =
     Identifier::vanilla_static("worldgen/placed_feature");
 pub const STRUCTURE_REGISTRY: Identifier = Identifier::vanilla_static("worldgen/structure");
@@ -625,7 +624,7 @@ pub struct Registry {
     pub enchantments: EnchantmentRegistry,
     pub world_clocks: WorldClockRegistry,
     pub configured_carvers: ConfiguredCarverRegistry,
-    pub configured_features: ConfiguredFeatureRegistry,
+    pub features: FeatureRegistry,
     pub placed_features: PlacedFeatureRegistry,
     pub structures: StructureRegistry,
     pub structure_processors: StructureProcessorListRegistry,
@@ -737,9 +736,7 @@ impl Registry {
         );
 
         vanilla_configured_carvers::register_configured_carvers(&mut registry.configured_carvers);
-        vanilla_configured_features::register_configured_features(
-            &mut registry.configured_features,
-        );
+        vanilla_features::register_features(&mut registry.features);
         vanilla_placed_features::register_placed_features(&mut registry.placed_features);
 
         registry
@@ -794,7 +791,7 @@ impl Registry {
         self.enchantments.freeze();
         self.world_clocks.freeze();
         self.configured_carvers.freeze();
-        self.configured_features.freeze();
+        self.features.freeze();
         self.placed_features.freeze();
         self.structures.freeze();
         self.structure_processors.freeze();
@@ -827,8 +824,8 @@ impl Registry {
             self.validate_placed_feature_data(&placed_feature.data);
         }
 
-        for (_, configured_feature) in self.configured_features.iter() {
-            self.validate_configured_feature_kind(&configured_feature.kind);
+        for (_, feature) in self.features.iter() {
+            self.validate_feature_kind(&feature.kind);
         }
 
         if !self.placed_features.is_empty() {
@@ -854,70 +851,70 @@ impl Registry {
     }
 
     fn validate_placed_feature_data(&self, feature: &PlacedFeatureData) {
-        self.validate_configured_feature_ref(&feature.feature);
+        self.validate_feature_ref(&feature.feature);
     }
 
-    fn validate_configured_feature_ref(&self, feature: &ConfiguredFeatureRef) {
+    fn validate_feature_ref(&self, feature: &FeatureRef) {
         match feature {
-            ConfiguredFeatureRef::Reference(feature) => {
+            FeatureRef::Reference(feature) => {
                 let key = &feature.key;
                 assert!(
-                    self.configured_features.by_key(key).is_some(),
-                    "unknown configured feature reference {key}"
+                    self.features.by_key(key).is_some(),
+                    "unknown feature reference {key}"
                 );
             }
-            ConfiguredFeatureRef::Inline(kind) => self.validate_configured_feature_kind(kind),
+            FeatureRef::Inline(kind) => self.validate_feature_kind(kind),
         }
     }
 
-    fn validate_configured_feature_kind(&self, kind: &ConfiguredFeatureKind) {
+    fn validate_feature_kind(&self, kind: &FeatureKind) {
         match kind {
-            ConfiguredFeatureKind::RandomBooleanSelector(config) => {
+            FeatureKind::RandomBooleanSelector(config) => {
                 self.validate_placed_feature_ref(&config.feature_true);
                 self.validate_placed_feature_ref(&config.feature_false);
             }
-            ConfiguredFeatureKind::RandomSelector(config) => {
+            FeatureKind::RandomSelector(config) => {
                 for feature in &config.features {
                     self.validate_placed_feature_ref(&feature.feature);
                 }
                 self.validate_placed_feature_ref(&config.default);
             }
-            ConfiguredFeatureKind::WeightedRandomSelector(config) => {
+            FeatureKind::WeightedRandomSelector(config) => {
                 for feature in &config.features {
                     self.validate_placed_feature_ref(&feature.data);
                 }
             }
-            ConfiguredFeatureKind::RootSystem(config) => {
+            FeatureKind::RootSystem(config) => {
                 self.validate_placed_feature_ref(&config.feature);
             }
-            ConfiguredFeatureKind::Fossil(config) => {
+            FeatureKind::Fossil(config) => {
                 assert!(
                     self.structure_processors
                         .by_key(&config.fossil_processors)
                         .is_some(),
-                    "fossil configured feature references unknown processor list {}",
+                    "fossil feature references unknown processor list {}",
                     config.fossil_processors
                 );
                 assert!(
                     self.structure_processors
                         .by_key(&config.overlay_processors)
                         .is_some(),
-                    "fossil configured feature references unknown processor list {}",
+                    "fossil feature references unknown processor list {}",
                     config.overlay_processors
                 );
             }
-            ConfiguredFeatureKind::SimpleRandomSelector(config) => {
+            FeatureKind::SimpleRandomSelector(config) => {
                 for feature in &config.features {
                     self.validate_placed_feature_ref(feature);
                 }
             }
-            ConfiguredFeatureKind::Sequence(config) => {
+            FeatureKind::Sequence(config) => {
                 for feature in &config.features {
                     self.validate_placed_feature_ref(feature);
                 }
             }
-            ConfiguredFeatureKind::VegetationPatch(config)
-            | ConfiguredFeatureKind::WaterloggedVegetationPatch(config) => {
+            FeatureKind::VegetationPatch(config)
+            | FeatureKind::WaterloggedVegetationPatch(config) => {
                 self.validate_placed_feature_ref(&config.vegetation_feature);
             }
             _ => {}
@@ -992,7 +989,7 @@ impl Registry {
             poi_types: PoiTypeRegistry::new(),
             enchantments: EnchantmentRegistry::new(),
             configured_carvers: ConfiguredCarverRegistry::new(),
-            configured_features: ConfiguredFeatureRegistry::new(),
+            features: FeatureRegistry::new(),
             placed_features: PlacedFeatureRegistry::new(),
             structures: StructureRegistry::new(),
             structure_processors: StructureProcessorListRegistry::new(),
@@ -1073,7 +1070,7 @@ mod tests {
 
         assert!(
             registry
-                .configured_features
+                .features
                 .by_key(&Identifier::vanilla_static("ore_diamond_small"))
                 .is_some()
         );
