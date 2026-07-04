@@ -1,0 +1,117 @@
+[
+  {
+    "id": 0,
+    "key": "minecraft:angler",
+    "asset_id": "minecraft:angler_pottery_pattern"
+  },
+  {
+    "id": 1,
+    "key": "minecraft:archer",
+    "asset_id": "minecraft:archer_pottery_pattern"
+  },
+  {
+    "id": 2,
+    "key": "minecraft:arms_up",
+    "asset_id": "minecraft:arms_up_pottery_pattern"
+  },
+  {
+    "id": 3,
+    "key": "minecraft:blade",
+    "asset_id": "minecraft:blade_pottery_pattern"
+  },
+  {
+    "id": 4,
+    "key": "minecraft:brewer",
+    "asset_id": "minecraft:brewer_pottery_pattern"
+  },
+  {
+    "id": 5,
+    "key": "minecraft:burn",
+    "asset_id": "minecraft:burn_pottery_pattern"
+  },
+  {
+    "id": 6,
+    "key": "minecraft:danger",
+    "asset_id": "minecraft:danger_pottery_pattern"
+  },
+  {
+    "id": 7,
+    "key": "minecraft:explorer",
+    "asset_id": "minecraft:explorer_pottery_pattern"
+  },
+  {
+    "id": 8,
+    "key": "minecraft:flow",
+    "asset_id": "minecraft:flow_pottery_pattern"
+  },
+  {
+    "id": 9,
+    "key": "minecraft:friend",
+    "asset_id": "minecraft:friend_pottery_pattern"
+  },
+  {
+    "id": 10,
+    "key": "minecraft:guster",
+    "asset_id": "minecraft:guster_pottery_pattern"
+  },
+  {
+    "id": 11,
+    "key": "minecraft:heart",
+    "asset_id": "minecraft:heart_pottery_pattern"
+  },
+  {
+    "id": 12,
+    "key": "minecraft:heartbreak",
+    "asset_id": "minecraft:heartbreak_pottery_pattern"
+  },
+  {
+    "id": 13,
+    "key": "minecraft:howl",
+    "asset_id": "minecraft:howl_pottery_pattern"
+  },
+  {
+    "id": 14,
+    "key": "minecraft:miner",
+    "asset_id": "minecraft:miner_pottery_pattern"
+  },
+  {
+    "id": 15,
+    "key": "minecraft:mourner",
+    "asset_id": "minecraft:mourner_pottery_pattern"
+  },
+  {
+    "id": 16,
+    "key": "minecraft:plenty",
+    "asset_id": "minecraft:plenty_pottery_pattern"
+  },
+  {
+    "id": 17,
+    "key": "minecraft:prize",
+    "asset_id": "minecraft:prize_pottery_pattern"
+  },
+  {
+    "id": 18,
+    "key": "minecraft:scrape",
+    "asset_id": "minecraft:scrape_pottery_pattern"
+  },
+  {
+    "id": 19,
+    "key": "minecraft:sheaf",
+    "asset_id": "minecraft:sheaf_pottery_pattern"
+  },
+  {
+    "id": 20,
+    "key": "minecraft:shelter",
+    "asset_id": "minecraft:shelter_pottery_pattern"
+  },
+  {
+    "id": 21,
+    "key": "minecraft:skull",
+    "asset_id": "minecraft:skull_pottery_pattern"
+  },
+  {
+    "id": 22,
+    "key": "minecraft:snort",
+    "asset_id": "minecraft:snort_pottery_pattern"
+  }
+]

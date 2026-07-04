@@ -18,6 +18,7 @@ use crate::{
     cow_variant::CowVariantRegistry,
     damage_type::DamageTypeRegistry,
     data_components::{DataComponentRegistry, vanilla_components},
+    decorated_pot_pattern::DecoratedPotPatternRegistry,
     dialog::DialogRegistry,
     dimension_type::DimensionTypeRegistry,
     enchantment::EnchantmentRegistry,
@@ -71,6 +72,7 @@ pub mod cow_sound_variant;
 pub mod cow_variant;
 pub mod damage_type;
 pub mod data_components;
+pub mod decorated_pot_pattern;
 pub mod dialog;
 pub mod dimension_type;
 pub mod enchantment;
@@ -251,6 +253,11 @@ pub mod vanilla_dimension_types;
 #[rustfmt::skip]
 #[path = "generated/vanilla_damage_types.rs"]
 pub mod vanilla_damage_types;
+
+#[expect(warnings)]
+#[rustfmt::skip]
+#[path = "generated/vanilla_decorated_pot_patterns.rs"]
+pub mod vanilla_decorated_pot_patterns;
 
 #[expect(warnings)]
 #[rustfmt::skip]
@@ -551,6 +558,8 @@ pub const VILLAGER_PROFESSION_REGISTRY: Identifier =
     Identifier::vanilla_static("villager_profession");
 pub const DIMENSION_TYPE_REGISTRY: Identifier = Identifier::vanilla_static("dimension_type");
 pub const DAMAGE_TYPE_REGISTRY: Identifier = Identifier::vanilla_static("damage_type");
+pub const DECORATED_POT_PATTERN_REGISTRY: Identifier =
+    Identifier::vanilla_static("decorated_pot_pattern");
 pub const BANNER_PATTERN_REGISTRY: Identifier = Identifier::vanilla_static("banner_pattern");
 pub const ENCHANTMENT_REGISTRY: Identifier = Identifier::vanilla_static("enchantment");
 pub const JUKEBOX_SONG_REGISTRY: Identifier = Identifier::vanilla_static("jukebox_song");
@@ -604,6 +613,7 @@ pub struct Registry {
     pub villager_professions: VillagerProfessionRegistry,
     pub dimension_types: DimensionTypeRegistry,
     pub damage_types: DamageTypeRegistry,
+    pub decorated_pot_patterns: DecoratedPotPatternRegistry,
     pub banner_patterns: BannerPatternRegistry,
     pub jukebox_songs: JukeboxSongRegistry,
     pub instruments: InstrumentRegistry,
@@ -686,6 +696,9 @@ impl Registry {
         );
         vanilla_dimension_types::register_dimension_types(&mut registry.dimension_types);
         vanilla_damage_types::register_damage_types(&mut registry.damage_types);
+        vanilla_decorated_pot_patterns::register_decorated_pot_patterns(
+            &mut registry.decorated_pot_patterns,
+        );
         vanilla_damage_type_tags::DamageTypeTag::register_damage_type_tags(
             &mut registry.damage_types,
         );
@@ -771,6 +784,7 @@ impl Registry {
         self.villager_professions.freeze();
         self.dimension_types.freeze();
         self.damage_types.freeze();
+        self.decorated_pot_patterns.freeze();
         self.banner_patterns.freeze();
         self.jukebox_songs.freeze();
         self.instruments.freeze();
@@ -969,6 +983,7 @@ impl Registry {
             villager_professions: VillagerProfessionRegistry::new(),
             dimension_types: DimensionTypeRegistry::new(),
             damage_types: DamageTypeRegistry::new(),
+            decorated_pot_patterns: DecoratedPotPatternRegistry::new(),
             banner_patterns: BannerPatternRegistry::new(),
             jukebox_songs: JukeboxSongRegistry::new(),
             instruments: InstrumentRegistry::new(),
@@ -1093,6 +1108,8 @@ mod tests {
         let angry = Identifier::vanilla_static("angry");
         let big = Identifier::vanilla_static("big");
         let earth = Identifier::vanilla_static("earth");
+        let angler = Identifier::vanilla_static("angler");
+        let snort = Identifier::vanilla_static("snort");
 
         assert_eq!(
             registry.particle_types.by_id(21).map(|entry| &entry.key),
@@ -1131,6 +1148,20 @@ mod tests {
         assert_eq!(
             registry.painting_variants.by_id(25).map(|entry| &entry.key),
             Some(&earth)
+        );
+        assert_eq!(
+            registry
+                .decorated_pot_patterns
+                .by_id(0)
+                .map(|entry| &entry.key),
+            Some(&angler)
+        );
+        assert_eq!(
+            registry
+                .decorated_pot_patterns
+                .by_id(22)
+                .map(|entry| &entry.key),
+            Some(&snort)
         );
     }
 

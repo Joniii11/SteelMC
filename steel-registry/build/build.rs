@@ -13,6 +13,7 @@ mod chat_types;
 mod chicken_variants;
 mod cow_variants;
 mod damage_types;
+mod decorated_pot_patterns;
 mod dialog_tags;
 mod dialogs;
 mod dimension_types;
@@ -104,6 +105,7 @@ const VILLAGER_TYPES: &str = "villager_types";
 const VILLAGER_PROFESSIONS: &str = "villager_professions";
 const DIMENSIONS: &str = "dimension_types";
 const DAMAGE_TYPES: &str = "damage_types";
+const DECORATED_POT_PATTERNS: &str = "decorated_pot_patterns";
 const DAMAGE_TYPE_TAGS: &str = "damage_type_tags";
 const BANNER_PATTERN_TAGS: &str = "banner_pattern_tags";
 const ENTITY_TYPE_TAGS: &str = "entity_type_tags";
@@ -189,6 +191,7 @@ pub fn main() {
         (villager_professions::build(), VILLAGER_PROFESSIONS),
         (dimension_types::build(), DIMENSIONS),
         (damage_types::build(), DAMAGE_TYPES),
+        (decorated_pot_patterns::build(), DECORATED_POT_PATTERNS),
         (damage_type_tags::build(), DAMAGE_TYPE_TAGS),
         (jukebox_songs::build(), JUKEBOX_SONGS),
         (instruments::build(), INSTRUMENTS),
