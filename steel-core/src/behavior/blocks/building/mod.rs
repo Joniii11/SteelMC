@@ -36,7 +36,6 @@ pub use fence_block::FenceBlock;
 pub use fence_gate_block::FenceGateBlock;
 pub use hay_block::HayBlock;
 pub use honey_block::HoneyBlock;
-pub use iron_bars_block::IronBarsBlock;
 pub use lava_cauldron_block::LavaCauldronBlock;
 pub use magma_block::MagmaBlock;
 pub use potent_sulfur_block::PotentSulfurBlock;
