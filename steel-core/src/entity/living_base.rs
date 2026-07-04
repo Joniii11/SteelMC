@@ -1363,18 +1363,27 @@ impl LivingEntityBase {
         }
     }
 
-    /// Records vanilla `LivingEntity.lastDamageSource` after successful damage.
+    /// Remembers the source and game time of the most recent successful damage.
     pub fn record_last_damage_source(&self, source: &DamageSource, game_time: i64) {
         let mut state = self.state.lock();
         state.last_damage_source = Some(source.clone());
         state.last_damage_stamp = game_time;
     }
 
-    /// Returns vanilla `LivingEntity.getLastDamageSource()`.
+    /// Returns recent damage with the default 40-tick expiry window.
     pub fn last_damage_source(&self, game_time: i64) -> Option<DamageSource> {
-        let mut state = self.state.lock();
-        if game_time - state.last_damage_stamp > 40 {
-            state.last_damage_source = None;
+        self.last_damage_source_with_timeout(game_time, 40)
+    }
+
+    /// Returns recent damage only while it is within the requested expiry window.
+    pub fn last_damage_source_with_timeout(
+        &self,
+        game_time: i64,
+        damage_source_timeout: i64,
+    ) -> Option<DamageSource> {
+        let state = self.state.lock();
+        if game_time - state.last_damage_stamp > damage_source_timeout {
+            return None;
         }
         state.last_damage_source.clone()
     }
@@ -1613,6 +1622,71 @@ mod tests {
             .expect("last damage source should remain valid for 40 ticks");
         assert_eq!(last_source.damage_type, &vanilla_damage_types::GENERIC);
         assert!(base.last_damage_source(51).is_none());
+    }
+
+    #[test]
+    fn last_damage_source_supports_vanilla_variable_timeout_without_clearing() {
+        init_test_registry();
+        let base = LivingEntityBase::new(&vanilla_entities::PIG);
+        let source = DamageSource::environment(&vanilla_damage_types::GENERIC);
+
+        base.record_last_damage_source(&source, 10);
+
+        assert!(base.last_damage_source_with_timeout(51, 40).is_none());
+        let last_source = base
+            .last_damage_source_with_timeout(51, 100)
+            .expect("last damage source should remain valid for a longer vanilla timeout");
+        assert_eq!(last_source.damage_type, &vanilla_damage_types::GENERIC);
+    }
+
+    #[test]
+    fn full_damage_starts_and_ticks_recent_hurt_window() {
+        init_test_registry();
+        let base = LivingEntityBase::new(&vanilla_entities::PIG);
+
+        assert!(!base.was_hurt_recently());
+
+        assert_eq!(base.apply_damage_cooldown(4.0, false), Some((true, 4.0)));
+        assert!(base.was_hurt_recently());
+
+        for _ in 0..9 {
+            base.decrement_hurt_time();
+            assert!(base.was_hurt_recently());
+        }
+
+        base.decrement_hurt_time();
+        assert!(!base.was_hurt_recently());
+    }
+
+    #[test]
+    fn animate_hurt_starts_recent_hurt_window() {
+        init_test_registry();
+        let base = LivingEntityBase::new(&vanilla_entities::PIG);
+
+        base.start_hurt_animation();
+
+        assert!(base.was_hurt_recently());
+        for _ in 0..10 {
+            base.decrement_hurt_time();
+        }
+        assert!(!base.was_hurt_recently());
+    }
+
+    #[test]
+    fn partial_damage_does_not_restart_recent_hurt_window() {
+        init_test_registry();
+        let base = LivingEntityBase::new(&vanilla_entities::PIG);
+
+        assert_eq!(base.apply_damage_cooldown(4.0, false), Some((true, 4.0)));
+        for _ in 0..9 {
+            base.decrement_hurt_time();
+        }
+
+        assert_eq!(base.apply_damage_cooldown(6.0, false), Some((false, 2.0)));
+        assert!(base.was_hurt_recently());
+
+        base.decrement_hurt_time();
+        assert!(!base.was_hurt_recently());
     }
 
     #[test]

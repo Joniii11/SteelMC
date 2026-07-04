@@ -1377,6 +1377,14 @@ pub trait Entity: EntityEventSource + Send + Sync {
             .is_in_tag(self.entity_type(), &EntityTypeTag::DISMOUNTS_UNDERWATER)
     }
 
+    /// Returns whether item-use dismount effects can dismount this entity.
+    fn can_be_dismounted_by_item_usage(&self) -> bool {
+        !REGISTRY.entity_types.is_in_tag(
+            self.entity_type(),
+            &EntityTypeTag::CANNOT_BE_DISMOUNTED_BY_ITEM_USAGE,
+        )
+    }
+
     /// Returns whether `passenger` is a direct passenger of this entity.
     ///
     /// Mirrors vanilla `Entity.hasPassenger(Entity)`.
@@ -1760,6 +1768,7 @@ pub trait Entity: EntityEventSource + Send + Sync {
 
     /// Marks the entity as removed with the given reason.
     fn set_removed(&self, reason: RemovalReason) {
+        // TODO: When CombatTracker exists, living removal should recheck combat status here.
         self.base().set_removed(reason);
     }
 
@@ -3989,6 +3998,9 @@ pub trait Entity: EntityEventSource + Send + Sync {
         false
     }
 
+    // TODO: Implement vanilla LivingEntity.randomTeleport() when Steel has a matching
+    // server-side random teleport path; landing must use BlockTag::ENTITIES_CAN_TELEPORT_TO.
+
     /// Teleports an entity from one loaded world to another.
     ///
     /// The default implementation logs a warning — non-player entity teleportation
@@ -4304,7 +4316,7 @@ pub trait LivingEntity: Entity {
         target.can_be_seen_as_enemy()
     }
 
-    /// Returns vanilla `LivingEntity.getLastDamageSource()`.
+    /// Returns this entity's recent damage source using the default expiry window.
     fn last_damage_source(&self) -> Option<DamageSource> {
         let game_time = self.level().map_or(0, |world| world.game_time());
         self.living_base().last_damage_source(game_time)
@@ -8457,6 +8469,45 @@ mod tests {
 
         assert!(entity.controlling_passenger().is_none());
         assert!(!entity.has_controlling_passenger());
+    }
+
+    #[test]
+    fn item_usage_dismount_respects_vanilla_entity_type_tag() {
+        init_test_registry();
+
+        let player = LivingFluidTestEntity::new(0.0, 0.0, true);
+        assert!(player.can_be_dismounted_by_item_usage());
+
+        let interaction = LivingFluidTestEntity::new(0.0, 0.0, true)
+            .with_entity_type(&vanilla_entities::INTERACTION);
+        assert!(!interaction.can_be_dismounted_by_item_usage());
+    }
+
+    #[test]
+    fn animate_hurt_starts_recent_hurt_window() {
+        init_test_registry();
+
+        let entity = LivingFluidTestEntity::new(0.0, 0.0, true);
+
+        assert!(!entity.was_hurt_recently());
+        entity.broadcast_hurt_animation();
+        assert!(entity.was_hurt_recently());
+    }
+
+    #[test]
+    fn handle_damage_event_records_recent_hurt_and_source() {
+        init_test_registry();
+
+        let entity = LivingFluidTestEntity::new(0.0, 0.0, true);
+        let source = DamageSource::environment(&vanilla_damage_types::GENERIC);
+
+        entity.handle_damage_event(&source);
+
+        assert!(entity.was_hurt_recently());
+        let last_source = entity
+            .last_damage_source()
+            .expect("damage event should remember the source");
+        assert_eq!(last_source.damage_type, &vanilla_damage_types::GENERIC);
     }
 
     #[test]

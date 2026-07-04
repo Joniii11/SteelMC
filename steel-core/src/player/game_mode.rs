@@ -645,7 +645,7 @@ impl Player {
                 old_movement,
             );
         }
-        if dismounts && entity.is_passenger() {
+        if dismounts && entity.is_passenger() && entity.can_be_dismounted_by_item_usage() {
             affected = true;
             entity.stop_riding();
         }
