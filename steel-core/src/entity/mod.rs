@@ -4151,6 +4151,11 @@ pub trait LivingEntity: Entity {
         self.get_health() <= 0.0
     }
 
+    /// Returns whether this entity is still inside the visible hurt animation window.
+    fn was_hurt_recently(&self) -> bool {
+        self.living_base().was_hurt_recently()
+    }
+
     /// Returns vanilla `LivingEntity.isBaby()`.
     fn is_baby(&self) -> bool {
         false
@@ -4624,8 +4629,22 @@ pub trait LivingEntity: Entity {
         );
     }
 
+    /// Applies the local state changes from a living damage event.
+    fn handle_damage_event(&self, source: &DamageSource) {
+        // TODO: Set walk animation speed to 1.5 once Steel tracks vanilla WalkAnimationState.
+        self.living_base().start_damage_event_invulnerability();
+        self.living_base().start_hurt_animation();
+        self.play_hurt_sound(source);
+
+        let game_time = self.level().map_or(0, |world| world.game_time());
+        self.living_base()
+            .record_last_damage_source(source, game_time);
+    }
+
     /// Broadcasts vanilla hurt animation near this entity.
     fn broadcast_hurt_animation(&self) {
+        self.living_base().start_hurt_animation();
+
         let Some(world) = self.level() else {
             return;
         };
@@ -5445,6 +5464,7 @@ pub trait LivingEntity: Entity {
             .tick_fall_flying_state(self.is_fall_flying());
         self.update_swing_time();
         self.refresh_dirty_attributes();
+        self.living_base().decrement_hurt_time();
         self.living_base().tick_post_impulse_grace_time();
         self.living_base().tick_last_hurt_by_player_memory();
         self.living_base()

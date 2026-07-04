@@ -519,6 +519,8 @@ struct LivingEntityState {
     effects_dirty: bool,
     death_processed: bool,
     invulnerable_time: i32,
+    hurt_time: i32,
+    hurt_duration: i32,
     last_hurt: f32,
     last_hurt_by_player: Option<Uuid>,
     last_hurt_by_player_memory_time: i32,
@@ -554,6 +556,8 @@ impl LivingEntityState {
             effects_dirty: false,
             death_processed: false,
             invulnerable_time: 0,
+            hurt_time: 0,
+            hurt_duration: 0,
             last_hurt: 0.0,
             last_hurt_by_player: None,
             last_hurt_by_player_memory_time: 0,
@@ -588,6 +592,8 @@ impl LivingEntityState {
         self.death_processed = false;
         self.death_time = 0;
         self.invulnerable_time = 0;
+        self.hurt_time = 0;
+        self.hurt_duration = 0;
         self.last_hurt = 0.0;
         self.absorption_amount = 0.0;
         self.skip_drop_experience = false;
@@ -1302,6 +1308,31 @@ impl LivingEntityBase {
         }
     }
 
+    /// Starts the 10 tick hurt animation window
+    pub fn start_hurt_animation(&self) {
+        let mut state = self.state.lock();
+        state.hurt_duration = 10;
+        state.hurt_time = state.hurt_duration;
+    }
+
+    /// Starts the post damage invulnerability timer used by damage events
+    pub fn start_damage_event_invulnerability(&self) {
+        self.state.lock().invulnerable_time = 20;
+    }
+
+    /// Returns whether the entity is still inside the visible hurt animation window
+    pub fn was_hurt_recently(&self) -> bool {
+        self.state.lock().hurt_time > 0
+    }
+
+    /// Decrements the visible hurt animation timer by one tick
+    pub fn decrement_hurt_time(&self) {
+        let mut state = self.state.lock();
+        if state.hurt_time > 0 {
+            state.hurt_time -= 1;
+        }
+    }
+
     /// Applies vanilla hurt cooldown bookkeeping.
     ///
     /// Returns `None` when damage should be ignored because death was already
@@ -1326,6 +1357,8 @@ impl LivingEntityBase {
         } else {
             state.last_hurt = amount;
             state.invulnerable_time = 20;
+            state.hurt_duration = 10;
+            state.hurt_time = state.hurt_duration;
             Some((true, amount))
         }
     }
@@ -1970,6 +2003,8 @@ mod tests {
         let state = base.state.lock();
         assert!(!state.death_processed);
         assert_eq!(state.death_time, 0);
+        assert_eq!(state.hurt_time, 0);
+        assert_eq!(state.hurt_duration, 0);
         assert_eq!(state.last_hurt.to_bits(), 0.0_f32.to_bits());
         drop(state);
 
