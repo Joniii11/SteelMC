@@ -645,7 +645,7 @@ pub struct EntityBaseState {
     stuck_speed_multiplier: DVec3,
     no_physics: bool,
     needs_velocity_sync: bool,
-    hurt_marked: bool,
+    sync_velocity: bool,
 }
 
 impl EntityBaseState {
@@ -677,7 +677,7 @@ impl EntityBaseState {
             stuck_speed_multiplier: DVec3::ZERO,
             no_physics: false,
             needs_velocity_sync: false,
-            hurt_marked: false,
+            sync_velocity: false,
         }
     }
 
@@ -1328,10 +1328,10 @@ impl EntityBase {
         self.state.lock().needs_velocity_sync
     }
 
-    /// Returns true when vanilla hurt-marked velocity sync is pending.
+    /// Returns true when vanilla self-inclusive velocity sync is pending.
     #[inline]
-    pub fn hurt_marked(&self) -> bool {
-        self.state.lock().hurt_marked
+    pub fn sync_velocity(&self) -> bool {
+        self.state.lock().sync_velocity
     }
 
     /// Gets the world this entity is in.
@@ -1481,7 +1481,7 @@ impl EntityBase {
             state.stuck_speed_multiplier = DVec3::ZERO;
             state.no_physics = false;
             state.needs_velocity_sync = false;
-            state.hurt_marked = false;
+            state.sync_velocity = false;
         }
 
         self.movement_trace.lock().reset();
@@ -1857,12 +1857,12 @@ impl EntityBase {
 
     /// Marks this entity as hurt for vanilla self-inclusive motion sync.
     pub fn mark_hurt(&self) {
-        self.state.lock().hurt_marked = true;
+        self.state.lock().sync_velocity = true;
     }
 
-    /// Clears the vanilla hurt-marked motion sync flag.
-    pub fn clear_hurt_mark(&self) {
-        self.state.lock().hurt_marked = false;
+    /// Clears the vanilla self-inclusive velocity sync flag.
+    pub fn clear_sync_velocity(&self) {
+        self.state.lock().sync_velocity = false;
     }
 
     /// Sets accumulated vanilla fall distance.
@@ -2803,7 +2803,7 @@ mod tests {
         assert_eq!(base.fall_distance().to_bits(), 0.0_f64.to_bits());
         assert_eq!(base.fluid_contact(), EntityFluidContact::default());
         assert!(!base.needs_velocity_sync());
-        assert!(!base.hurt_marked());
+        assert!(!base.sync_velocity());
         assert_eq!(base.dimensions(), reset_dimensions);
         assert!(base.last_movements_for_block_effects().is_empty());
         assert_eq!(

@@ -403,7 +403,7 @@ impl EntityTracker {
                 entity.clear_velocity_sync();
             }
             result.for_each_packet(|packet| packets_to_broadcast.push((entity_id, packet)));
-            if entity.hurt_marked() {
+            if entity.sync_velocity() {
                 let velocity = entity.velocity();
                 packets_to_broadcast.push((
                     entity_id,
@@ -415,7 +415,7 @@ impl EntityTracker {
                         EntityMovementSyncPacket::from(CSetEntityMotion::new(entity_id, velocity)),
                     ));
                 }
-                entity.clear_hurt_mark();
+                entity.clear_sync_velocity();
             }
             if let Some(dirty_entity_data) = dirty_entity_data {
                 entity_data_to_broadcast.push((entity_id, dirty_entity_data));
@@ -1370,7 +1370,7 @@ mod tests {
     }
 
     #[test]
-    fn send_changes_syncs_hurt_marked_player_motion_to_self() {
+    fn send_changes_syncs_mark_hurt_player_motion_to_self() {
         test_support::init_test_registry();
 
         let tracker = EntityTracker::new();
@@ -1413,11 +1413,11 @@ mod tests {
         assert_eq!(packet.vel.x.to_bits(), 0.25_f64.to_bits());
         assert_eq!(packet.vel.y.to_bits(), 0.4_f64.to_bits());
         assert_eq!(packet.vel.z.to_bits(), (-0.125_f64).to_bits());
-        assert!(!entity_typed.hurt_marked());
+        assert!(!entity_typed.sync_velocity());
     }
 
     #[test]
-    fn send_changes_broadcasts_hurt_marked_non_player_motion() {
+    fn send_changes_broadcasts_mark_hurt_non_player_motion() {
         test_support::init_test_registry();
 
         let tracker = EntityTracker::new();
@@ -1447,7 +1447,7 @@ mod tests {
 
         assert_has_velocity_packet(&tracker_updates, 1, DVec3::new(-0.25, 0.2, 0.125));
         assert!(self_updates.is_empty());
-        assert!(!entity_typed.hurt_marked());
+        assert!(!entity_typed.sync_velocity());
     }
 
     #[test]

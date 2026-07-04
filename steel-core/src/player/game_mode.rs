@@ -451,12 +451,12 @@ impl Player {
         }
 
         if entity.entity_type() == &vanilla_entities::PLAYER
-            && entity.hurt_marked()
+            && entity.sync_velocity()
             && let Some(player) = self.get_world().players.get_by_entity_id(entity.id())
         {
             let velocity = entity.velocity();
             player.send_packet(CSetEntityMotion::new(entity.id(), velocity));
-            entity.clear_hurt_mark();
+            entity.clear_sync_velocity();
             entity.set_velocity(old_movement);
         }
     }
