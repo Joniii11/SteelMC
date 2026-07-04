@@ -19,23 +19,33 @@ Keep this migration aligned with `minecraft-src/net/...` and
    `poplar_trunk_placer`, `poplar_foliage_placer`, and `shelf_mushroom`.
 6. Added `end_podium` feature data/runtime support.
 7. Updated trim material parsing/NBT to Vanilla 26.3 `palette_id`.
+8. Verified and added structure processor rule-test changes for
+   `blockstate_match`, `random_block_match`, and `random_blockstate_match`.
+9. Added `dimension_origin` structure placement and verified abandoned camp
+   structure-set/template-pool data against `minecraft-src/data` and extracted
+   assets.
+10. Audited direct-feature runtime behavior for selectors, vegetation patch,
+    underwater magma, twisting vines, and large dripstone against
+    `minecraft-src/net/...`.
+11. Made generated vanilla template-pool/template constructors stack-friendly
+    so default test-thread stacks can load vanilla structure assets.
 
 Verified with:
 
 - `cargo fmt --all --check`
 - `cargo check -p steel-registry`
 - `cargo check -p steel-core`
+- `cargo check -p steel-worldgen`
+- targeted `steel-worldgen` tests for `dimension_origin` and
+  `load_vanilla_structure_sets`
+- targeted `steel-worldgen` test
+  `structure::generator::tests::vanilla_assets_cover_vanilla_structure_sets`
+- targeted `steel-core` test
+  `worldgen::registry::tests::default_flat_config_matches_vanilla_superflat`
 
 ## Remaining Plan
 
-1. Verify structure processor rule-test changes from the diff, especially
-   `blockstate_match`, `random_block_match`, and `random_blockstate_match`.
-2. Add `dimension_origin` structure placement and verify abandoned camp data
-   against generated structure-set and template-pool output.
-3. Audit direct-feature behavior changes for selectors, vegetation patch,
-   underwater magma, twisting vines, and large dripstone against
-   `minecraft-src/net/...`.
-4. Run broader worldgen tests/checks once the remaining structure pieces are in.
+No known open 26.3 worldgen migration items remain in this document.
 
 ## Rules
 

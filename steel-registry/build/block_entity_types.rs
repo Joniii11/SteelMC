@@ -7,7 +7,37 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct BlockEntityTypesJson {
-    block_entity_types: Vec<String>,
+    block_entity_types: Vec<BlockEntityTypeJson>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BlockEntityTypeJson {
+    Name(String),
+    Entry(BlockEntityTypeEntryJson),
+}
+
+#[derive(Deserialize)]
+struct BlockEntityTypeEntryJson {
+    name: String,
+    #[serde(default)]
+    valid_blocks: Vec<String>,
+}
+
+impl BlockEntityTypeJson {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Entry(entry) => &entry.name,
+        }
+    }
+
+    fn valid_blocks(&self) -> &[String] {
+        match self {
+            Self::Name(_) => &[],
+            Self::Entry(entry) => &entry.valid_blocks,
+        }
+    }
 }
 
 pub(crate) fn build() -> TokenStream {
@@ -24,23 +54,30 @@ pub(crate) fn build() -> TokenStream {
         use crate::block_entity_type::{
             BlockEntityType, BlockEntityTypeRegistry,
         };
+        use crate::vanilla_blocks;
         use steel_utils::Identifier;
     });
 
     // Generate static block entity type definitions
     let mut register_stream = TokenStream::new();
-    for block_entity_type_name in &block_entity_types.block_entity_types {
+    for block_entity_type in &block_entity_types.block_entity_types {
+        let block_entity_type_name = block_entity_type.name();
         let block_entity_type_ident = Ident::new(
             &block_entity_type_name.to_shouty_snake_case(),
             Span::call_site(),
         );
-        let block_entity_type_name_str = block_entity_type_name.clone();
+        let block_entity_type_name_str = block_entity_type_name.to_owned();
+        let valid_blocks = block_entity_type.valid_blocks().iter().map(|block_name| {
+            let block_ident = Ident::new(&block_name.to_shouty_snake_case(), Span::call_site());
+            quote! { &vanilla_blocks::#block_ident }
+        });
 
         let key = quote! { Identifier::vanilla_static(#block_entity_type_name_str) };
 
         stream.extend(quote! {
             pub static #block_entity_type_ident: BlockEntityType = BlockEntityType {
                 key: #key,
+                valid_blocks: &[#(#valid_blocks),*],
             };
         });
         register_stream.extend(quote! {

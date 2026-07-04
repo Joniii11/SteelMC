@@ -106,6 +106,11 @@ impl CachedWorldgenHeightmaps {
             _ => {}
         }
     }
+
+    fn clear(&mut self) {
+        self.world_surface_wg = None;
+        self.ocean_floor_wg = None;
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -411,12 +416,24 @@ impl<'a> WorldGenRegion<'a> {
         self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             chunk.set_block_state(pos, state, flags);
         });
+        self.invalidate_worldgen_heightmap_cache(chunk_x, chunk_z);
         if !flags.contains(UpdateFlags::UPDATE_KNOWN_SHAPE)
             && let Some(postprocess_pos) = Self::postprocess_pos_for_state(state, pos)
         {
             self.mark_pos_for_postprocessing(postprocess_pos);
         }
         true
+    }
+
+    fn invalidate_worldgen_heightmap_cache(&self, chunk_x: i32, chunk_z: i32) {
+        let Some(cache_index) = self.chunk_cache_index(chunk_x, chunk_z) else {
+            return;
+        };
+        let mut heightmaps = self.worldgen_heightmaps.borrow_mut();
+        let Some(cached) = heightmaps.get_mut(cache_index) else {
+            panic!("Worldgen heightmap cache index {cache_index} escaped its storage");
+        };
+        cached.clear();
     }
 
     /// Mirrors the vanilla `Blocks` post-process hooks that can affect worldgen output.

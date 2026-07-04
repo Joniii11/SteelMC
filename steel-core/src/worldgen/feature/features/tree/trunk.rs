@@ -762,11 +762,16 @@ impl FeatureDecorationRunner {
                 continue;
             }
 
-            let branch_amount = placer.branch_amount.sample(random);
-            let Ok(branch_amount) = usize::try_from(branch_amount) else {
-                panic!("poplar branch amount is negative");
-            };
-            for branch_index in 0..branch_amount {
+            let mut branch_index = 0usize;
+            loop {
+                let branch_amount = placer.branch_amount.sample(random);
+                let Ok(branch_amount) = usize::try_from(branch_amount) else {
+                    panic!("poplar branch amount is negative");
+                };
+                if branch_index >= branch_amount {
+                    break;
+                }
+
                 let Some(branch_direction) = branch_directions.get(branch_index).copied() else {
                     panic!("poplar branch amount exceeds horizontal direction count");
                 };
@@ -780,6 +785,7 @@ impl FeatureDecorationRunner {
                     config,
                     placement,
                 );
+                branch_index += 1;
             }
         }
 

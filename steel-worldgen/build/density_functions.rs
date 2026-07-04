@@ -7,7 +7,10 @@ use std::string::String;
 use std::sync::Arc;
 use std::{fs, path::PathBuf};
 
-use crate::surface_rules::{SurfaceRuleJson, generate_surface_rule_function};
+use crate::surface_rules::{
+    SurfaceConditionDataJson, SurfaceConditionJson, SurfaceRuleDataJson, SurfaceRuleJson,
+    generate_surface_rule_function,
+};
 
 /// Parsed density function from datapack JSON.
 ///
@@ -269,6 +272,8 @@ struct NoiseSettingsJson {
     noise_router: NoiseRouterJson,
     #[serde(default)]
     surface_rule: Option<SurfaceRuleJson>,
+    #[serde(default)]
+    material_rule: Option<String>,
 }
 
 // ── Datapack file reading ───────────────────────────────────────────────────
@@ -334,6 +339,98 @@ fn read_noise_settings(dimension: &str) -> NoiseSettingsJson {
     let content =
         fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {path}: {e}"));
     serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {path}: {e}"))
+}
+
+/// Read a referenced material rule from the datapack.
+fn read_material_rule(id: &str) -> SurfaceRuleJson {
+    let path_id = minecraft_datapack_path(id, "material rule");
+    let path = format!("{DATAPACK_BASE}/material_rule/{path_id}.json");
+    println!("cargo:rerun-if-changed={path}");
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {path}: {e}"));
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {path}: {e}"))
+}
+
+/// Read a referenced material condition from the datapack.
+fn read_material_condition(id: &str) -> SurfaceConditionJson {
+    let path_id = minecraft_datapack_path(id, "material condition");
+    let path = format!("{DATAPACK_BASE}/material_condition/{path_id}.json");
+    println!("cargo:rerun-if-changed={path}");
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {path}: {e}"));
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {path}: {e}"))
+}
+
+fn minecraft_datapack_path<'a>(id: &'a str, kind: &str) -> &'a str {
+    id.strip_prefix("minecraft:")
+        .unwrap_or_else(|| panic!("unsupported non-minecraft {kind} reference {id}"))
+}
+
+fn resolve_surface_rule(rule: SurfaceRuleJson) -> SurfaceRuleJson {
+    resolve_surface_rule_inner(rule, &mut Vec::new())
+}
+
+fn resolve_surface_rule_inner(rule: SurfaceRuleJson, stack: &mut Vec<String>) -> SurfaceRuleJson {
+    match rule {
+        SurfaceRuleJson::Reference(id) => {
+            if stack.contains(&id) {
+                panic!(
+                    "cyclic material rule reference: {} -> {id}",
+                    stack.join(" -> ")
+                );
+            }
+            stack.push(id.clone());
+            let resolved = resolve_surface_rule_inner(read_material_rule(&id), stack);
+            stack.pop();
+            resolved
+        }
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Sequence { sequence }) => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Sequence {
+                sequence: sequence
+                    .into_iter()
+                    .map(|rule| resolve_surface_rule_inner(rule, stack))
+                    .collect(),
+            })
+        }
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Condition { if_true, then_run }) => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Condition {
+                if_true: resolve_surface_condition_inner(if_true, stack),
+                then_run: Box::new(resolve_surface_rule_inner(*then_run, stack)),
+            })
+        }
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Block { result_state }) => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Block { result_state })
+        }
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Bandlands {}) => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Bandlands {})
+        }
+    }
+}
+
+fn resolve_surface_condition_inner(
+    condition: SurfaceConditionJson,
+    stack: &mut Vec<String>,
+) -> SurfaceConditionJson {
+    match condition {
+        SurfaceConditionJson::Reference(id) => {
+            if stack.contains(&id) {
+                panic!(
+                    "cyclic material condition reference: {} -> {id}",
+                    stack.join(" -> ")
+                );
+            }
+            stack.push(id.clone());
+            let resolved = resolve_surface_condition_inner(read_material_condition(&id), stack);
+            stack.pop();
+            resolved
+        }
+        SurfaceConditionJson::Data(SurfaceConditionDataJson::Not { invert }) => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::Not {
+                invert: Box::new(resolve_surface_condition_inner(*invert, stack)),
+            })
+        }
+        SurfaceConditionJson::Data(data) => SurfaceConditionJson::Data(data),
+    }
 }
 
 // ── JSON → DensityFunction conversion ───────────────────────────────────────
@@ -712,6 +809,15 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
     let settings_struct = Ident::new(&format!("{prefix}NoiseSettings"), Span::call_site());
     let noises_struct = Ident::new(&format!("{prefix}Noises"), Span::call_site());
     let cache_struct = Ident::new(&format!("{prefix}ColumnCache"), Span::call_site());
+    let surface_rule = match (settings.surface_rule.take(), settings.material_rule.take()) {
+        (Some(rule), None) => Some(rule),
+        (None, Some(id)) => Some(read_material_rule(&id)),
+        (None, None) => None,
+        (Some(_), Some(id)) => {
+            panic!("Noise settings {dimension} specify both surface_rule and material_rule {id}")
+        }
+    };
+    let surface_rule = surface_rule.map(resolve_surface_rule);
 
     // Generate surface rule function, noise IDs, and block-state cache.
     let (
@@ -723,7 +829,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
         surface_rule_uses_preliminary_surface,
         surface_rule_uses_surface_secondary,
         surface_rule_uses_steep,
-    ) = if let Some(rule) = settings.surface_rule.take() {
+    ) = if let Some(rule) = surface_rule {
         let (
             func,
             noise_ids,

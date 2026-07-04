@@ -1995,12 +1995,8 @@ impl StructureTemplate {
     fn block_entity_type_for_nbt_or_state(
         registry: &Registry,
         state: BlockStateId,
-        nbt: &NbtCompound,
+        _nbt: &NbtCompound,
     ) -> Option<BlockEntityTypeRef> {
-        if let Some(id) = nbt.string("id") {
-            let id = Identifier::from_str(id.to_str().as_ref()).ok()?;
-            return registry.block_entity_types.by_key(&id);
-        }
         Self::block_entity_type_for_state(registry, state)
     }
 
@@ -2009,11 +2005,11 @@ impl StructureTemplate {
         state: BlockStateId,
     ) -> Option<BlockEntityTypeRef> {
         let block = Self::block_for_state(registry, state);
-        if block == &vanilla_blocks::SUSPICIOUS_SAND || block == &vanilla_blocks::SUSPICIOUS_GRAVEL
-        {
-            return Some(&vanilla_block_entity_types::BRUSHABLE_BLOCK);
-        }
-        None
+        registry
+            .block_entity_types
+            .iter()
+            .map(|(_, block_entity_type)| block_entity_type)
+            .find(|block_entity_type| block_entity_type.is_valid_for_block(block))
     }
 
     fn should_reseed_template_loot(
@@ -2544,15 +2540,26 @@ mod tests {
         let mut chest_nbt = NbtCompound::new();
         chest_nbt.insert("id", "minecraft:chest");
         chest_nbt.insert("LootTable", "minecraft:chests/village/village_weaponsmith");
+        let chest_state = registry.blocks.get_default_state_id(&vanilla_blocks::CHEST);
         let chest_type = StructureTemplate::block_entity_type_for_nbt_or_state(
             &registry,
-            registry.blocks.get_default_state_id(&vanilla_blocks::CHEST),
+            chest_state,
             &chest_nbt,
         )
         .expect("chest nbt should resolve block entity type");
 
         assert!(StructureTemplate::should_reseed_template_loot(
             Some(chest_type),
+            &chest_nbt
+        ));
+
+        let lava_state = registry.blocks.get_default_state_id(&vanilla_blocks::LAVA);
+        let submerged_chest_type = StructureTemplate::block_entity_type_for_nbt_or_state(
+            &registry, lava_state, &chest_nbt,
+        );
+        assert!(submerged_chest_type.is_none());
+        assert!(!StructureTemplate::should_reseed_template_loot(
+            submerged_chest_type,
             &chest_nbt
         ));
     }

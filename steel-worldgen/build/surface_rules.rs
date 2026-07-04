@@ -13,8 +13,16 @@ use std::{mem, slice};
 
 /// Surface rule source (top-level rule node).
 #[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type")]
+#[serde(untagged)]
 pub enum SurfaceRuleJson {
+    Reference(String),
+    Data(SurfaceRuleDataJson),
+}
+
+/// Concrete surface rule data.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type")]
+pub enum SurfaceRuleDataJson {
     #[serde(rename = "minecraft:block")]
     Block { result_state: ResultStateJson },
     #[serde(rename = "minecraft:sequence")]
@@ -41,8 +49,16 @@ pub struct ResultStateJson {
 
 /// Surface rule condition.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type")]
+#[serde(untagged)]
 pub enum SurfaceConditionJson {
+    Reference(String),
+    Data(SurfaceConditionDataJson),
+}
+
+/// Concrete surface condition data.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type")]
+pub enum SurfaceConditionDataJson {
     #[serde(rename = "minecraft:stone_depth")]
     StoneDepth {
         offset: i32,
@@ -171,7 +187,10 @@ impl SurfaceRuleTranspiler {
     /// Generated code references `ctx: &mut SurfaceRuleContext` from `steel_utils`.
     pub fn transpile_rule(&mut self, rule: &SurfaceRuleJson) -> TokenStream {
         match rule {
-            SurfaceRuleJson::Block { result_state } => {
+            SurfaceRuleJson::Reference(id) => {
+                panic!("unresolved surface rule reference {id}")
+            }
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Block { result_state }) => {
                 let block_name = result_state.name.as_str();
                 let block_state_index = if let Some(idx) = self
                     .block_state_names
@@ -188,11 +207,11 @@ impl SurfaceRuleTranspiler {
                     return Some(ctx.block_state(#block_state_index));
                 }
             }
-            SurfaceRuleJson::Sequence { sequence } => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Sequence { sequence }) => {
                 let stmts: Vec<_> = sequence.iter().map(|r| self.transpile_rule(r)).collect();
                 quote! { #(#stmts)* }
             }
-            SurfaceRuleJson::Condition { if_true, then_run } => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Condition { if_true, then_run }) => {
                 let cond = self.transpile_condition(if_true);
                 let body = self.transpile_rule(then_run);
                 quote! {
@@ -201,7 +220,7 @@ impl SurfaceRuleTranspiler {
                     }
                 }
             }
-            SurfaceRuleJson::Bandlands {} => {
+            SurfaceRuleJson::Data(SurfaceRuleDataJson::Bandlands {}) => {
                 quote! {
                     return Some(ctx.system.get_band(ctx.block_x, ctx.block_y, ctx.block_z));
                 }
@@ -216,12 +235,15 @@ impl SurfaceRuleTranspiler {
     )]
     fn transpile_condition(&mut self, cond: &SurfaceConditionJson) -> TokenStream {
         match cond {
-            SurfaceConditionJson::StoneDepth {
+            SurfaceConditionJson::Reference(id) => {
+                panic!("unresolved surface condition reference {id}")
+            }
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::StoneDepth {
                 offset,
                 add_surface_depth,
                 secondary_depth_range,
                 surface_type,
-            } => {
+            }) => {
                 let is_floor = surface_type == "floor";
                 let depth_field = if is_floor {
                     quote! { ctx.stone_depth_above }
@@ -253,11 +275,11 @@ impl SurfaceRuleTranspiler {
                     quote! { #depth_field <= 1 + #offset }
                 }
             }
-            SurfaceConditionJson::AbovePreliminarySurface {} => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::AbovePreliminarySurface {}) => {
                 self.uses_preliminary_surface = true;
                 quote! { ctx.block_y >= ctx.min_surface_level }
             }
-            SurfaceConditionJson::BiomeIs { biome_is } => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::BiomeIs { biome_is }) => {
                 self.uses_biome = true;
                 let checks: Vec<_> = biome_is
                     .as_slice()
@@ -287,12 +309,12 @@ impl SurfaceRuleTranspiler {
                 };
                 quote! { #biome_id.is_some_and(|biome_id| #check) }
             }
-            SurfaceConditionJson::NoiseThreshold {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::NoiseThreshold {
                 noise,
                 is_3d,
                 min_threshold,
                 max_threshold,
-            } => {
+            }) => {
                 let noise_key = noise.clone();
                 let noise_index =
                     if let Some(idx) = self.noise_ids.iter().position(|k| k == &noise_key) {
@@ -316,11 +338,11 @@ impl SurfaceRuleTranspiler {
                     }
                 }
             }
-            SurfaceConditionJson::VerticalGradient {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::VerticalGradient {
                 random_name,
                 true_at_and_below,
                 false_at_and_above,
-            } => {
+            }) => {
                 let gradient_index =
                     if let Some(idx) = self.gradient_ids.iter().position(|id| id == random_name) {
                         idx
@@ -333,11 +355,11 @@ impl SurfaceRuleTranspiler {
                 let false_y = self.resolve_anchor(false_at_and_above);
                 quote! { ctx.system.vertical_gradient(#gradient_index, ctx.block_x, ctx.block_y, ctx.block_z, #true_y, #false_y) }
             }
-            SurfaceConditionJson::YAbove {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::YAbove {
                 anchor,
                 surface_depth_multiplier,
                 add_stone_depth,
-            } => {
+            }) => {
                 // Vanilla: blockY + (addStoneDepth ? stoneDepthAbove : 0)
                 //            >= anchor + surfaceDepth * multiplier
                 let anchor_y = self.resolve_anchor(anchor);
@@ -352,11 +374,11 @@ impl SurfaceRuleTranspiler {
                     }
                 }
             }
-            SurfaceConditionJson::Water {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::Water {
                 offset,
                 surface_depth_multiplier,
                 add_stone_depth,
-            } => {
+            }) => {
                 // Vanilla: waterHeight == MIN_VALUE
                 //   || blockY + (addStoneDepth ? stoneDepthAbove : 0)
                 //        >= waterHeight + offset + surfaceDepth * multiplier
@@ -373,18 +395,18 @@ impl SurfaceRuleTranspiler {
                     }
                 }
             }
-            SurfaceConditionJson::Temperature {} => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::Temperature {}) => {
                 self.uses_biome = true;
                 quote! { ctx.cold_enough_to_snow() }
             }
-            SurfaceConditionJson::Steep {} => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::Steep {}) => {
                 self.uses_steep = true;
                 quote! { ctx.steep }
             }
-            SurfaceConditionJson::Hole {} => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::Hole {}) => {
                 quote! { ctx.surface_depth <= 0 }
             }
-            SurfaceConditionJson::Not { invert } => {
+            SurfaceConditionJson::Data(SurfaceConditionDataJson::Not { invert }) => {
                 let inner = self.transpile_condition(invert);
                 quote! { !(#inner) }
             }
@@ -403,11 +425,15 @@ impl SurfaceRuleTranspiler {
 
 fn rule_uses_preliminary_surface(rule: &SurfaceRuleJson) -> bool {
     match rule {
-        SurfaceRuleJson::Block { .. } | SurfaceRuleJson::Bandlands {} => false,
-        SurfaceRuleJson::Sequence { sequence } => {
+        SurfaceRuleJson::Reference(id) => {
+            panic!("unresolved surface rule reference {id}")
+        }
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Block { .. })
+        | SurfaceRuleJson::Data(SurfaceRuleDataJson::Bandlands {}) => false,
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Sequence { sequence }) => {
             sequence.iter().any(rule_uses_preliminary_surface)
         }
-        SurfaceRuleJson::Condition { if_true, then_run } => {
+        SurfaceRuleJson::Data(SurfaceRuleDataJson::Condition { if_true, then_run }) => {
             condition_uses_preliminary_surface(if_true) || rule_uses_preliminary_surface(then_run)
         }
     }
@@ -415,17 +441,22 @@ fn rule_uses_preliminary_surface(rule: &SurfaceRuleJson) -> bool {
 
 fn condition_uses_preliminary_surface(condition: &SurfaceConditionJson) -> bool {
     match condition {
-        SurfaceConditionJson::AbovePreliminarySurface {} => true,
-        SurfaceConditionJson::Not { invert } => condition_uses_preliminary_surface(invert),
-        SurfaceConditionJson::StoneDepth { .. }
-        | SurfaceConditionJson::BiomeIs { .. }
-        | SurfaceConditionJson::NoiseThreshold { .. }
-        | SurfaceConditionJson::VerticalGradient { .. }
-        | SurfaceConditionJson::YAbove { .. }
-        | SurfaceConditionJson::Water { .. }
-        | SurfaceConditionJson::Temperature {}
-        | SurfaceConditionJson::Steep {}
-        | SurfaceConditionJson::Hole {} => false,
+        SurfaceConditionJson::Reference(id) => {
+            panic!("unresolved surface condition reference {id}")
+        }
+        SurfaceConditionJson::Data(SurfaceConditionDataJson::AbovePreliminarySurface {}) => true,
+        SurfaceConditionJson::Data(SurfaceConditionDataJson::Not { invert }) => {
+            condition_uses_preliminary_surface(invert)
+        }
+        SurfaceConditionJson::Data(SurfaceConditionDataJson::StoneDepth { .. })
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::BiomeIs { .. })
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::NoiseThreshold { .. })
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::VerticalGradient { .. })
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::YAbove { .. })
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Water { .. })
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Temperature {})
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Steep {})
+        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Hole {}) => false,
     }
 }
 

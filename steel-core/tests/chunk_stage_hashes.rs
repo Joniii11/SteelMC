@@ -51,7 +51,7 @@ struct FeatureGenerationInputs<'a> {
     generator: &'a Arc<ChunkGeneratorType>,
     feature_step: &'a ChunkStep,
     feature_cache_radius: i32,
-    seed: u64,
+    seed: i64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -68,7 +68,7 @@ struct DimensionData {
 
 #[derive(Deserialize, Debug)]
 struct ChunkStageHashesJson {
-    seed: u64,
+    seed: i64,
     chunk_generation_order: String,
     #[serde(default)]
     feature_hash_capture: Option<String>,
@@ -232,7 +232,7 @@ fn chunk_or_panic(chunks: &FxHashMap<(i32, i32), ChunkAccess>, pos: (i32, i32)) 
 fn create_test_world(
     dim_key: &str,
     dim_type: DimensionTypeRef,
-    seed: u64,
+    seed: i64,
     generator: Arc<ChunkGeneratorType>,
 ) -> Arc<World> {
     let runtime = Arc::new(Runtime::new().expect("failed to create chunk-stage hash test runtime"));
@@ -263,7 +263,7 @@ fn create_test_world(
             runtime.clone(),
             Identifier::new(Identifier::VANILLA_NAMESPACE, dim_short.to_owned()),
             dim_type,
-            seed as i64,
+            seed,
             WorldConfig {
                 storage: WorldStorageConfig::RamOnly,
                 level_data_path: None,
@@ -1010,7 +1010,7 @@ fn generate_features_for_positions(
         ));
         let region_random = inputs
             .generator
-            .create_worldgen_region_random(inputs.seed as i64, center);
+            .create_worldgen_region_random(inputs.seed, center);
         let mut region = steel_core::worldgen::WorldGenRegion::new(
             inputs.context,
             inputs.feature_step,
@@ -1104,7 +1104,7 @@ fn chunk_stage_hashes_inner() {
 
     let expected = load_expected_hashes();
     let seed = expected.seed;
-    assert_eq!(seed, 13579, "Expected seed 13579");
+    let generator_seed = seed as u64;
     assert_eq!(
         expected.chunk_generation_order, CHUNK_GENERATION_ORDER_X_Z_ASCENDING,
         "chunk stage hash test only supports x/z ascending generation order"
@@ -1195,16 +1195,16 @@ fn chunk_stage_hashes_inner() {
 
         let generator: Arc<ChunkGeneratorType> = Arc::new(match dim_key {
             "minecraft:overworld" => {
-                let source = BiomeSourceKind::overworld(seed);
-                ChunkGeneratorType::Overworld(OverworldGenerator::new(source, seed))
+                let source = BiomeSourceKind::overworld(generator_seed);
+                ChunkGeneratorType::Overworld(OverworldGenerator::new(source, generator_seed))
             }
             "minecraft:the_nether" => {
-                let source = BiomeSourceKind::nether(seed);
-                ChunkGeneratorType::Nether(NetherGenerator::new(source, seed))
+                let source = BiomeSourceKind::nether(generator_seed);
+                ChunkGeneratorType::Nether(NetherGenerator::new(source, generator_seed))
             }
             "minecraft:the_end" => {
-                let source = BiomeSourceKind::end(seed);
-                ChunkGeneratorType::End(EndGenerator::new(source, seed))
+                let source = BiomeSourceKind::end(generator_seed);
+                ChunkGeneratorType::End(EndGenerator::new(source, generator_seed))
             }
             _ => unreachable!(),
         });

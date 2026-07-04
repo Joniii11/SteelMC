@@ -12,11 +12,11 @@ mod redstone;
 pub mod vegetation;
 
 pub use building::{
-    BedBlock, CampfireBlock, DoorBlock, FenceBlock, HayBlock, HoneyBlock, LavaCauldronBlock,
-    MagmaBlock, PotentSulfurBlock, PowderSnowBlock, RotatedPillarBlock, ScaffoldingBlock,
-    SlabBlock, SlimeBlock, SpongeBlock, StairBlock, WeatherState, WeatheringCopper,
-    WeatheringCopperDoorBlock, WeatheringCopperFullBlock, WeatheringCopperSlabBlock,
-    WeatheringCopperStairBlock, WetSpongeBlock,
+    BedBlock, CampfireBlock, DoorBlock, FenceBlock, HayBlock, HoneyBlock, IronBarsBlock,
+    LavaCauldronBlock, MagmaBlock, PotentSulfurBlock, PowderSnowBlock, RotatedPillarBlock,
+    ScaffoldingBlock, SlabBlock, SlimeBlock, SpongeBlock, StairBlock, WeatherState,
+    WeatheringCopper, WeatheringCopperDoorBlock, WeatheringCopperFullBlock,
+    WeatheringCopperSlabBlock, WeatheringCopperStairBlock, WetSpongeBlock,
 };
 pub use container::{BarrelBlock, BeehiveBlock, CraftingTableBlock};
 pub use decoration::{
@@ -41,7 +41,7 @@ pub use vegetation::{
     FlowerBedBlock, GlowLichenBlock, HangingMossBlock, HangingRootsBlock, KelpBlock,
     KelpPlantBlock, LeafLitterBlock, LilyPadBlock, MangrovePropaguleBlock, MossyCarpetBlock,
     MushroomBlock, NetherFungusBlock, NetherRootsBlock, PointedDripstoneBlock, SaplingBlock,
-    SculkVeinBlock, SeaPickleBlock, ShortDryGrassBlock, SmallDripleafBlock, SnowLayerBlock,
-    SporeBlossomBlock, SulfurSpikeBlock, TallDryGrassBlock, TwistingVinesBlock,
+    SculkVeinBlock, SeaPickleBlock, ShelfMushroomBlock, ShortDryGrassBlock, SmallDripleafBlock,
+    SnowLayerBlock, SporeBlossomBlock, SulfurSpikeBlock, TallDryGrassBlock, TwistingVinesBlock,
     TwistingVinesPlantBlock, VineBlock, WeepingVinesBlock, WeepingVinesPlantBlock, WitherRoseBlock,
 };

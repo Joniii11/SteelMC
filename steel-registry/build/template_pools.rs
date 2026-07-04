@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Read;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -238,6 +238,19 @@ fn gen_identifier(id: &str) -> TokenStream {
     }
 }
 
+fn gen_vec(items: &[TokenStream]) -> TokenStream {
+    if items.is_empty() {
+        return quote! { Vec::new() };
+    }
+
+    let item_count = items.len();
+    quote! {{
+        let mut values = Vec::with_capacity(#item_count);
+        #(values.push(#items);)*
+        values
+    }}
+}
+
 fn required<T>(value: Option<T>, context: &str, field: &str) -> T {
     value.unwrap_or_else(|| panic!("Missing required field {field} in {context}"))
 }
@@ -299,8 +312,14 @@ fn gen_element(elem: &ElementJson, context: &str) -> TokenStream {
                 .enumerate()
                 .map(|(index, elem)| gen_element(elem, &format!("{context}.elements[{index}]")))
                 .collect();
+            let elements = gen_vec(&sub_elements);
             let projection = gen_projection(&elem.projection, context);
-            quote! { PoolElement::List { elements: vec![#(#sub_elements),*], projection: #projection } }
+            quote! {
+                PoolElement::List {
+                    elements: #elements,
+                    projection: #projection,
+                }
+            }
         }
         other => panic!("Unknown pool element type: {other}"),
     }
@@ -346,10 +365,12 @@ pub(crate) fn build() -> TokenStream {
     collect_pool_files(pool_dir, "", &mut pools);
     pools.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let mut pool_tokens = TokenStream::new();
-    for (name, pool) in &pools {
+    let mut pool_helpers = TokenStream::new();
+    let mut pool_calls = TokenStream::new();
+    for (pool_index, (name, pool)) in pools.iter().enumerate() {
         let key = gen_identifier(&format!("minecraft:{name}"));
         let fallback = gen_identifier(&pool.fallback);
+        let helper_ident = format_ident!("push_vanilla_template_pool_{pool_index}");
 
         let elements: Vec<TokenStream> = pool
             .elements
@@ -364,13 +385,19 @@ pub(crate) fn build() -> TokenStream {
                 quote! { (#elem, #weight) }
             })
             .collect();
+        let elements = gen_vec(&elements);
 
-        pool_tokens.extend(quote! {
-            TemplatePoolData {
-                key: #key,
-                fallback: #fallback,
-                elements: vec![#(#elements),*],
-            },
+        pool_helpers.extend(quote! {
+            fn #helper_ident(pools: &mut Vec<TemplatePoolData>) {
+                pools.push(TemplatePoolData {
+                    key: #key,
+                    fallback: #fallback,
+                    elements: #elements,
+                });
+            }
+        });
+        pool_calls.extend(quote! {
+            #helper_ident(&mut pools);
         });
     }
 
@@ -380,10 +407,12 @@ pub(crate) fn build() -> TokenStream {
     collect_nbt_files(structure_dir, "", &mut templates);
     templates.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let mut template_tokens = TokenStream::new();
+    let mut template_helpers = TokenStream::new();
+    let mut template_calls = TokenStream::new();
     let mut template_nbt_match_arms = TokenStream::new();
-    for (name, tmpl) in &templates {
+    for (template_index, (name, tmpl)) in templates.iter().enumerate() {
         let key = gen_identifier(&format!("minecraft:{name}"));
+        let helper_ident = format_ident!("push_vanilla_template_{template_index}");
         let sx = tmpl.size[0];
         let sy = tmpl.size[1];
         let sz = tmpl.size[2];
@@ -422,12 +451,18 @@ pub(crate) fn build() -> TokenStream {
                 }
             })
             .collect();
+        let jigsaws = gen_vec(&jigsaw_tokens);
 
-        template_tokens.extend(quote! {
-            (#key, TemplateData {
-                size: [#sx, #sy, #sz],
-                jigsaws: vec![#(#jigsaw_tokens),*],
-            }),
+        template_helpers.extend(quote! {
+            fn #helper_ident(templates: &mut Vec<(Identifier, TemplateData)>) {
+                templates.push((#key, TemplateData {
+                    size: [#sx, #sy, #sz],
+                    jigsaws: #jigsaws,
+                }));
+            }
+        });
+        template_calls.extend(quote! {
+            #helper_ident(&mut templates);
         });
         template_nbt_match_arms.extend(quote! {
             #name => Some(include_bytes!(#include_path)),
@@ -444,16 +479,24 @@ pub(crate) fn build() -> TokenStream {
         };
         use steel_utils::Identifier;
 
+        #pool_helpers
+
+        #template_helpers
+
         /// Returns all vanilla template pools parsed from the datapack.
         pub fn vanilla_template_pools() -> Vec<TemplatePoolData> {
-            vec![#pool_tokens]
+            let mut pools = Vec::with_capacity(#pool_count);
+            #pool_calls
+            pools
         }
 
         /// Returns all vanilla structure templates with their jigsaw data.
         ///
         /// Each entry is (template_key, template_data).
         pub fn vanilla_templates() -> Vec<(Identifier, TemplateData)> {
-            vec![#template_tokens]
+            let mut templates = Vec::with_capacity(#template_count);
+            #template_calls
+            templates
         }
 
         /// Returns the compressed NBT bytes for a vanilla structure template.
