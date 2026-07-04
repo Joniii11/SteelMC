@@ -46,7 +46,7 @@ impl BlockBehavior for ShelfMushroomBlock {
                 &BlockStateProperties::HORIZONTAL_FACING,
                 direction.opposite(),
             );
-            if self.can_survive(state, context.world, context.relative_pos) {
+            if self.can_survive(state, context.world, context.place_pos) {
                 return Some(state);
             }
         }
