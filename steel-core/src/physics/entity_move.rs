@@ -38,6 +38,13 @@ pub enum MoverType {
     Shulker,
 }
 
+impl MoverType {
+    /// Mirrors vanilla `MoverType.isServerAndClientSimulated`.
+    pub const fn is_server_and_client_simulated(self) -> bool {
+        !matches!(self, Self::SelfMovement)
+    }
+}
+
 /// Result of a movement operation.
 #[derive(Debug, Clone)]
 pub struct MoveResult {
@@ -667,6 +674,15 @@ mod tests {
 
     fn item_state(position: DVec3) -> EntityPhysicsState {
         EntityPhysicsState::with_dimensions(position, vanilla_entities::ITEM.dimensions, 0.6)
+    }
+
+    #[test]
+    fn mover_type_self_is_not_server_and_client_simulated() {
+        assert!(!MoverType::SelfMovement.is_server_and_client_simulated());
+        assert!(MoverType::Player.is_server_and_client_simulated());
+        assert!(MoverType::Piston.is_server_and_client_simulated());
+        assert!(MoverType::ShulkerBox.is_server_and_client_simulated());
+        assert!(MoverType::Shulker.is_server_and_client_simulated());
     }
 
     #[test]

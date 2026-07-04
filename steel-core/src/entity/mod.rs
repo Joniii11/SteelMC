@@ -1151,7 +1151,7 @@ pub trait Entity: EntityEventSource + Send + Sync {
 
     /// Applies vanilla `Entity.onAboveBubbleColumn`.
     fn on_above_bubble_column(&self, drag_down: bool, _pos: BlockPos) {
-        if self.is_flying_player() {
+        if !self.can_simulate_movement() {
             return;
         }
 
@@ -1166,18 +1166,17 @@ pub trait Entity: EntityEventSource + Send + Sync {
 
     /// Applies vanilla `Entity.onInsideBubbleColumn`.
     fn on_inside_bubble_column(&self, drag_down: bool) {
-        if self.is_flying_player() {
-            return;
+        if self.can_simulate_movement() {
+            let velocity = self.velocity();
+            let y = if drag_down {
+                (velocity.y - BUBBLE_COLUMN_DOWN_ACCELERATION)
+                    .max(BUBBLE_COLUMN_INSIDE_DOWN_MIN_SPEED)
+            } else {
+                (velocity.y + BUBBLE_COLUMN_INSIDE_UP_ACCELERATION)
+                    .min(BUBBLE_COLUMN_INSIDE_UP_MAX_SPEED)
+            };
+            self.set_velocity(DVec3::new(velocity.x, y, velocity.z));
         }
-
-        let velocity = self.velocity();
-        let y = if drag_down {
-            (velocity.y - BUBBLE_COLUMN_DOWN_ACCELERATION).max(BUBBLE_COLUMN_INSIDE_DOWN_MIN_SPEED)
-        } else {
-            (velocity.y + BUBBLE_COLUMN_INSIDE_UP_ACCELERATION)
-                .min(BUBBLE_COLUMN_INSIDE_UP_MAX_SPEED)
-        };
-        self.set_velocity(DVec3::new(velocity.x, y, velocity.z));
         self.reset_fall_distance();
     }
 
@@ -2420,9 +2419,9 @@ pub trait Entity: EntityEventSource + Send + Sync {
         self.base().clear_velocity_sync();
     }
 
-    /// Returns true when vanilla hurt-marked velocity sync is pending.
-    fn hurt_marked(&self) -> bool {
-        self.base().hurt_marked()
+    /// Returns true when vanilla self inclusive velocity sync is pending
+    fn sync_velocity(&self) -> bool {
+        self.base().sync_velocity()
     }
 
     /// Marks this entity as hurt for vanilla self-inclusive motion sync.
@@ -2430,9 +2429,9 @@ pub trait Entity: EntityEventSource + Send + Sync {
         self.base().mark_hurt();
     }
 
-    /// Clears the vanilla hurt-marked motion sync flag.
-    fn clear_hurt_mark(&self) {
-        self.base().clear_hurt_mark();
+    /// Clears the vanilla self inclusive velocity sync flag
+    fn clear_sync_velocity(&self) {
+        self.base().clear_sync_velocity();
     }
 
     /// Returns accumulated vanilla fall distance.
@@ -3650,6 +3649,11 @@ pub trait Entity: EntityEventSource + Send + Sync {
     /// Updates position, `on_ground`, velocity (on collision), and returns collision info.
     fn move_entity(&self, mover_type: MoverType, delta: DVec3) -> Option<MoveResult> {
         let world = self.level()?;
+        debug_assert!(
+            mover_type.is_server_and_client_simulated() || self.can_simulate_movement(),
+            "attempted to move entity on a logical side not permitted to simulate movement"
+        );
+
         if self.no_physics() {
             return self.move_without_physics(delta);
         }
@@ -6756,7 +6760,7 @@ mod tests {
         vehicle: bool,
         on_non_air_block_for_frost: bool,
         in_wall_for_base_tick: bool,
-        flying_player: bool,
+        can_simulate_movement: bool,
     }
 
     impl LivingFluidTestEntity {
@@ -6785,7 +6789,7 @@ mod tests {
                 vehicle: false,
                 on_non_air_block_for_frost: false,
                 in_wall_for_base_tick: false,
-                flying_player: false,
+                can_simulate_movement: true,
             }
         }
 
@@ -6814,8 +6818,8 @@ mod tests {
             self
         }
 
-        const fn with_flying_player(mut self) -> Self {
-            self.flying_player = true;
+        const fn without_movement_simulation(mut self) -> Self {
+            self.can_simulate_movement = false;
             self
         }
 
@@ -6876,8 +6880,8 @@ mod tests {
             Some(&self.entity_data)
         }
 
-        fn is_flying_player(&self) -> bool {
-            self.flying_player
+        fn can_simulate_movement(&self) -> bool {
+            self.can_simulate_movement
         }
     }
 
@@ -7895,9 +7899,9 @@ mod tests {
     }
 
     #[test]
-    fn flying_players_ignore_bubble_column_entity_hooks() {
+    fn bubble_column_velocity_requires_movement_simulation() {
         init_test_registry();
-        let entity = LivingFluidTestEntity::new(0.0, 0.0, true).with_flying_player();
+        let entity = LivingFluidTestEntity::new(0.0, 0.0, true).without_movement_simulation();
         let velocity = DVec3::new(0.1, 0.2, 0.3);
         entity.set_velocity(velocity);
         entity.set_fall_distance(4.0);
@@ -7906,7 +7910,7 @@ mod tests {
         entity.on_above_bubble_column(false, BlockPos::ZERO);
 
         assert_vec3_close(entity.velocity(), velocity);
-        assert_f64_close(entity.fall_distance(), 4.0);
+        assert_f64_close(entity.fall_distance(), 0.0);
     }
 
     #[test]

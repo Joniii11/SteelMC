@@ -449,6 +449,10 @@ impl Entity for ExperienceOrbEntity {
         DEFAULT_GRAVITY
     }
 
+    fn can_simulate_movement(&self) -> bool {
+        true
+    }
+
     fn block_pos_below_that_affects_movement(&self) -> Option<BlockPos> {
         self.on_pos(0.999_999)
     }
@@ -592,6 +596,20 @@ mod tests {
         assert!(orb.can_merge_id(1, 7));
         assert!(!orb.can_merge_id(2, 7));
         assert!(!orb.can_merge_id(1, 3));
+    }
+
+    #[test]
+    fn experience_orb_can_always_simulate_movement() {
+        init_test_registry();
+
+        let orb = ExperienceOrbEntity::new(
+            &vanilla_entities::EXPERIENCE_ORB,
+            41,
+            DVec3::ZERO,
+            Weak::new(),
+        );
+
+        assert!(orb.can_simulate_movement());
     }
 
     #[test]
