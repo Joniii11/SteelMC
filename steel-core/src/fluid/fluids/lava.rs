@@ -16,7 +16,6 @@ use steel_registry::vanilla_blocks;
 use steel_registry::vanilla_game_rules::LAVA_SOURCE_CONVERSION;
 use steel_utils::BlockPos;
 use steel_utils::BlockStateId;
-use steel_utils::types::UpdateFlags;
 
 use crate::entity::{Entity, InsideBlockEffectCollector, InsideBlockEffectType};
 use crate::fluid::{FlowingFluid, FluidBehavior, get_flow as flowing_fluid_flow};
@@ -207,10 +206,9 @@ impl FlowingFluid for LavaFluid {
                 // not a waterlogged block (stairs, slabs, etc.).
                 let below_block = world.get_block_state(pos).get_block();
                 if below_block == &vanilla_blocks::WATER {
-                    world.set_block(
+                    world.set_block_and_update(
                         pos,
                         REGISTRY.blocks.get_default_state_id(&vanilla_blocks::STONE),
-                        UpdateFlags::UPDATE_ALL_IMMEDIATE,
                     );
                 }
                 return;

@@ -1122,6 +1122,15 @@ impl World {
         self.set_block_with_limit(pos, block_state, flags, 512)
     }
 
+    /// Its under the hood set_block with the UpdateFlags::UPDATE_ALL, maybe we could remove this?
+    pub fn set_block_and_update(
+        self: &Arc<Self>,
+        pos: BlockPos,
+        block_state: BlockStateId,
+    ) -> bool {
+        self.set_block(pos, block_state, UpdateFlags::UPDATE_ALL)
+    }
+
     /// Sets a block at the given position with a custom update limit.
     ///
     /// The update limit prevents infinite recursion when shape updates trigger

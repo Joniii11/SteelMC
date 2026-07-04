@@ -11,7 +11,6 @@ use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::Direction;
 use steel_registry::vanilla_blocks;
 use steel_utils::BlockPos;
-use steel_utils::types::UpdateFlags;
 
 use crate::behavior::{BLOCK_BEHAVIORS, BlockStateBehaviorExt, FLUID_BEHAVIORS};
 use crate::fluid::{
@@ -42,13 +41,13 @@ pub trait FlowingFluid: FluidBehavior {
                 current_fluid = new_fluid;
                 // Vanilla: unconditionally sets Blocks.AIR when fluid empties
                 let air = REGISTRY.blocks.get_default_state_id(&vanilla_blocks::AIR);
-                world.set_block(pos, air, UpdateFlags::UPDATE_ALL);
+                world.set_block_and_update(pos, air);
             } else if new_fluid != current_fluid {
                 let old_fluid = current_fluid;
                 current_fluid = new_fluid;
                 let existing_state = world.get_block_state(pos);
                 let block_state = fluid_state_to_block_with_existing(new_fluid, existing_state);
-                world.set_block(pos, block_state, UpdateFlags::UPDATE_ALL);
+                world.set_block_and_update(pos, block_state);
 
                 world.schedule_fluid_tick_default(
                     pos,
@@ -131,9 +130,8 @@ pub trait FlowingFluid: FluidBehavior {
         }
 
         let block_state = fluid_state_to_block(fluid_state);
-        // Vanilla uses flag 3 (UPDATE_ALL). Tick scheduling is handled by
-        // LiquidBlock.on_place which fires from set_block.
-        world.set_block(pos, block_state, UpdateFlags::UPDATE_ALL);
+        // Tick scheduling is handled by LiquidBlock.on_place which fires from set_block.
+        world.set_block_and_update(pos, block_state);
     }
 
     /// Performs the actual placement of fluid and schedules the tick.
