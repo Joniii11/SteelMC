@@ -8,12 +8,10 @@ use crate::behavior::BlockStateBehaviorExt;
 use crate::behavior::{BLOCK_BEHAVIORS, FLUID_BEHAVIORS};
 use crate::physics::shapes::merged_offset_face_occludes;
 use crate::world::World;
-use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::Direction;
 use steel_registry::fluid::FluidRef;
 use steel_registry::vanilla_block_tags::BlockTag;
-use steel_registry::vanilla_blocks;
 use steel_utils::{BlockPos, BlockStateId};
 
 // TODO: Add occlusion cache for performance (vanilla uses 200-entry ThreadLocal LRU)
@@ -48,37 +46,14 @@ pub fn can_hold_any_fluid(world: &Arc<World>, pos: BlockPos) -> bool {
 /// Checks if a block state can hold any fluid, without world access.
 ///
 /// Vanilla equivalent: `FlowingFluid.canHoldAnyFluid(BlockState)`.
-/// Uses `blocksMotion()` check instead of `has_collision` — vanilla's
-/// `blocksMotion()` = `block != Cobweb && block != BambooSapling && isSolid()`.
 #[must_use]
 pub fn can_hold_any_fluid_state(state: BlockStateId) -> bool {
-    let block = state.get_block();
-
     // Vanilla: block instanceof LiquidBlockContainer → true
     if state.is_liquid_container() {
         return true;
     }
 
-    // Vanilla: state.blocksMotion() ? false : !(exclusion list)
-    if state.blocks_motion() {
-        return false;
-    }
-
-    // Non-solid blocks that still reject fluid.
-    !is_fluid_excluded_block(block)
-}
-
-/// Returns true if a block is in the vanilla fluid exclusion list.
-fn is_fluid_excluded_block(block: BlockRef) -> bool {
-    block == &vanilla_blocks::LADDER
-        || block == &vanilla_blocks::SUGAR_CANE
-        || block == &vanilla_blocks::BUBBLE_COLUMN
-        || block == &vanilla_blocks::NETHER_PORTAL
-        || block == &vanilla_blocks::END_PORTAL
-        || block == &vanilla_blocks::END_GATEWAY
-        || block == &vanilla_blocks::STRUCTURE_VOID
-        || block.has_tag(&BlockTag::SIGNS)
-        || block.has_tag(&BlockTag::DOORS)
+    state.get_block().has_tag(&BlockTag::WASHED_AWAY_BY_FLUIDS)
 }
 
 /// Vanilla equivalent: `FlowingFluid.canHoldSpecificFluid(BlockGetter, BlockPos, BlockState, Fluid)`.
@@ -198,5 +173,19 @@ mod tests {
         assert!(can_hold_any_fluid_state(kelp));
         assert!(!can_hold_specific_fluid(kelp, &vanilla_fluids::WATER));
         assert!(!can_hold_specific_fluid(kelp, &vanilla_fluids::LAVA));
+    }
+
+    #[test]
+    fn can_hold_any_fluid_uses_washed_away_tag() {
+        init_test_registry();
+        init_behaviors();
+
+        let fire = vanilla_blocks::FIRE.default_state();
+        let stone = vanilla_blocks::STONE.default_state();
+
+        assert!(fire.get_block().has_tag(&BlockTag::WASHED_AWAY_BY_FLUIDS));
+        assert!(can_hold_any_fluid_state(fire));
+        assert!(!stone.get_block().has_tag(&BlockTag::WASHED_AWAY_BY_FLUIDS));
+        assert!(!can_hold_any_fluid_state(stone));
     }
 }

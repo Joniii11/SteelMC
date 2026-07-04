@@ -10,6 +10,7 @@ use steel_registry::REGISTRY;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::BlockStateProperties;
 use steel_registry::fluid::{FluidRef, FluidState, is_lava_fluid, is_water_fluid};
+use steel_registry::vanilla_block_tags::BlockTag;
 use steel_registry::vanilla_blocks;
 use steel_utils::{BlockPos, BlockStateId, Direction};
 
@@ -205,7 +206,10 @@ where
         let mut neighbor_height = get_own_height(neighbor_fluid);
         let mut distance = 0.0;
         if neighbor_height == 0.0 {
-            if !block_at(neighbor_pos).blocks_motion() {
+            if !block_at(neighbor_pos)
+                .get_block()
+                .has_tag(&BlockTag::BLOCKS_FLUID_FLOW)
+            {
                 let below_fluid = fluid_at(neighbor_pos.below());
                 if affects_flow_with(below_fluid, &same_fluid) {
                     neighbor_height = get_own_height(below_fluid);
@@ -351,6 +355,37 @@ mod tests {
         assert!((flow.x - 1.0).abs() < f64::EPSILON);
         assert!(flow.y.abs() < f64::EPSILON);
         assert!(flow.z.abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn flow_below_check_uses_blocks_fluid_flow_tag() {
+        init_test_registry();
+        let pos = BlockPos::new(0, 64, 0);
+        let east = pos.east();
+        let east_below = east.below();
+        let mut checked_neighbor_block = false;
+        let flow = get_flow_with(
+            pos,
+            FluidState::source(&vanilla_fluids::WATER),
+            same_water,
+            |fluid_pos| {
+                if fluid_pos == east_below {
+                    FluidState::flowing(&vanilla_fluids::FLOWING_WATER, 4, false)
+                } else {
+                    FluidState::EMPTY
+                }
+            },
+            |block_pos| {
+                if block_pos == east {
+                    checked_neighbor_block = true;
+                    assert!(!vanilla_blocks::AIR.has_tag(&BlockTag::BLOCKS_FLUID_FLOW));
+                }
+                vanilla_blocks::AIR.default_state()
+            },
+        );
+
+        assert!(checked_neighbor_block);
+        assert!(flow.x > 0.0);
     }
 
     #[test]
