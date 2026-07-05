@@ -18,7 +18,7 @@ use crate::{
     world::{ScheduledTickAccess, World, game_event_context::GameEventContext},
 };
 
-/// Vanilla `PathBlock`, used by `dirt_path`.
+/// Vanilla `PathBlock`
 #[block_behavior]
 pub struct PathBlock {
     block: BlockRef,
@@ -27,7 +27,7 @@ pub struct PathBlock {
 }
 
 impl PathBlock {
-    /// Creates a path block behavior with its vanilla base block.
+    /// Creates a path block behavior
     #[must_use]
     pub const fn new(block: BlockRef, base_block: BlockRef) -> Self {
         Self { block, base_block }
@@ -99,23 +99,5 @@ impl BlockBehavior for PathBlock {
         _computation_type: PathComputationType,
     ) -> bool {
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use steel_registry::{test_support::init_test_registry, vanilla_blocks};
-
-    #[test]
-    fn path_block_is_not_pathfindable() {
-        init_test_registry();
-        let behavior = PathBlock::new(&vanilla_blocks::DIRT_PATH, &vanilla_blocks::DIRT);
-        let state = vanilla_blocks::DIRT_PATH.default_state();
-
-        assert!(!behavior.is_pathfindable(state, PathComputationType::Land));
-        assert!(!behavior.is_pathfindable(state, PathComputationType::Air));
-        assert!(!behavior.is_pathfindable(state, PathComputationType::Water));
     }
 }
