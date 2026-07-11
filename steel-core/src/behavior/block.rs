@@ -239,17 +239,6 @@ impl BlockCollisionContext {
     }
 }
 
-/// Entity facts needed by `Block.updateEntityMovementAfterFallOn`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EntityLandingContext {
-    /// Entity velocity before the block landing hook adjusts it.
-    pub velocity: DVec3,
-    /// Whether the entity uses vanilla living-entity bounce behavior.
-    pub is_living_entity: bool,
-    /// Whether vanilla bounce behavior should be suppressed.
-    pub suppresses_bounce: bool,
-}
-
 /// Entity facts needed by `Block.fallOn`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EntityFallOnFacts {
@@ -386,24 +375,6 @@ impl EntityFallDamage {
             damage_modifier,
             source,
         }
-    }
-}
-
-impl EntityLandingContext {
-    /// Creates a landing context for a vertical movement collision.
-    #[must_use]
-    pub const fn new(velocity: DVec3, is_living_entity: bool, suppresses_bounce: bool) -> Self {
-        Self {
-            velocity,
-            is_living_entity,
-            suppresses_bounce,
-        }
-    }
-
-    /// Vanilla default `Block.updateEntityMovementAfterFallOn` result.
-    #[must_use]
-    pub const fn default_velocity_after_fall_on(self) -> DVec3 {
-        DVec3::new(self.velocity.x, 0.0, self.velocity.z)
     }
 }
 
@@ -1002,37 +973,19 @@ pub trait BlockBehavior: Send + Sync {
     ) {
     }
 
-    /// Default post-fall movement hook.
-    ///
-    /// Overrides that mirror vanilla `super.updateEntityMovementAfterFallOn(...)`
-    /// should call [`Self::default_update_entity_movement_after_fall_on`].
+    /// Called after collision restitution bounces an entity from this block
     #[expect(
         unused_variables,
-        reason = "default trait implementation ignores state, world, and pos"
+        reason = "default vanilla block bounce hook is no op"
     )]
-    fn default_update_entity_movement_after_fall_on(
+    fn bounce_on(
         &self,
         state: BlockStateId,
-        world: &Arc<World>,
+        world: &dyn LevelAccessor,
         pos: BlockPos,
-        context: EntityLandingContext,
-    ) -> DVec3 {
-        context.default_velocity_after_fall_on()
-    }
-
-    /// Updates entity velocity after a vertical movement collision with this block.
-    ///
-    /// Vanilla mutates the entity in `Block.updateEntityMovementAfterFallOn`.
-    /// Steel returns the velocity to apply so movement resolution keeps entity
-    /// state changes centralized in [`Entity::move_entity`].
-    fn update_entity_movement_after_fall_on(
-        &self,
-        state: BlockStateId,
-        world: &Arc<World>,
-        pos: BlockPos,
-        context: EntityLandingContext,
-    ) -> DVec3 {
-        self.default_update_entity_movement_after_fall_on(state, world, pos, context)
+        entity: &dyn Entity,
+        fall_distance: f64,
+    ) {
     }
 
     /// Default step-on hook.
