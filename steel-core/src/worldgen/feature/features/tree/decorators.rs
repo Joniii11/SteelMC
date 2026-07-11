@@ -826,7 +826,9 @@ impl FeatureDecorationRunner {
         [first, first.rotate_y_clockwise()]
     }
 
-    fn shelf_mushroom_directions_perpendicular_to_fallen_log(logs: &[BlockPos]) -> [Direction; 2] {
+    const fn shelf_mushroom_directions_perpendicular_to_fallen_log(
+        logs: &[BlockPos],
+    ) -> [Direction; 2] {
         let first = logs[0];
         let last = logs[logs.len() - 1];
 
