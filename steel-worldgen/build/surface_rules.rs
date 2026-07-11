@@ -449,15 +449,17 @@ fn condition_uses_preliminary_surface(condition: &SurfaceConditionJson) -> bool 
         SurfaceConditionJson::Data(SurfaceConditionDataJson::Not { invert }) => {
             condition_uses_preliminary_surface(invert)
         }
-        SurfaceConditionJson::Data(SurfaceConditionDataJson::StoneDepth { .. })
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::BiomeIs { .. })
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::NoiseThreshold { .. })
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::VerticalGradient { .. })
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::YAbove { .. })
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Water { .. })
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Temperature {})
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Steep {})
-        | SurfaceConditionJson::Data(SurfaceConditionDataJson::Hole {}) => false,
+        SurfaceConditionJson::Data(
+            SurfaceConditionDataJson::StoneDepth { .. }
+            | SurfaceConditionDataJson::BiomeIs { .. }
+            | SurfaceConditionDataJson::NoiseThreshold { .. }
+            | SurfaceConditionDataJson::VerticalGradient { .. }
+            | SurfaceConditionDataJson::YAbove { .. }
+            | SurfaceConditionDataJson::Water { .. }
+            | SurfaceConditionDataJson::Temperature {}
+            | SurfaceConditionDataJson::Steep {}
+            | SurfaceConditionDataJson::Hole {},
+        ) => false,
     }
 }
 
