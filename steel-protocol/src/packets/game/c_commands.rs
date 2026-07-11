@@ -292,6 +292,7 @@ pub enum ArgumentType {
     LootTable,
     LootPredicate,
     LootModifier,
+    SlotSource,
     Dialog,
     Uuid,
 }
@@ -360,8 +361,9 @@ impl ArgumentType {
             Self::LootTable => 51,
             Self::LootPredicate => 52,
             Self::LootModifier => 53,
-            Self::Dialog => 54,
-            Self::Uuid => 55,
+            Self::SlotSource => 54,
+            Self::Dialog => 55,
+            Self::Uuid => 56,
         }
     }
 }
