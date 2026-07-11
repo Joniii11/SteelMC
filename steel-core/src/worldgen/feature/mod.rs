@@ -6,6 +6,10 @@
 //! features execute normally; concrete block-mutating features are
 //! added through the feature runtime registry.
 
+#[expect(
+    clippy::module_inception,
+    reason = "the feature runtime implementation intentionally lives in feature.rs"
+)]
 mod feature;
 mod features;
 pub(crate) mod instrumentation;

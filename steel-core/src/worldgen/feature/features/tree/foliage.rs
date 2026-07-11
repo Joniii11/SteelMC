@@ -523,6 +523,10 @@ impl FeatureDecorationRunner {
         clippy::too_many_arguments,
         reason = "mirrors vanilla poplar foliage log replacement state"
     )]
+    #[expect(
+        clippy::similar_names,
+        reason = "X and Z axis coordinates and branch flags are intentionally symmetric"
+    )]
     fn replace_poplar_leaves_with_logs(
         region: &mut WorldGenRegion<'_>,
         registry: &Registry,
@@ -1152,6 +1156,10 @@ impl FeatureDecorationRunner {
         }
     }
 
+    #[expect(
+        clippy::similar_names,
+        reason = "X and Z axis coordinates are intentionally symmetric"
+    )]
     fn poplar_foliage_should_skip_location(
         random: &mut WorldgenRandom,
         placer: &PoplarFoliagePlacer,
@@ -1208,6 +1216,10 @@ impl FeatureDecorationRunner {
         }
     }
 
+    #[expect(
+        clippy::similar_names,
+        reason = "the rhombus calculation requires paired X and Z axis distances"
+    )]
     const fn poplar_is_within_rhombus(
         current_radius: i32,
         abs_dx: i32,
