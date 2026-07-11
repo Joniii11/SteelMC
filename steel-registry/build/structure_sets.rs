@@ -1161,17 +1161,20 @@ pub(crate) fn build() -> TokenStream {
                 let spacing = required(set.placement.spacing, set_name, "placement.spacing");
                 let separation =
                     required(set.placement.separation, set_name, "placement.separation");
-                if spacing <= 0 {
-                    panic!("Structure set {set_name} has non-positive spacing {spacing}");
-                }
-                if separation < 0 {
-                    panic!("Structure set {set_name} has negative separation {separation}");
-                }
-                if spacing <= separation {
-                    panic!(
-                        "Structure set {set_name} has spacing {spacing} <= separation {separation}"
-                    );
-                }
+
+                assert!(
+                    spacing > 0,
+                    "Structure set {set_name} has non-positive spacing {spacing}"
+                );
+                assert!(
+                    separation >= 0,
+                    "Structure set {set_name} has negative separation {separation}"
+                );
+                assert!(
+                    spacing > separation,
+                    "Structure set {set_name} has spacing {spacing} <= separation {separation}"
+                );
+
                 let salt = required(set.placement.salt, set_name, "placement.salt");
                 let spread_type = generate_spread_type(&set.placement.spread_type);
 
@@ -1210,15 +1213,20 @@ pub(crate) fn build() -> TokenStream {
                 let distance = required(set.placement.distance, set_name, "placement.distance");
                 let spread = required(set.placement.spread, set_name, "placement.spread");
                 let count = required(set.placement.count, set_name, "placement.count");
-                if distance <= 0 {
-                    panic!("Structure set {set_name} has non-positive ring distance {distance}");
-                }
-                if spread <= 0 {
-                    panic!("Structure set {set_name} has non-positive ring spread {spread}");
-                }
-                if count < 0 {
-                    panic!("Structure set {set_name} has negative ring count {count}");
-                }
+
+                assert!(
+                    distance > 0,
+                    "Structure set {set_name} has non-positive ring distance {distance}"
+                );
+                assert!(
+                    spread > 0,
+                    "Structure set {set_name} has non-positive ring spread {spread}"
+                );
+                assert!(
+                    count >= 0,
+                    "Structure set {set_name} has negative ring count {count}"
+                );
+
                 let salt = required(set.placement.salt, set_name, "placement.salt");
 
                 // Resolve preferred biomes from tag reference (e.g., "#minecraft:stronghold_biased_to")
