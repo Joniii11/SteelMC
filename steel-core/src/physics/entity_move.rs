@@ -39,7 +39,8 @@ pub enum MoverType {
 }
 
 impl MoverType {
-    /// Mirrors vanilla `MoverType.isServerAndClientSimulated`.
+    /// Mirrors vanilla `MoverType.isServerAndClientSimulated`
+    #[must_use]
     pub const fn is_server_and_client_simulated(self) -> bool {
         !matches!(self, Self::SelfMovement)
     }

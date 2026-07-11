@@ -602,7 +602,7 @@ impl ServerEntityMovementSyncState {
         result
     }
 
-    fn align_tick_count_for_sync_position(&mut self) {
+    const fn align_tick_count_for_sync_position(&mut self) {
         if self.update_interval > 0 {
             self.tick_count = self.tick_count / self.update_interval * self.update_interval
                 + self.update_interval;

@@ -15,7 +15,7 @@ use crate::{
     },
     entity::Entity,
     entity::ai::path::PathComputationType,
-    world::{ScheduledTickAccess, World, game_event_context::GameEventContext},
+    world::{LevelReader, ScheduledTickAccess, World, game_event_context::GameEventContext},
 };
 
 /// Vanilla `PathBlock`
@@ -63,12 +63,7 @@ impl BlockBehavior for PathBlock {
         })
     }
 
-    fn can_survive(
-        &self,
-        _state: BlockStateId,
-        world: &dyn crate::world::LevelReader,
-        pos: BlockPos,
-    ) -> bool {
+    fn can_survive(&self, _state: BlockStateId, world: &dyn LevelReader, pos: BlockPos) -> bool {
         let above = world.get_block_state(pos.above());
         !above.is_solid() || above.get_block().has_tag(&BlockTag::FENCE_GATES)
     }

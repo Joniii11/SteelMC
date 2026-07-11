@@ -1187,7 +1187,7 @@ impl FeatureDecorationRunner {
         )
     }
 
-    fn poplar_corner_blocks_to_cut(
+    const fn poplar_corner_blocks_to_cut(
         dx: i32,
         dz: i32,
         current_radius: i32,

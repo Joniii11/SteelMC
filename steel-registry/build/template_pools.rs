@@ -239,16 +239,7 @@ fn gen_identifier(id: &str) -> TokenStream {
 }
 
 fn gen_vec(items: &[TokenStream]) -> TokenStream {
-    if items.is_empty() {
-        return quote! { Vec::new() };
-    }
-
-    let item_count = items.len();
-    quote! {{
-        let mut values = Vec::with_capacity(#item_count);
-        #(values.push(#items);)*
-        values
-    }}
+    quote! { vec![#(#items),*] }
 }
 
 fn required<T>(value: Option<T>, context: &str, field: &str) -> T {

@@ -373,12 +373,11 @@ fn resolve_surface_rule(rule: SurfaceRuleJson) -> SurfaceRuleJson {
 fn resolve_surface_rule_inner(rule: SurfaceRuleJson, stack: &mut Vec<String>) -> SurfaceRuleJson {
     match rule {
         SurfaceRuleJson::Reference(id) => {
-            if stack.contains(&id) {
-                panic!(
-                    "cyclic material rule reference: {} -> {id}",
-                    stack.join(" -> ")
-                );
-            }
+            assert!(
+                !stack.contains(&id),
+                "cyclic material rule reference: {} -> {id}",
+                stack.join(" -> ")
+            );
             stack.push(id.clone());
             let resolved = resolve_surface_rule_inner(read_material_rule(&id), stack);
             stack.pop();
@@ -413,12 +412,11 @@ fn resolve_surface_condition_inner(
 ) -> SurfaceConditionJson {
     match condition {
         SurfaceConditionJson::Reference(id) => {
-            if stack.contains(&id) {
-                panic!(
-                    "cyclic material condition reference: {} -> {id}",
-                    stack.join(" -> ")
-                );
-            }
+            assert!(
+                !stack.contains(&id),
+                "cyclic material condition reference: {} -> {id}",
+                stack.join(" -> ")
+            );
             stack.push(id.clone());
             let resolved = resolve_surface_condition_inner(read_material_condition(&id), stack);
             stack.pop();

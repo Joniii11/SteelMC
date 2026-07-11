@@ -428,8 +428,9 @@ fn rule_uses_preliminary_surface(rule: &SurfaceRuleJson) -> bool {
         SurfaceRuleJson::Reference(id) => {
             panic!("unresolved surface rule reference {id}")
         }
-        SurfaceRuleJson::Data(SurfaceRuleDataJson::Block { .. })
-        | SurfaceRuleJson::Data(SurfaceRuleDataJson::Bandlands {}) => false,
+        SurfaceRuleJson::Data(
+            SurfaceRuleDataJson::Block { .. } | SurfaceRuleDataJson::Bandlands {},
+        ) => false,
         SurfaceRuleJson::Data(SurfaceRuleDataJson::Sequence { sequence }) => {
             sequence.iter().any(rule_uses_preliminary_surface)
         }

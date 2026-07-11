@@ -1122,7 +1122,7 @@ impl World {
         self.set_block_with_limit(pos, block_state, flags, 512)
     }
 
-    /// Its under the hood set_block with the UpdateFlags::UPDATE_ALL, maybe we could remove this?
+    /// Its under the hood `set_block` with the `UpdateFlags::UPDATE_ALL`, maybe we could remove this?
     pub fn set_block_and_update(
         self: &Arc<Self>,
         pos: BlockPos,

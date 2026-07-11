@@ -829,10 +829,11 @@ impl FeatureDecorationRunner {
     fn shelf_mushroom_directions_perpendicular_to_fallen_log(logs: &[BlockPos]) -> [Direction; 2] {
         let first = logs[0];
         let last = logs[logs.len() - 1];
-        if first.x() != last.x() {
-            [Direction::North, Direction::South]
-        } else {
+
+        if first.x() == last.x() {
             [Direction::East, Direction::West]
+        } else {
+            [Direction::North, Direction::South]
         }
     }
 
