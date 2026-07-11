@@ -12,7 +12,7 @@ use steel_protocol::packets::game::{
     EquipmentSlotItem, SoundSource,
 };
 use steel_registry::blocks::{
-    block_state_ext::BlockStateExt as _, properties::BlockStateProperties,
+    BlockRef, block_state_ext::BlockStateExt as _, properties::BlockStateProperties,
     shapes::is_shape_full_block,
 };
 use steel_registry::data_components::vanilla_components::GLIDER;
@@ -47,7 +47,7 @@ use uuid::Uuid;
 
 use crate::behavior::{
     BLOCK_BEHAVIORS, BlockCollisionContext, BlockStateBehaviorExt as _, EntityFallOnContext,
-    EntityLandingContext, FLUID_BEHAVIORS, InteractionResult,
+    FLUID_BEHAVIORS, InteractionResult,
 };
 use crate::entity::attribute::{AttributeMap, AttributeModifier, AttributeModifierOperation};
 use crate::fluid::{LavaFluid, get_fluid_state, get_height};
@@ -250,6 +250,109 @@ impl BlockEffectFireSnapshot {
             previous_remaining_fire_ticks: entity.remaining_fire_ticks(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CollisionRestitutionInput {
+    current_velocity: DVec3,
+    actual_movement: DVec3,
+    x_collision: bool,
+    z_collision: bool,
+    vertical_collision: bool,
+    vertical_collision_below: bool,
+    suppresses_bounce: bool,
+    block_suppresses_bounce: bool,
+    entity_bounciness: f64,
+    block_bounciness: f64,
+    effective_gravity: f64,
+    air_drag: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CollisionRestitutionResult {
+    velocity: DVec3,
+    bounced: bool,
+}
+
+impl CollisionRestitutionInput {
+    fn new<E: Entity + ?Sized>(
+        entity: &E,
+        result: &MoveResult,
+        movement: DVec3,
+        effect_state: BlockStateId,
+    ) -> Self {
+        Self {
+            current_velocity: entity.velocity(),
+            actual_movement: movement,
+            x_collision: result.x_collision,
+            z_collision: result.z_collision,
+            vertical_collision: result.vertical_collision,
+            vertical_collision_below: result.on_ground,
+            suppresses_bounce: entity.is_suppressing_bounce(),
+            block_suppresses_bounce: effect_state
+                .get_block()
+                .has_tag(&BlockTag::SUPPRESSES_BOUNCE),
+            entity_bounciness: entity.get_entity_bounciness(),
+            block_bounciness: entity.get_block_bounciness(effect_state.get_block()),
+            effective_gravity: entity
+                .as_living_entity()
+                .map_or_else(|| entity.get_gravity(), LivingEntity::get_effective_gravity),
+            air_drag: f64::from(entity.get_air_drag()),
+        }
+    }
+
+    fn compute(self) -> CollisionRestitutionResult {
+        let mut restitution = if self.suppresses_bounce {
+            0.0
+        } else {
+            self.entity_bounciness
+        };
+
+        let mut movement_after_bounce = self.current_velocity;
+
+        if self.x_collision {
+            movement_after_bounce.x = -self.current_velocity.x * restitution;
+        }
+        if self.z_collision {
+            movement_after_bounce.z = -self.current_velocity.z * restitution;
+        }
+
+        let mut bounced = restitution > 0.0 && (self.x_collision || self.z_collision);
+        if self.vertical_collision {
+            if self.vertical_collision_below {
+                restitution = if -self.current_velocity.y >= self.effective_gravity
+                    && !self.suppresses_bounce
+                    && !self.block_suppresses_bounce
+                {
+                    restitution.max(self.block_bounciness)
+                } else {
+                    0.0
+                };
+            }
+
+            let (gravity_compensation, effective_drag) = if restitution > 0.0 {
+                let portion_with_movement = self.actual_movement.y / self.current_velocity.y;
+                bounced = true;
+                (
+                    portion_with_movement * self.effective_gravity,
+                    1.0 + portion_with_movement * (self.air_drag - 1.0),
+                )
+            } else {
+                (0.0, 1.0)
+            };
+            movement_after_bounce.y =
+                (gravity_compensation - self.current_velocity.y) * effective_drag * restitution;
+        }
+
+        CollisionRestitutionResult {
+            velocity: movement_after_bounce,
+            bounced,
+        }
+    }
+}
+
+fn compute_modified_friction(friction: f32, modifier: f32) -> f32 {
+    (1.0 - (1.0 - friction) * modifier).clamp(0.0, 1.0)
 }
 
 fn finish_inside_block_effects(
@@ -2418,14 +2521,29 @@ pub trait Entity: EntityEventSource + Send + Sync {
         self.base().needs_velocity_sync()
     }
 
+    /// Returns true when vanilla `Entity.syncPosition` should force a movement sync
+    fn needs_movement_sync(&self) -> bool {
+        self.base().needs_movement_sync()
+    }
+
     /// Marks velocity for vanilla `ServerEntity` synchronization.
     fn mark_velocity_sync(&self) {
         self.base().mark_velocity_sync();
     }
 
+    /// Marks movement for vanilla `ServerEntity` sync
+    fn mark_movement_sync(&self) {
+        self.base().mark_movement_sync();
+    }
+
     /// Clears the vanilla velocity sync marker after send processing.
     fn clear_velocity_sync(&self) {
         self.base().clear_velocity_sync();
+    }
+
+    /// Clears the vanilla movement sync marker after send
+    fn clear_movement_sync(&self) {
+        self.base().clear_movement_sync();
     }
 
     /// Returns true when vanilla self inclusive velocity sync is pending
@@ -3609,6 +3727,48 @@ pub trait Entity: EntityEventSource + Send + Sync {
         }
     }
 
+    /// Gets the air drag of the current entity
+    fn get_air_drag(&self) -> f32 {
+        let Some(living) = self.as_living_entity() else {
+            return 0.98;
+        };
+
+        let friction = if self.omnidirectional_air_mover() {
+            0.91
+        } else {
+            0.98
+        };
+        let modifier = living
+            .attributes()
+            .lock()
+            .required_value(vanilla_attributes::AIR_DRAG_MODIFIER) as f32;
+        compute_modified_friction(friction, modifier)
+    }
+
+    /// Is this a omnidirectional mover in the air?
+    fn omnidirectional_air_mover(&self) -> bool {
+        false
+    }
+
+    /// Gets the bounciness attribute of the entity
+    fn get_entity_bounciness(&self) -> f64 {
+        self.as_living_entity().map_or(0.0, |living| {
+            living
+                .attributes()
+                .lock()
+                .required_value(vanilla_attributes::BOUNCINESS)
+        })
+    }
+
+    /// Returns vanilla block bounciness after entity typed scaling
+    fn get_block_bounciness(&self, block: BlockRef) -> f64 {
+        let mut bounciness = f64::from(block.config.bounce_restitution);
+        if !self.is_living_entity() {
+            bounciness *= 0.8;
+        }
+        bounciness
+    }
+
     /// Applies gravity to the entity's velocity.
     ///
     /// Mirrors vanilla's `Entity.applyGravity()`.
@@ -3650,6 +3810,40 @@ pub trait Entity: EntityEventSource + Send + Sync {
             z_collision: false,
             final_aabb: self.bounding_box(),
         })
+    }
+
+    /// Applies vanilla `Entity.restituteMovementAfterCollisions`.
+    fn restitute_movement_after_collisions(
+        &self,
+        world: &Arc<World>,
+        effect_state: BlockStateId,
+        result: &MoveResult,
+        movement: DVec3,
+    ) {
+        let restitution =
+            CollisionRestitutionInput::new(self, result, movement, effect_state).compute();
+
+        if restitution.bounced
+            && let Some(bounce_pos) = self.block_pos_below_that_affects_movement()
+        {
+            BLOCK_BEHAVIORS
+                .get_behavior(effect_state.get_block())
+                .bounce_on(
+                    effect_state,
+                    world,
+                    bounce_pos,
+                    self.as_entity_event_source(),
+                    self.fall_distance(),
+                );
+            world.game_event_at(
+                &vanilla_game_events::BOUNCE,
+                self.position(),
+                &GameEventContext::new(Some(self.as_entity_event_source()), None),
+            );
+            self.mark_movement_sync();
+        }
+
+        self.set_velocity(restitution.velocity);
     }
 
     /// Moves the entity with collision detection.
@@ -3731,40 +3925,18 @@ pub trait Entity: EntityEventSource + Send + Sync {
             return Some(result);
         }
 
-        // Vanilla: Entity.move() zeros velocity components on collision.
-        // Horizontal collision zeros X/Z individually based on which axis collided.
-        // Vertical collision calls Block.updateEntityMovementAfterFallOn.
-        // The default block behavior zeros Y velocity; block-specific behavior
-        // can override this for slime, beds, and similar landing surfaces.
-        if result.horizontal_collision {
-            let vel = self.velocity();
-            self.set_velocity(DVec3::new(
-                if result.x_collision { 0.0 } else { vel.x },
-                vel.y,
-                if result.z_collision { 0.0 } else { vel.z },
-            ));
-        }
-        if result.vertical_collision && self.can_simulate_movement() {
-            let velocity = self.velocity();
-            let landing_context = EntityLandingContext::new(
-                velocity,
-                self.is_living_entity(),
-                self.is_suppressing_bounce(),
+        let moved_vertically = movement.y.abs() > 0.0;
+        if self.can_simulate_movement()
+            && ((moved_vertically && result.vertical_collision) || result.horizontal_collision)
+            && let Some(effect_pos) = self.on_pos_legacy()
+        {
+            let effect_state = world.get_block_state(effect_pos);
+            self.restitute_movement_after_collisions(
+                &world,
+                effect_state,
+                &result,
+                result.actual_movement,
             );
-            let next_velocity =
-                if let Some(effect_pos) = self.block_pos_below_that_affects_movement() {
-                    let effect_state = world.get_block_state(effect_pos);
-                    let behavior = BLOCK_BEHAVIORS.get_behavior(effect_state.get_block());
-                    behavior.update_entity_movement_after_fall_on(
-                        effect_state,
-                        &world,
-                        effect_pos,
-                        landing_context,
-                    )
-                } else {
-                    landing_context.default_velocity_after_fall_on()
-                };
-            self.set_velocity(next_velocity);
         }
 
         self.apply_movement_side_effects_after_move(&world, result.actual_movement);
@@ -6596,12 +6768,12 @@ mod tests {
     use crate::world::LevelReader;
 
     use super::{
-        AttributeModifier, AttributeModifierOperation, DAMAGE_KNOCKBACK_POWER,
-        DEFAULT_SWING_DURATION, DEFAULT_TICKS_REQUIRED_TO_FREEZE, Entity, EntityBase,
-        EntityFluidContact, EntityLevelCallback, EntityMoveError, EntitySyncedData,
+        AttributeModifier, AttributeModifierOperation, CollisionRestitutionInput,
+        DAMAGE_KNOCKBACK_POWER, DEFAULT_SWING_DURATION, DEFAULT_TICKS_REQUIRED_TO_FREEZE, Entity,
+        EntityBase, EntityFluidContact, EntityLevelCallback, EntityMoveError, EntitySyncedData,
         EntityVerticalMovementStateUpdate, InsideBlockEffectType, LivingEntity, LivingEntityBase,
         LivingTravelInput, RemovalReason, SPEED_MODIFIER_POWDER_SNOW_ID, SharedEntity,
-        block_state_suffocates_eye_box, closest_open_space_direction,
+        block_state_suffocates_eye_box, closest_open_space_direction, compute_modified_friction,
         fall_damage_reset_clip_target, fall_flying_collision_damage,
         fall_flying_free_fall_interval, get_input_vector, should_apply_entity_cramming_damage,
         should_apply_resolved_movement, start_riding_entities, transfer_leashables_to_holder,
@@ -7026,6 +7198,108 @@ mod tests {
             (left - right).abs() <= 1.0e-12,
             "expected {left} to equal {right}"
         );
+    }
+
+    fn restitution_input() -> CollisionRestitutionInput {
+        CollisionRestitutionInput {
+            current_velocity: DVec3::ZERO,
+            actual_movement: DVec3::ZERO,
+            x_collision: false,
+            z_collision: false,
+            vertical_collision: false,
+            vertical_collision_below: false,
+            suppresses_bounce: false,
+            block_suppresses_bounce: false,
+            entity_bounciness: 0.0,
+            block_bounciness: 0.0,
+            effective_gravity: 0.08,
+            air_drag: 0.98,
+        }
+    }
+
+    #[test]
+    fn collision_restitution_uses_block_bounciness_on_downward_ground_collision() {
+        let result = CollisionRestitutionInput {
+            current_velocity: DVec3::new(0.0, -3.0, 0.0),
+            vertical_collision: true,
+            vertical_collision_below: true,
+            block_bounciness: 0.75,
+            ..restitution_input()
+        }
+        .compute();
+
+        assert!(result.bounced);
+        assert_vec3_close(result.velocity, DVec3::new(0.0, 2.25, 0.0));
+    }
+
+    #[test]
+    fn collision_restitution_uses_partial_movement_gravity_and_drag() {
+        let result = CollisionRestitutionInput {
+            current_velocity: DVec3::new(0.0, -2.0, 0.0),
+            actual_movement: DVec3::new(0.0, -1.0, 0.0),
+            vertical_collision: true,
+            vertical_collision_below: true,
+            block_bounciness: 0.5,
+            ..restitution_input()
+        }
+        .compute();
+
+        assert!(result.bounced);
+        assert_f64_close(result.velocity.y, 1.0098);
+    }
+
+    #[test]
+    fn collision_restitution_suppresses_block_bounce_when_tagged() {
+        let result = CollisionRestitutionInput {
+            current_velocity: DVec3::new(0.0, -3.0, 0.0),
+            vertical_collision: true,
+            vertical_collision_below: true,
+            block_suppresses_bounce: true,
+            entity_bounciness: 0.6,
+            block_bounciness: 0.75,
+            ..restitution_input()
+        }
+        .compute();
+
+        assert!(!result.bounced);
+        assert_vec3_close(result.velocity, DVec3::ZERO);
+    }
+
+    #[test]
+    fn collision_restitution_skips_ground_bounce_below_effective_gravity() {
+        let result = CollisionRestitutionInput {
+            current_velocity: DVec3::new(0.0, -0.02, 0.0),
+            vertical_collision: true,
+            vertical_collision_below: true,
+            block_bounciness: 0.75,
+            ..restitution_input()
+        }
+        .compute();
+
+        assert!(!result.bounced);
+        assert_vec3_close(result.velocity, DVec3::ZERO);
+    }
+
+    #[test]
+    fn collision_restitution_applies_horizontal_entity_bounciness() {
+        let result = CollisionRestitutionInput {
+            current_velocity: DVec3::new(2.0, 0.0, -4.0),
+            x_collision: true,
+            z_collision: true,
+            entity_bounciness: 0.5,
+            ..restitution_input()
+        }
+        .compute();
+
+        assert!(result.bounced);
+        assert_vec3_close(result.velocity, DVec3::new(-1.0, 0.0, 2.0));
+    }
+
+    #[test]
+    fn compute_modified_friction_matches_vanilla_clamp() {
+        assert_f32_close(compute_modified_friction(0.98, 1.0), 0.98);
+        assert_f32_close(compute_modified_friction(0.98, 0.0), 1.0);
+        assert_f32_close(compute_modified_friction(0.98, 100.0), 0.0);
     }
 
     fn closest_direction_with_blocked_neighbors(
