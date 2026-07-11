@@ -11755,7 +11755,7 @@
     },
     {
       "name": "wooden_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "wooden_pickaxe",
@@ -11763,11 +11763,11 @@
     },
     {
       "name": "wooden_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "wooden_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "copper_sword",
@@ -11775,7 +11775,7 @@
     },
     {
       "name": "copper_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "copper_pickaxe",
@@ -11783,11 +11783,11 @@
     },
     {
       "name": "copper_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "copper_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "stone_sword",
@@ -11795,7 +11795,7 @@
     },
     {
       "name": "stone_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "stone_pickaxe",
@@ -11803,11 +11803,11 @@
     },
     {
       "name": "stone_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "stone_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "golden_sword",
@@ -11815,7 +11815,7 @@
     },
     {
       "name": "golden_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "golden_pickaxe",
@@ -11823,11 +11823,11 @@
     },
     {
       "name": "golden_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "golden_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "iron_sword",
@@ -11835,7 +11835,7 @@
     },
     {
       "name": "iron_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "iron_pickaxe",
@@ -11843,11 +11843,11 @@
     },
     {
       "name": "iron_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "iron_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "diamond_sword",
@@ -11855,7 +11855,7 @@
     },
     {
       "name": "diamond_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "diamond_pickaxe",
@@ -11863,11 +11863,11 @@
     },
     {
       "name": "diamond_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "diamond_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "netherite_sword",
@@ -11875,7 +11875,7 @@
     },
     {
       "name": "netherite_shovel",
-      "class": "ShovelItem"
+      "class": "Item"
     },
     {
       "name": "netherite_pickaxe",
@@ -11883,11 +11883,11 @@
     },
     {
       "name": "netherite_axe",
-      "class": "AxeItem"
+      "class": "Item"
     },
     {
       "name": "netherite_hoe",
-      "class": "HoeItem"
+      "class": "Item"
     },
     {
       "name": "stick",
