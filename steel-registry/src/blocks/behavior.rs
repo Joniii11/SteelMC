@@ -43,6 +43,7 @@ pub struct BlockConfig {
     pub friction: f32,
     pub speed_factor: f32,
     pub jump_factor: f32,
+    pub bounce_restitution: f32,
     pub dynamic_shape: bool,
     pub offset_type: OffsetType,
     pub max_horizontal_offset: f32,
@@ -72,6 +73,7 @@ impl BlockConfig {
             friction: 0.6,
             speed_factor: 1.0,
             jump_factor: 1.0,
+            bounce_restitution: 0.0,
             dynamic_shape: false,
             offset_type: OffsetType::None,
             max_horizontal_offset: 0.25,
@@ -144,6 +146,12 @@ impl BlockConfig {
     #[must_use]
     pub const fn jump_factor(mut self, factor: f32) -> Self {
         self.jump_factor = factor;
+        self
+    }
+
+    #[must_use]
+    pub const fn bounce_restitution(mut self, restitution: f32) -> Self {
+        self.bounce_restitution = restitution;
         self
     }
 
