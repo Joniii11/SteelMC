@@ -504,6 +504,8 @@ pub struct ServerEntityMovementSyncUpdate {
     pub on_ground: bool,
     /// Vanilla `Entity.needsSync`.
     pub needs_velocity_sync: bool,
+    /// Vanilla `Entity.syncPosition`
+    pub needs_movement_sync: bool,
     /// Whether synced entity data is dirty this tick.
     pub has_dirty_entity_data: bool,
     /// Vanilla living fall-flying velocity sync exception.
@@ -515,6 +517,7 @@ pub struct ServerEntityMovementSyncUpdate {
 pub struct ServerEntityMovementSyncResult {
     packets: Vec<EntityMovementSyncPacket>,
     clear_velocity_sync: bool,
+    clear_movement_sync: bool,
 }
 
 impl ServerEntityMovementSyncResult {
@@ -522,6 +525,12 @@ impl ServerEntityMovementSyncResult {
     #[must_use]
     pub const fn should_clear_velocity_sync(&self) -> bool {
         self.clear_velocity_sync
+    }
+
+    /// Whether the caller should clear the vanilla movement sync marker
+    #[must_use]
+    pub const fn should_clear_movement_sync(&self) -> bool {
+        self.clear_movement_sync
     }
 
     /// Visits selected packets in vanilla send order.
@@ -562,6 +571,11 @@ impl ServerEntityMovementSyncState {
         update: ServerEntityMovementSyncUpdate,
     ) -> ServerEntityMovementSyncResult {
         let mut result = ServerEntityMovementSyncResult::default();
+        if update.needs_movement_sync {
+            self.align_tick_count_for_sync_position();
+            result.clear_movement_sync = true;
+        }
+
         let should_process =
             self.should_process(update.needs_velocity_sync, update.has_dirty_entity_data);
         if should_process {
@@ -586,6 +600,13 @@ impl ServerEntityMovementSyncState {
 
         self.tick_count = self.tick_count.wrapping_add(1);
         result
+    }
+
+    fn align_tick_count_for_sync_position(&mut self) {
+        if self.update_interval > 0 {
+            self.tick_count = self.tick_count / self.update_interval * self.update_interval
+                + self.update_interval;
+        }
     }
 
     const fn should_process(self, needs_velocity_sync: bool, has_dirty_entity_data: bool) -> bool {
@@ -1070,6 +1091,7 @@ mod tests {
             head_yaw: 0.0,
             on_ground: false,
             needs_velocity_sync: false,
+            needs_movement_sync: false,
             has_dirty_entity_data: false,
             force_velocity_sync: false,
         }
@@ -1138,6 +1160,69 @@ mod tests {
         assert_eq!(packets.len(), 2);
         assert!(matches!(packets[0], EntityMovementSyncPacket::Velocity(_)));
         assert!(matches!(packets[1], EntityMovementSyncPacket::Position(_)));
+    }
+
+    #[test]
+    fn server_entity_sync_processes_and_clears_explicit_movement_sync() {
+        let mut state = ServerEntityMovementSyncState::new(
+            DVec3::ZERO,
+            DVec3::ZERO,
+            false,
+            (0.0, 0.0),
+            0.0,
+            20,
+            false,
+        );
+        let first_packets =
+            collect_server_packets(&mut state, server_update(DVec3::ZERO, DVec3::ZERO));
+        assert_eq!(first_packets.len(), 1);
+
+        let mut update = server_update(DVec3::ZERO, DVec3::ZERO);
+        update.body_rotation = (2.0, 0.0);
+        update.needs_movement_sync = true;
+
+        let result = state.record_send_changes(update);
+        assert!(!result.should_clear_velocity_sync());
+        assert!(result.should_clear_movement_sync());
+        let mut packets = Vec::new();
+        result.for_each_packet(|packet| packets.push(packet));
+
+        assert_eq!(packets.len(), 1);
+        assert!(matches!(packets[0], EntityMovementSyncPacket::Rotation(_)));
+    }
+
+    #[test]
+    fn server_entity_sync_position_aligns_tick_count_to_next_update_interval() {
+        let mut state = ServerEntityMovementSyncState::new(
+            DVec3::ZERO,
+            DVec3::ZERO,
+            false,
+            (0.0, 0.0),
+            0.0,
+            20,
+            false,
+        );
+        state.tick_count = 5;
+
+        let mut update = server_update(DVec3::ZERO, DVec3::ZERO);
+        update.needs_movement_sync = true;
+
+        let result = state.record_send_changes(update);
+        assert!(result.should_clear_movement_sync());
+        assert_eq!(state.tick_count, 21);
+
+        for _ in 0..19 {
+            let packets =
+                collect_server_packets(&mut state, server_update(DVec3::ZERO, DVec3::ZERO));
+            assert!(packets.is_empty());
+        }
+
+        let mut rotation_update = server_update(DVec3::ZERO, DVec3::ZERO);
+        rotation_update.body_rotation = (2.0, 0.0);
+        let packets = collect_server_packets(&mut state, rotation_update);
+
+        assert_eq!(packets.len(), 1);
+        assert!(matches!(packets[0], EntityMovementSyncPacket::Rotation(_)));
     }
 
     #[test]
