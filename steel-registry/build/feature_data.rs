@@ -308,7 +308,7 @@ impl<'de> Deserialize<'de> for BlockHolderSet {
 /// Block position offset.
 pub type Offset = [i32; 3];
 
-fn default_offset() -> Offset {
+const fn default_offset() -> Offset {
     [0, 0, 0]
 }
 

@@ -1,3 +1,8 @@
+#![expect(
+    clippy::unwrap_used,
+    reason = "build script must fail immediately on invalid extracted trim material data"
+)]
+
 use std::fs;
 
 use crate::generator_functions::{generate_identifier, generate_option};
@@ -34,7 +39,7 @@ pub(crate) fn build() -> TokenStream {
             let trim_material_name = path.file_stem().unwrap().to_str().unwrap().to_string();
             let content = fs::read_to_string(&path).unwrap();
             let trim_material: TrimMaterialJson = serde_json::from_str(&content)
-                .unwrap_or_else(|e| panic!("Failed to parse {}: {}", trim_material_name, e));
+                .unwrap_or_else(|e| panic!("Failed to parse {trim_material_name}: {e}"));
 
             trim_materials.push((trim_material_name, trim_material));
         }
