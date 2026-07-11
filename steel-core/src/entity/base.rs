@@ -644,6 +644,7 @@ pub struct EntityBaseState {
     fall_distance: f64,
     stuck_speed_multiplier: DVec3,
     no_physics: bool,
+    needs_movement_sync: bool,
     needs_velocity_sync: bool,
     sync_velocity: bool,
 }
@@ -676,6 +677,7 @@ impl EntityBaseState {
             fall_distance: 0.0,
             stuck_speed_multiplier: DVec3::ZERO,
             no_physics: false,
+            needs_movement_sync: false,
             needs_velocity_sync: false,
             sync_velocity: false,
         }
@@ -1328,6 +1330,12 @@ impl EntityBase {
         self.state.lock().needs_velocity_sync
     }
 
+    /// Returns true when vanilla `Entity.syncPosition` should force a movement sync pass
+    #[inline]
+    pub fn needs_movement_sync(&self) -> bool {
+        self.state.lock().needs_movement_sync
+    }
+
     /// Returns true when vanilla self-inclusive velocity sync is pending.
     #[inline]
     pub fn sync_velocity(&self) -> bool {
@@ -1480,6 +1488,7 @@ impl EntityBase {
             state.fall_distance = 0.0;
             state.stuck_speed_multiplier = DVec3::ZERO;
             state.no_physics = false;
+            state.needs_movement_sync = false;
             state.needs_velocity_sync = false;
             state.sync_velocity = false;
         }
@@ -1850,9 +1859,19 @@ impl EntityBase {
         self.state.lock().needs_velocity_sync = true;
     }
 
+    /// Marks movement for vanilla `ServerEntity` synchronization
+    pub fn mark_movement_sync(&self) {
+        self.state.lock().needs_movement_sync = true;
+    }
+
     /// Clears the vanilla velocity sync marker after send processing.
     pub fn clear_velocity_sync(&self) {
         self.state.lock().needs_velocity_sync = false;
+    }
+
+    /// Clears the vanilla movement sync marker after send processing
+    pub fn clear_movement_sync(&self) {
+        self.state.lock().needs_movement_sync = false;
     }
 
     /// Marks this entity as hurt for vanilla self-inclusive motion sync.
@@ -2769,6 +2788,7 @@ mod tests {
         base.set_fluid_contact(EntityFluidContact::from_parts(0.25, 0.5, true, true));
         base.make_stuck_in_block(DVec3::splat(0.2));
         base.mark_velocity_sync();
+        base.mark_movement_sync();
         base.mark_hurt();
         base.record_movement_this_tick(EntityMovement::new(
             DVec3::new(1.0, 64.0, 1.0),
@@ -2803,6 +2823,7 @@ mod tests {
         assert_eq!(base.fall_distance().to_bits(), 0.0_f64.to_bits());
         assert_eq!(base.fluid_contact(), EntityFluidContact::default());
         assert!(!base.needs_velocity_sync());
+        assert!(!base.needs_movement_sync());
         assert!(!base.sync_velocity());
         assert_eq!(base.dimensions(), reset_dimensions);
         assert!(base.last_movements_for_block_effects().is_empty());
