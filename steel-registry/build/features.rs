@@ -16,14 +16,14 @@ mod feature_data;
 
 use feature_data::{
     AboveRootPlacement, BlobFoliagePlacer, BlockColumnLayer, BlockHolderSet, BlockPredicate,
-    BlockStateData, BlockStateProvider, ConfiguredFeatureKind, ConfiguredFeatureRef,
-    DualNoiseProvider, EndSpike, FeatureHeightmap, FeatureNoiseParameters, FeatureSize,
-    FluidStateData, FoliagePlacer, FoliagePlacerBase, GeodeBlockSettings, GeodeCrackSettings,
-    GeodeLayerSettings, HugeMushroomConfiguration, IdentifierList, MangroveRootPlacement,
-    NoiseProvider, NoiseThresholdProvider, OreTarget, PlacedFeatureData, PlacedFeatureRef,
-    PlacementModifier, RootPlacer, RuleBasedStateProviderRule, RuleTest, TemplateEntry,
-    TreeDecorator, TrunkPlacer, TrunkPlacerBase, VegetationPatchConfiguration, VerticalSurface,
-    WeightedBlockState, WeightedPlacedFeature, WeightedRandomPlacedFeature, WeightedTemplateEntry,
+    BlockStateData, BlockStateProvider, DualNoiseProvider, EndSpike, FeatureHeightmap, FeatureKind,
+    FeatureNoiseParameters, FeatureRef, FeatureSize, FluidStateData, FoliagePlacer,
+    FoliagePlacerBase, GeodeBlockSettings, GeodeCrackSettings, GeodeLayerSettings,
+    HugeMushroomConfiguration, IdentifierList, MangroveRootPlacement, NoiseProvider,
+    NoiseThresholdProvider, OreTarget, PlacedFeatureData, PlacedFeatureRef, PlacementModifier,
+    RootPlacer, RuleBasedStateProviderRule, RuleTest, TemplateEntry, TreeDecorator, TrunkPlacer,
+    TrunkPlacerBase, VegetationPatchConfiguration, VerticalSurface, WeightedBlockState,
+    WeightedPlacedFeature, WeightedRandomPlacedFeature, WeightedTemplateEntry,
 };
 
 fn sorted_json_files(dir: &str) -> Vec<fs::DirEntry> {

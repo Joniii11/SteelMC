@@ -9,13 +9,11 @@ const DEFAULT_GRAVITY: f64 = 0.03;
 /// Vanilla drag multiplier while submerged (`ThrowableProjectile.applyInertia`).
 const WATER_INERTIA: f64 = 0.8;
 
+/// Vanilla drag multiplier while airborne (`ThrowableProjectile.applyInertia`).
+const AIR_INERTIA: f64 = 0.99;
+
 /// Vanilla-shaped behavior shared by entities that extend `ThrowableProjectile`.
 pub trait ThrowableProjectile: Projectile {
-    /// Vanilla `ThrowableProjectile.getAirDrag`.
-    fn get_air_drag(&self) -> f32 {
-        0.99
-    }
-
     /// Vanilla `ThrowableProjectile.getDefaultGravity` (0.03).
     fn throwable_default_gravity(&self) -> f64 {
         DEFAULT_GRAVITY
@@ -27,7 +25,7 @@ pub trait ThrowableProjectile: Projectile {
             // TODO: spawn the trailing bubble particles (needs CLevelParticles packet).
             WATER_INERTIA
         } else {
-            f64::from(self.get_air_drag())
+            AIR_INERTIA
         };
         self.set_velocity(self.velocity() * inertia);
     }
