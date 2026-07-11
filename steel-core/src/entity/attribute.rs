@@ -524,4 +524,64 @@ mod tests {
             vanilla_attributes::GRAVITY.default_value.to_bits()
         );
     }
+
+    #[test]
+    fn living_entity_defaults_include_vanilla_26_3_movement_attributes() {
+        test_support::init_test_registry();
+
+        let pig_attributes = AttributeMap::new_for_entity(&vanilla_entities::PIG);
+        assert_required_attribute_defaults(
+            &pig_attributes,
+            &[
+                vanilla_attributes::BOUNCINESS,
+                vanilla_attributes::AIR_DRAG_MODIFIER,
+                vanilla_attributes::FRICTION_MODIFIER,
+                vanilla_attributes::NAME_TAG_DISTANCE,
+                vanilla_attributes::BELOW_NAME_DISTANCE,
+                vanilla_attributes::MAX_ABSORPTION,
+                vanilla_attributes::CAMERA_DISTANCE,
+                vanilla_attributes::WAYPOINT_TRANSMIT_RANGE,
+            ],
+        );
+
+        let player_attributes = AttributeMap::new_for_entity(&vanilla_entities::PLAYER);
+        assert_required_attribute_defaults(
+            &player_attributes,
+            &[
+                vanilla_attributes::BOUNCINESS,
+                vanilla_attributes::AIR_DRAG_MODIFIER,
+                vanilla_attributes::FRICTION_MODIFIER,
+                vanilla_attributes::NAME_TAG_DISTANCE,
+                vanilla_attributes::BELOW_NAME_DISTANCE,
+                vanilla_attributes::MAX_ABSORPTION,
+                vanilla_attributes::CAMERA_DISTANCE,
+            ],
+        );
+        assert_attribute_value(
+            &player_attributes,
+            vanilla_attributes::WAYPOINT_TRANSMIT_RANGE,
+            60_000_000.0,
+        );
+        assert_attribute_value(
+            &player_attributes,
+            vanilla_attributes::WAYPOINT_RECEIVE_RANGE,
+            60_000_000.0,
+        );
+    }
+
+    fn assert_required_attribute_defaults(
+        attributes: &AttributeMap,
+        expected_defaults: &[AttributeRef],
+    ) {
+        for &attribute in expected_defaults {
+            assert_attribute_value(attributes, attribute, attribute.default_value);
+        }
+    }
+
+    fn assert_attribute_value(attributes: &AttributeMap, attribute: AttributeRef, expected: f64) {
+        assert_eq!(
+            attributes.required_value(attribute).to_bits(),
+            expected.to_bits()
+        );
+    }
 }
