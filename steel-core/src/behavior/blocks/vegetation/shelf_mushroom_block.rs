@@ -7,7 +7,8 @@ use steel_registry::{
         block_state_ext::BlockStateExt,
         properties::{BlockStateProperties, Direction},
     },
-    vanilla_blocks,
+    entity_type::EntityTypeRef,
+    sound_events, vanilla_blocks, vanilla_entities,
 };
 use steel_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 
@@ -15,8 +16,8 @@ use crate::{
     behavior::{
         BlockBehavior, blocks::vegetation::bonemealable::Bonemealable, context::BlockPlaceContext,
     },
-    entity::ai::path::PathComputationType,
-    world::{LevelReader, ScheduledTickAccess, World},
+    entity::{Entity, ai::path::PathComputationType},
+    world::{LevelAccessor, LevelReader, ScheduledTickAccess, World},
 };
 
 /// Vanilla `ShelfMushroomBlock`
@@ -30,6 +31,14 @@ impl ShelfMushroomBlock {
     #[must_use]
     pub const fn new(block: BlockRef) -> Self {
         Self { block }
+    }
+
+    fn plays_bounce_sound_for_entity_type(entity_type: EntityTypeRef) -> bool {
+        entity_type != &vanilla_entities::ITEM
+    }
+
+    fn plays_bounce_sound_for(entity: &dyn Entity) -> bool {
+        Self::plays_bounce_sound_for_entity_type(entity.entity_type())
     }
 }
 
@@ -86,6 +95,25 @@ impl BlockBehavior for ShelfMushroomBlock {
         _computation_type: PathComputationType,
     ) -> bool {
         false
+    }
+
+    fn bounce_on(
+        &self,
+        _state: BlockStateId,
+        world: &dyn LevelAccessor,
+        pos: BlockPos,
+        entity: &dyn Entity,
+        _fall_distance: f64,
+    ) {
+        if Self::plays_bounce_sound_for(entity) {
+            world.play_block_sound(
+                &sound_events::BLOCK_SHELF_MUSHROOM_BOUNCE,
+                pos,
+                1.0,
+                1.0,
+                None,
+            );
+        }
     }
 
     fn as_bonemealable(&self) -> Option<&dyn Bonemealable> {
