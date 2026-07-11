@@ -396,11 +396,15 @@ impl EntityTracker {
                         head_yaw: entity.head_yaw(),
                         on_ground: entity.on_ground(),
                         needs_velocity_sync: entity.needs_velocity_sync(),
+                        needs_movement_sync: entity.needs_movement_sync(),
                         has_dirty_entity_data,
                         force_velocity_sync: entity.forces_fall_flying_velocity_sync(),
                     });
             if result.should_clear_velocity_sync() {
                 entity.clear_velocity_sync();
+            }
+            if result.should_clear_movement_sync() {
+                entity.clear_movement_sync();
             }
             result.for_each_packet(|packet| packets_to_broadcast.push((entity_id, packet)));
             if entity.sync_velocity() {

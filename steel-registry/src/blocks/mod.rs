@@ -919,6 +919,17 @@ mod tests {
     }
 
     #[test]
+    fn vanilla_blocks_keep_extracted_bounce_restitution() {
+        assert_eq!(vanilla_blocks::STONE.config.bounce_restitution, 0.0);
+        assert_eq!(vanilla_blocks::WHITE_BED.config.bounce_restitution, 0.75);
+        assert_eq!(
+            vanilla_blocks::SHELF_MUSHROOM.config.bounce_restitution,
+            0.75
+        );
+        assert_eq!(vanilla_blocks::SLIME_BLOCK.config.bounce_restitution, 1.0);
+    }
+
+    #[test]
     fn test_redstone_wire_properties() {
         let registry = create_test_registry();
         let redstone_wire = registry
