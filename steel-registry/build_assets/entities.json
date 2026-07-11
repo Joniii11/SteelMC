@@ -45226,7 +45226,7 @@
               "serializer": "villager_data",
               "default_value": {
                 "type": "minecraft:plains",
-                "profession": "minecraft:leatherworker",
+                "profession": "minecraft:fletcher",
                 "level": 1
               }
             },
