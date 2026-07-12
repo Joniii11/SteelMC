@@ -1173,7 +1173,6 @@ mod tests {
             16,
             StructureStartMap::default(),
             StructureReferenceMap::default(),
-            None,
             Vec::new(),
             BlockTickList::new(),
             FluidTickList::new(),

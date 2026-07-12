@@ -5,7 +5,6 @@ use std::sync::{
 };
 
 use crossbeam::atomic::AtomicCell;
-use parking_lot::{MappedRwLockWriteGuard, RwLockWriteGuard};
 use rustc_hash::FxHashMap;
 use steel_registry::{
     REGISTRY,
@@ -35,7 +34,6 @@ use crate::world::World;
 use crate::world::tick_scheduler::{
     BlockTick, BlockTickList, FluidTick, FluidTickList, TickPriority,
 };
-use crate::worldgen::carving_mask::CarvingMask;
 use steel_worldgen::structure::{StructureReferenceMap, StructureStartMap};
 
 fn empty_postprocessing(height: i32) -> Box<[Vec<u16>]> {
@@ -79,8 +77,6 @@ pub struct ProtoChunk {
     pub structure_starts: SyncRwLock<StructureStartMap>,
     /// References to structures from nearby origin chunks.
     pub structure_references: SyncRwLock<StructureReferenceMap>,
-    /// Bitset of positions visited by carvers (lazily initialized).
-    pub carving_mask: SyncRwLock<Option<CarvingMask>>,
     /// Section-indexed packed offsets that need vanilla postprocessing after promotion.
     pub postprocessing: SyncRwLock<Box<[Vec<u16>]>>,
     /// Scheduled block ticks queued while this chunk is still a proto chunk.
@@ -124,7 +120,6 @@ impl ProtoChunk {
             entities: EntityStorage::new(),
             structure_starts: SyncRwLock::new(FxHashMap::default()),
             structure_references: SyncRwLock::new(FxHashMap::default()),
-            carving_mask: SyncRwLock::new(None),
             postprocessing: SyncRwLock::new(empty_postprocessing(height)),
             block_ticks: SyncMutex::new(BlockTickList::new()),
             fluid_ticks: SyncMutex::new(FluidTickList::new()),
@@ -153,7 +148,6 @@ impl ProtoChunk {
         height: i32,
         structure_starts: StructureStartMap,
         structure_references: StructureReferenceMap,
-        carving_mask: Option<CarvingMask>,
         postprocessing: Vec<Vec<u16>>,
         block_ticks: BlockTickList,
         fluid_ticks: FluidTickList,
@@ -178,7 +172,6 @@ impl ProtoChunk {
             entities: EntityStorage::new(),
             structure_starts: SyncRwLock::new(structure_starts),
             structure_references: SyncRwLock::new(structure_references),
-            carving_mask: SyncRwLock::new(carving_mask),
             postprocessing: SyncRwLock::new(postprocessing_from_disk(height, postprocessing)),
             block_ticks: SyncMutex::new(block_ticks),
             fluid_ticks: SyncMutex::new(fluid_ticks),
@@ -216,22 +209,6 @@ impl ProtoChunk {
     /// Sets the generation status of this chunk.
     pub fn set_status(&self, status: ChunkStatus) {
         self.status.store(status);
-    }
-
-    /// Returns a write guard to this chunk's carving mask, initializing it on
-    /// first access. Mirrors vanilla's `ProtoChunk.getOrCreateCarvingMask`.
-    ///
-    /// # Panics
-    /// Never — the mask is populated immediately before projecting the guard.
-    pub fn get_or_create_carving_mask(&self) -> MappedRwLockWriteGuard<'_, CarvingMask> {
-        let mut guard = self.carving_mask.write();
-        if guard.is_none() {
-            *guard = Some(CarvingMask::new(self.height, self.min_y));
-        }
-        RwLockWriteGuard::map(guard, |opt| match opt {
-            Some(mask) => mask,
-            None => unreachable!("carving mask initialized immediately above"),
-        })
     }
 
     /// Vanilla `ProtoChunk.packOffsetCoordinates` for postprocessing offsets.

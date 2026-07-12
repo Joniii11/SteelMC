@@ -373,8 +373,6 @@ pub struct PersistentChunk {
     pub heightmaps: Vec<PersistentHeightmap>,
     /// Chunk-owned light sections.
     pub light: PersistentLightData,
-    /// Proto chunk carving mask as Steel's packed bitset layout.
-    pub carving_mask: Option<Vec<u64>>,
     /// Proto chunk postprocessing offsets grouped by section index.
     pub postprocessing: Vec<Vec<u16>>,
     /// Structure starts originating in this chunk.
