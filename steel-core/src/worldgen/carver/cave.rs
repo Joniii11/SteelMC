@@ -1,81 +1,16 @@
-//! Cave carver (overworld + nether variants).
+//! Direct cave carver.
 //!
-//! Mirrors vanilla's `CaveWorldCarver` + `NetherWorldCarver`. Single entry
-//! point [`CarveRun::carve_cave`] dispatched off a [`CaveKind`] — vanilla's
-//! overrides for nether (cave bound, thickness multiplier, y scale,
-//! per-block placement) are captured as kind-specific constants so the
-//! tunnel recursion logic stays shared.
+//! Mirrors Snapshot-2's direct `CaveWorldCarver`.
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use steel_math::trig;
-use steel_registry::carver::CaveCarverConfiguration;
+use steel_registry::carver::CaveWorldCarver;
 use steel_utils::random::{Random, legacy_random::LegacyRandom};
 use steel_utils::{BlockPos, ChunkPos};
 use steel_worldgen::density::DimensionNoises;
 
-use crate::worldgen::carver::{
-    CarveParams, CarveRun, CarveSkipChecker, CarverStyle, cached_replaceable_states, can_reach,
-    horizontal_tunnel_radius,
-};
-
-/// Which cave carver flavor to run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CaveKind {
-    /// `minecraft:cave` / `minecraft:cave_extra_underground`.
-    Overworld,
-    /// `minecraft:nether_cave`.
-    Nether,
-}
-
-impl CaveKind {
-    /// Vanilla `CaveWorldCarver.getCaveBound` (15) or `NetherWorldCarver`'s
-    /// override (10).
-    const fn cave_bound(self) -> i32 {
-        match self {
-            Self::Overworld => 15,
-            Self::Nether => 10,
-        }
-    }
-
-    /// Vanilla `CaveWorldCarver.getYScale` (1.0) or `NetherWorldCarver`'s
-    /// override (5.0).
-    const fn y_scale(self) -> f64 {
-        match self {
-            Self::Overworld => 1.0,
-            Self::Nether => 5.0,
-        }
-    }
-
-    const fn style(self) -> CarverStyle {
-        match self {
-            Self::Overworld => CarverStyle::Overworld,
-            Self::Nether => CarverStyle::Nether,
-        }
-    }
-
-    /// Vanilla `getThickness`. Nether has a completely separate formula — it
-    /// skips the `nextInt(10) == 0` branch and doubles a 2-draw base value.
-    fn thickness(self, random: &mut impl Random) -> f32 {
-        match self {
-            Self::Overworld => {
-                // CaveWorldCarver.getThickness:
-                //   thickness = nextFloat()*2 + nextFloat();
-                //   if (nextInt(10) == 0) thickness *= nextFloat()*nextFloat()*3 + 1;
-                let mut thickness = random.next_f32() * 2.0 + random.next_f32();
-                if random.next_i32_bounded(10) == 0 {
-                    thickness *= random.next_f32() * random.next_f32() * 3.0 + 1.0;
-                }
-                thickness
-            }
-            Self::Nether => {
-                // NetherWorldCarver.getThickness override:
-                //   return (nextFloat()*2 + nextFloat()) * 2;
-                (random.next_f32() * 2.0 + random.next_f32()) * 2.0
-            }
-        }
-    }
-}
+use crate::worldgen::carver::{CarveRun, CarveSkipChecker, can_reach, horizontal_tunnel_radius};
 
 /// Vanilla `WorldCarver.getRange()` — range in chunks. 4 each direction.
 const CARVER_RANGE: i32 = 4;
@@ -107,6 +42,16 @@ struct TunnelParams {
     y_scale: f64,
 }
 
+/// Mirrors `CaveWorldCarver.getThickness`, including its conditional random
+/// draws. Keeping this separate makes the source-carver RNG sequence explicit.
+fn sample_tunnel_thickness(config: &CaveWorldCarver, random: &mut LegacyRandom) -> f32 {
+    let mut thickness = config.thickness.sample(random);
+    if config.weird_thickness_bias && random.next_i32_bounded(10) == 0 {
+        thickness *= random.next_f32() * random.next_f32() * 3.0 + 1.0;
+    }
+    thickness
+}
+
 impl<N, F> CarveRun<'_, '_, N, F>
 where
     N: DimensionNoises,
@@ -117,51 +62,29 @@ where
     /// `LegacyRandom::set_large_feature_seed(seed + carver_index, cx, cz)`
     /// and the `isStartChunk` probability check must have already passed.
     ///
-    /// Mirrors vanilla's `CaveWorldCarver.carve` / `NetherWorldCarver.carve`
-    /// (which inherits the cave variant).
+    /// Mirrors vanilla's `CaveWorldCarver.carve`.
     pub fn carve_cave(
         &mut self,
-        config: &CaveCarverConfiguration,
-        kind: CaveKind,
+        config: &CaveWorldCarver,
         source_pos: ChunkPos,
         random: &mut LegacyRandom,
     ) {
-        // Triple-nested `random.nextInt(random.nextInt(...)+1)+1` gives a
-        // heavily right-skewed distribution of starts per chunk. Split into
-        // locals so the Java-style nesting doesn't overlap `&mut random`.
-        let bound = kind.cave_bound();
-        let inner = random.next_i32_bounded(bound);
-        let mid = random.next_i32_bounded(inner + 1);
-        let cave_count = random.next_i32_bounded(mid + 1);
+        let cave_count = config.count.sample(random);
 
         let source_min_x = source_pos.0.x * 16;
         let source_min_z = source_pos.0.y * 16;
 
-        let lava_level_y = config
-            .base
-            .lava_level
-            .resolve_y(self.ctx.min_y, self.ctx.gen_depth);
-        let params = CarveParams {
-            replaceable_tag: &config.base.replaceable_tag,
-            replaceable_states: cached_replaceable_states(&config.base.replaceable_tag),
-            lava_level_y,
-            style: kind.style(),
-        };
-
         for _ in 0..cave_count {
             let x = f64::from(source_min_x + random.next_i32_bounded(16));
-            let y = f64::from(
-                config
-                    .base
-                    .y
-                    .sample(random, self.ctx.min_y, self.ctx.gen_depth),
-            );
+            let y = f64::from(config.y.sample(random, self.ctx.min_y, self.ctx.gen_depth));
             let z = f64::from(source_min_z + random.next_i32_bounded(16));
 
             let horizontal_radius_multiplier =
                 f64::from(config.horizontal_radius_multiplier.sample(random));
             let vertical_radius_multiplier =
                 f64::from(config.vertical_radius_multiplier.sample(random));
+            let start_vertical_radius_multiplier =
+                f64::from(config.start_vertical_radius_multiplier.sample(random));
             let floor_level = f64::from(config.floor_level.sample(random));
 
             // Vanilla `CaveWorldCarver.shouldSkip`: skip blocks below the
@@ -174,36 +97,39 @@ where
 
             let mut tunnels = 1i32;
             if random.next_i32_bounded(4) == 0 {
-                let y_scale = f64::from(config.base.y_scale.sample(random));
+                let y_scale = f64::from(config.room_vertical_radius_multiplier.sample(random));
                 let thickness = 1.0 + random.next_f32() * 6.0;
-                self.create_room(&params, x, y, z, thickness, y_scale, &skip_checker);
+                self.create_room(x, y, z, thickness, y_scale, &skip_checker);
                 tunnels += random.next_i32_bounded(4);
             }
 
             for _ in 0..tunnels {
+                // Java evaluates these arguments left-to-right before calling
+                // `createTunnel`; spell out each draw to keep that ordering
+                // evident and stable.
+                let horizontal_rotation = random.next_f32() * TAU;
+                let vertical_rotation = (random.next_f32() - 0.5) / 4.0;
+                let thickness = sample_tunnel_thickness(config, random);
+                let distance =
+                    MAX_TUNNEL_DISTANCE - random.next_i32_bounded(MAX_TUNNEL_DISTANCE / 4);
+                let tunnel_seed = random.next_i64();
                 let state = TunnelState {
                     x,
                     y,
                     z,
-                    horizontal_rotation: random.next_f32() * TAU,
-                    vertical_rotation: (random.next_f32() - 0.5) / 4.0,
+                    horizontal_rotation,
+                    vertical_rotation,
                 };
                 let tunnel = TunnelParams {
-                    tunnel_seed: 0, // filled below to preserve vanilla draw order
+                    tunnel_seed,
                     horizontal_radius_multiplier,
                     vertical_radius_multiplier,
-                    thickness: kind.thickness(random),
+                    thickness,
                     step: 0,
-                    dist: MAX_TUNNEL_DISTANCE - random.next_i32_bounded(MAX_TUNNEL_DISTANCE / 4),
-                    y_scale: kind.y_scale(),
+                    dist: distance,
+                    y_scale: start_vertical_radius_multiplier,
                 };
-                // `tunnel_seed = nextLong()` draws 2 i32s — must be last to
-                // match vanilla's arg evaluation order.
-                let tunnel = TunnelParams {
-                    tunnel_seed: random.next_i64(),
-                    ..tunnel
-                };
-                self.create_tunnel(&params, state, tunnel, skip_checker);
+                self.create_tunnel(state, tunnel, skip_checker);
             }
         }
     }
@@ -216,7 +142,6 @@ where
     )]
     fn create_room<S: CarveSkipChecker>(
         &mut self,
-        params: &CarveParams<'_>,
         x: f64,
         y: f64,
         z: f64,
@@ -232,7 +157,6 @@ where
             1.5 + f64::from(trig::sin(f64::from(FRAC_PI_2))) * f64::from(thickness);
         let vertical_radius = horizontal_radius * y_scale;
         self.carve_ellipsoid(
-            params,
             x + 1.0,
             y,
             z,
@@ -244,13 +168,8 @@ where
 
     /// Vanilla `CaveWorldCarver.createTunnel`. Steps along a curve, carving
     /// an ellipsoid per step, with occasional mid-tunnel splits.
-    fn create_tunnel<S>(
-        &mut self,
-        params: &CarveParams<'_>,
-        mut state: TunnelState,
-        tunnel: TunnelParams,
-        skip_checker: S,
-    ) where
+    fn create_tunnel<S>(&mut self, mut state: TunnelState, tunnel: TunnelParams, skip_checker: S)
+    where
         S: CarveSkipChecker + Copy,
     {
         let mut random = LegacyRandom::from_seed(tunnel.tunnel_seed as u64);
@@ -311,8 +230,8 @@ where
                     y_scale: 1.0,
                     ..tunnel
                 };
-                self.create_tunnel(params, sub_state_a, sub_tunnel_a, skip_checker);
-                self.create_tunnel(params, sub_state_b, sub_tunnel_b, skip_checker);
+                self.create_tunnel(sub_state_a, sub_tunnel_a, skip_checker);
+                self.create_tunnel(sub_state_b, sub_tunnel_b, skip_checker);
                 return;
             }
 
@@ -333,7 +252,6 @@ where
             }
 
             self.carve_ellipsoid(
-                params,
                 state.x,
                 state.y,
                 state.z,
@@ -342,5 +260,56 @@ where
                 skip_checker,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use steel_registry::carver::CaveWorldCarver;
+    use steel_utils::random::{Random, legacy_random::LegacyRandom};
+    use steel_utils::value_providers::{
+        FloatProvider, HeightProvider, IntProvider, VerticalAnchor,
+    };
+
+    use super::sample_tunnel_thickness;
+
+    fn cave_config(weird_thickness_bias: bool) -> CaveWorldCarver {
+        CaveWorldCarver {
+            probability: 1.0,
+            y: HeightProvider::Constant(VerticalAnchor::Absolute(0)),
+            count: IntProvider::Constant(1),
+            thickness: FloatProvider::Constant(2.0),
+            weird_thickness_bias,
+            room_vertical_radius_multiplier: FloatProvider::Constant(1.0),
+            horizontal_radius_multiplier: FloatProvider::Constant(1.0),
+            vertical_radius_multiplier: FloatProvider::Constant(1.0),
+            start_vertical_radius_multiplier: FloatProvider::Constant(1.0),
+            floor_level: FloatProvider::Constant(-1.0),
+        }
+    }
+
+    #[test]
+    fn weird_thickness_bias_uses_vanilla_conditional_draws() {
+        let mut actual = LegacyRandom::from_seed(0);
+        let thickness = sample_tunnel_thickness(&cave_config(true), &mut actual);
+
+        let mut expected = LegacyRandom::from_seed(0);
+        assert_eq!(expected.next_i32_bounded(10), 0);
+        let expected_thickness = 2.0 * (expected.next_f32() * expected.next_f32() * 3.0 + 1.0);
+
+        assert_eq!(thickness, expected_thickness);
+        assert_eq!(actual.next_i32(), expected.next_i32());
+    }
+
+    #[test]
+    fn ordinary_thickness_does_not_consume_bias_draws() {
+        let mut actual = LegacyRandom::from_seed(0);
+        assert_eq!(
+            sample_tunnel_thickness(&cave_config(false), &mut actual),
+            2.0
+        );
+
+        let mut expected = LegacyRandom::from_seed(0);
+        assert_eq!(actual.next_i32(), expected.next_i32());
     }
 }

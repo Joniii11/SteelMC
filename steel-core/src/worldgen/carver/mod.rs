@@ -1,4 +1,4 @@
-//! World-carving: runtime types for running configured carvers during the
+//! World-carving: runtime types for running direct carvers during the
 //! `CARVERS` chunk stage.
 //!
 //! Mirrors vanilla's `net.minecraft.world.level.levelgen.carver` package. The
@@ -9,15 +9,12 @@
 use std::{cell::Cell, sync::LazyLock};
 
 use glam::IVec3;
-use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use steel_math::lerp2;
 use steel_math::trig;
-use steel_registry::REGISTRY;
 use steel_registry::biome::BiomeRef;
-use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_utils::ChunkPos;
-use steel_utils::{BlockPos, BlockStateId, Identifier, types::UpdateFlags};
+use steel_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 use steel_worldgen::density::DimensionNoises;
 use steel_worldgen::surface::{SurfaceConditionNoiseCache, SurfaceRuleContext};
 
@@ -63,8 +60,7 @@ pub struct SourceChunk {
 ///
 /// Mirrors vanilla's `CarvingContext`. Owns the freshly-built [`Aquifer`] for
 /// this chunk; the aquifer is regenerated per carver invocation rather than
-/// cached on the [`ProtoChunk`] — see the TODO on `ProtoChunk::carving_mask`
-/// for discussion.
+/// cached on the chunk's generic proto representation.
 pub struct CarvingContext<'a, N: DimensionNoises> {
     /// Dimension minimum Y (inclusive).
     pub min_y: i32,
@@ -75,9 +71,6 @@ pub struct CarvingContext<'a, N: DimensionNoises> {
     /// Owned aquifer for this chunk. Built fresh from the dimension's noises
     /// at the start of `apply_carvers`.
     pub aquifer: Aquifer<N>,
-    /// Default solid block for this dimension (stone / netherrack /
-    /// `end_stone`).
-    pub default_block_id: BlockStateId,
     /// Preliminary surface levels at the 4 corners of this chunk, used for
     /// bilinear interpolation of `min_surface_level` during top-material
     /// lookup.
@@ -168,89 +161,12 @@ impl<N: DimensionNoises> CarvingContext<'_, N> {
     }
 }
 
-/// Vanilla's `WorldCarver.canReplaceBlock`: a carver may only replace blocks
-/// in its config's `replaceable` tag.
-#[must_use]
-pub fn can_replace_block(state: BlockStateId, tag: &Identifier) -> bool {
-    if state.is_air() {
-        return false;
-    }
-    let Some(block) = REGISTRY.blocks.by_state_id(state) else {
-        return false;
-    };
-    block.has_tag(tag)
-}
-
-/// Per-state membership cache for a carver's replaceable block tag.
-///
-/// Vanilla tests a block-state predicate for every candidate block. Steel's
-/// registry stores tags by block key, so resolving that predicate once into a
-/// state-id table avoids repeated tag/hash lookups in the carve loop while
-/// preserving the configured tag as the source of truth.
-#[derive(Debug)]
-pub struct CarverReplaceableStates {
-    states: Box<[bool]>,
-}
-
-impl CarverReplaceableStates {
-    fn build(tag: &Identifier) -> Self {
-        let states = REGISTRY
-            .blocks
-            .state_to_block_lookup
-            .iter()
-            .map(|&block| block.has_tag(tag))
-            .collect();
-        Self { states }
-    }
-
-    /// Returns whether `state` belongs to this cached replaceable set.
-    #[inline]
-    #[must_use]
-    pub fn contains(&self, state: BlockStateId) -> bool {
-        self.states.get(state.0 as usize).copied().unwrap_or(false)
-    }
-}
-
-static CARVER_REPLACEABLE_STATES: LazyLock<FxHashMap<Identifier, CarverReplaceableStates>> =
-    LazyLock::new(|| {
-        let mut states_by_tag = FxHashMap::default();
-        for (_, carver) in REGISTRY.configured_carvers.iter() {
-            let tag = &carver.base().replaceable_tag;
-            if !states_by_tag.contains_key(tag) {
-                states_by_tag.insert(tag.clone(), CarverReplaceableStates::build(tag));
-            }
-        }
-        states_by_tag
-    });
-
-/// Returns the cached replaceable-state set for a configured carver tag.
-#[must_use]
-pub fn cached_replaceable_states(tag: &Identifier) -> Option<&'static CarverReplaceableStates> {
-    CARVER_REPLACEABLE_STATES.get(tag)
-}
-
-/// Which carver family dictates the per-block decision inside
-/// [`CarveRun::carve_ellipsoid`]. Overworld carvers (cave + canyon) use the
-/// aquifer to pick air / water / lava; the nether variant hardcodes lava
-/// below `min_gen_y + 31` and cave-air elsewhere, with no aquifer lookups.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CarverStyle {
-    /// Overworld / end: aquifer-driven fluid/air.
-    Overworld,
-    /// Nether: lava below `min_gen_y + 31` else `CAVE_AIR`; no aquifer check.
-    Nether,
-}
-
 /// Well-known block state IDs a carver needs. Cached once per `apply_carvers`
 /// call so the carver loop doesn't hit the registry in its hot path.
 #[derive(Debug, Clone, Copy)]
 pub struct CarverBlockIds {
     /// `minecraft:air`.
     pub air: BlockStateId,
-    /// `minecraft:cave_air` (used by the nether carver).
-    pub cave_air: BlockStateId,
-    /// `minecraft:lava` (fluid block state).
-    pub lava: BlockStateId,
     /// `minecraft:grass_block` default state.
     pub grass_block: BlockStateId,
     /// `minecraft:mycelium` default state.
@@ -271,10 +187,6 @@ impl CarverBlockIds {
         use steel_registry::{REGISTRY, vanilla_blocks};
         Self {
             air: REGISTRY.blocks.get_default_state_id(&vanilla_blocks::AIR),
-            cave_air: REGISTRY
-                .blocks
-                .get_default_state_id(&vanilla_blocks::CAVE_AIR),
-            lava: REGISTRY.blocks.get_default_state_id(&vanilla_blocks::LAVA),
             grass_block: REGISTRY
                 .blocks
                 .get_default_state_id(&vanilla_blocks::GRASS_BLOCK),
@@ -283,16 +195,6 @@ impl CarverBlockIds {
                 .get_default_state_id(&vanilla_blocks::MYCELIUM),
             dirt: REGISTRY.blocks.get_default_state_id(&vanilla_blocks::DIRT),
         }
-    }
-
-    /// Returns whether the given state is one of the air variants this
-    /// carver uses (i.e. not a fluid). Used by the top-material flow to
-    /// decide `under_fluid`.
-    #[must_use]
-    pub const fn is_air_like(&self, state: BlockStateId) -> bool {
-        // SAFETY: BlockStateId is a `#[repr(transparent)]` wrapper around u16.
-        // Hand-written equality keeps this function `const`.
-        state.0 == self.air.0 || state.0 == self.cave_air.0
     }
 }
 
@@ -312,21 +214,6 @@ impl<F: FnMut(f64, f64, f64, i32) -> bool> CarveSkipChecker for F {
     }
 }
 
-/// Per-carver parameters: the replaceable-tag, resolved lava level, and
-/// which carver style to dispatch. Block IDs live on [`CarveRun`] because
-/// they're shared across all carvers in a chunk.
-pub struct CarveParams<'a> {
-    /// Tag of blocks the carver is allowed to replace.
-    pub replaceable_tag: &'a Identifier,
-    /// Cached state-id membership for `replaceable_tag` when available.
-    pub replaceable_states: Option<&'static CarverReplaceableStates>,
-    /// Resolved lava level (world Y). At or below this, carved blocks become
-    /// lava instead of air/water/etc.
-    pub lava_level_y: i32,
-    /// Which carver family this is (overworld vs nether).
-    pub style: CarverStyle,
-}
-
 /// Vanilla cave/canyon tunnel radius calculation.
 #[inline]
 #[must_use]
@@ -335,18 +222,10 @@ pub(super) fn horizontal_tunnel_radius(progress_arg: f32, thickness: f32) -> f64
     1.5 + f64::from(radius_offset)
 }
 
-/// Decision returned by the per-block carve-state computation.
-enum CarveState {
-    /// Place this block.
-    Place(BlockStateId),
-    /// Aquifer barrier / "don't carve" — skip block.
-    Skip,
-}
-
 /// The references every carver method needs. Bundled so `carve_ellipsoid`,
-/// `carve_block`, `create_tunnel`, `create_room`, `carve_cave`,
-/// `carve_canyon`, and `do_carve` can all be `&mut self` methods instead of
-/// repeating the same 7–8 arguments.
+/// `create_tunnel`, `create_room`, `carve_cave`, `carve_canyon`, and
+/// `do_carve` can all be `&mut self` methods instead of repeating the same
+/// 7–8 arguments.
 pub struct CarveRun<'a, 'b, N, F>
 where
     N: DimensionNoises,
@@ -385,11 +264,10 @@ where
     )]
     #[expect(
         clippy::too_many_arguments,
-        reason = "params + x/y/z/horizontal_radius/vertical_radius + skip_checker mirrors vanilla"
+        reason = "x/y/z/horizontal_radius/vertical_radius + skip_checker mirrors vanilla"
     )]
     pub fn carve_ellipsoid<S: CarveSkipChecker>(
         &mut self,
-        params: &CarveParams<'_>,
         x: f64,
         y: f64,
         z: f64,
@@ -406,12 +284,8 @@ where
 
         let min_x_idx = ((x - horizontal_radius).floor() as i32 - self.chunk_min_x - 1).max(0);
         let max_x_idx = ((x + horizontal_radius).floor() as i32 - self.chunk_min_x).min(15);
-        let min_y = ((y - vertical_radius).floor() as i32 - 1).max(self.ctx.min_y + 1);
-        // Vanilla: `chunk.isUpgrading() ? 0 : 7`. No chunk upgrade path yet,
-        // so always 7 — matches extractor config.
-        let protected_blocks_on_top = 7;
-        let max_y = ((y + vertical_radius).floor() as i32 + 1)
-            .min(self.ctx.min_y + self.ctx.gen_depth - 1 - protected_blocks_on_top);
+        let min_y = ((y - vertical_radius).floor() as i32 - 1).max(self.mask.min_y());
+        let max_y = ((y + vertical_radius).floor() as i32 + 1).min(self.mask.max_y());
         let min_z_idx = ((z - horizontal_radius).floor() as i32 - self.chunk_min_z - 1).max(0);
         let max_z_idx = ((z + horizontal_radius).floor() as i32 - self.chunk_min_z).min(15);
 
@@ -428,8 +302,6 @@ where
                     continue;
                 }
 
-                let mut has_grass = false;
-
                 // Scan top-down; range is exclusive of min_y (matches vanilla's
                 // `worldY > minY`).
                 for world_y in (min_y + 1..=max_y).rev() {
@@ -437,12 +309,8 @@ where
                     if skip_checker.should_skip(xd, yd, zd, world_y) {
                         continue;
                     }
-                    if !self.mask.set_if_unset(x_idx, world_y, z_idx) {
-                        continue;
-                    }
-                    if self.carve_block(params, world_x, world_y, world_z, &mut has_grass) {
-                        carved = true;
-                    }
+                    self.mask.set(x_idx, world_y, z_idx);
+                    carved = true;
                 }
             }
         }
@@ -450,49 +318,54 @@ where
         carved
     }
 
-    /// Per-block carve decision + placement. Mirrors vanilla's
-    /// `WorldCarver.carveBlock` (and the `NetherWorldCarver` override).
-    fn carve_block(
-        &mut self,
-        params: &CarveParams<'_>,
-        world_x: i32,
-        world_y: i32,
-        world_z: i32,
-        has_grass: &mut bool,
-    ) -> bool {
-        let pos = BlockPos::new(world_x, world_y, world_z);
-        let existing = self.chunk.get_block_state(pos);
+    /// Applies Snapshot-2 `CarverOutput` after every direct carver has marked
+    /// its geometry. This is intentionally separate from `carve_ellipsoid`:
+    /// overlapping direct carvers share one mask before the aquifer and
+    /// top-material decisions are evaluated.
+    pub fn apply_carving_mask(&mut self) {
+        let mut ranges = Vec::new();
+        self.mask
+            .visit(|x, z, bottom_y, top_y| ranges.push((x, z, bottom_y, top_y)));
 
-        // Track grass/mycelium for the top-material rewrite later.
-        if existing == self.ids.grass_block || existing == self.ids.mycelium {
-            *has_grass = true;
-        }
+        for (local_x, local_z, bottom_y, top_y) in ranges {
+            let world_x = self.chunk_min_x + local_x;
+            let world_z = self.chunk_min_z + local_z;
+            let mut has_grass = false;
 
-        if !Self::can_replace(params, existing) {
-            return false;
-        }
+            for world_y in (bottom_y..=top_y).rev() {
+                let pos = BlockPos::new(world_x, world_y, world_z);
+                let existing = self.chunk.get_block_state(pos);
+                if existing == self.ids.grass_block || existing == self.ids.mycelium {
+                    has_grass = true;
+                }
 
-        let state = match self.get_carve_state(params, world_x, world_y, world_z) {
-            CarveState::Place(id) => id,
-            CarveState::Skip => return false,
-        };
+                let state = match self.ctx.aquifer.compute_substance(
+                    self.noises,
+                    world_x,
+                    world_y,
+                    world_z,
+                    0.0,
+                ) {
+                    AquiferResult::Solid => continue,
+                    AquiferResult::Fluid(state) => state,
+                    AquiferResult::Air => self.ids.air,
+                };
 
-        self.chunk.set_block_state(pos, state, UpdateFlags::empty());
-        if params.style == CarverStyle::Overworld
-            && self.ctx.aquifer.should_schedule_fluid_update()
-            && state.has_fluid()
-        {
-            self.chunk.mark_pos_for_postprocessing(pos);
-        }
+                self.chunk.set_block_state(pos, state, UpdateFlags::empty());
+                if self.ctx.aquifer.should_schedule_fluid_update() && state.has_fluid() {
+                    self.chunk.mark_pos_for_postprocessing(pos);
+                }
 
-        // Top-material rewrite: only when we just turned a grass/mycelium
-        // block into something carved, and the block directly below is plain
-        // dirt. Nether carver skips this entirely (its override of carveBlock
-        // doesn't run this branch).
-        if params.style == CarverStyle::Overworld && *has_grass {
-            let below_pos = BlockPos::new(world_x, world_y - 1, world_z);
-            if self.chunk.get_block_state(below_pos) == self.ids.dirt {
-                let under_fluid = !self.ids.is_air_like(state);
+                if !has_grass {
+                    continue;
+                }
+
+                let below_pos = BlockPos::new(world_x, world_y - 1, world_z);
+                if self.chunk.get_block_state(below_pos) != self.ids.dirt {
+                    continue;
+                }
+
+                let under_fluid = state.has_fluid();
                 let steep = self.steep_material_condition(world_x, world_z);
                 let biome_id =
                     (self.biome_getter)(BlockPos(IVec3::new(world_x, world_y - 1, world_z)));
@@ -512,19 +385,6 @@ where
                 }
             }
         }
-
-        true
-    }
-
-    #[inline]
-    fn can_replace(params: &CarveParams<'_>, state: BlockStateId) -> bool {
-        if state.is_air() {
-            return false;
-        }
-        if let Some(states) = params.replaceable_states {
-            return states.contains(state);
-        }
-        can_replace_block(state, params.replaceable_tag)
     }
 
     fn steep_material_condition(&self, world_x: i32, world_z: i32) -> bool {
@@ -543,33 +403,6 @@ where
 
         log::error!("WorldSurfaceWg heightmap missing during carver top-material lookup");
         false
-    }
-
-    /// Vanilla's `WorldCarver.getCarveState` + the nether override dispatch.
-    fn get_carve_state(&mut self, params: &CarveParams<'_>, x: i32, y: i32, z: i32) -> CarveState {
-        match params.style {
-            CarverStyle::Overworld => {
-                if y <= params.lava_level_y {
-                    return CarveState::Place(self.ids.lava);
-                }
-                match self
-                    .ctx
-                    .aquifer
-                    .compute_substance(self.noises, x, y, z, 0.0)
-                {
-                    AquiferResult::Solid => CarveState::Skip,
-                    AquiferResult::Fluid(id) => CarveState::Place(id),
-                    AquiferResult::Air => CarveState::Place(self.ids.air),
-                }
-            }
-            CarverStyle::Nether => {
-                if y <= self.ctx.min_y + 31 {
-                    CarveState::Place(self.ids.lava)
-                } else {
-                    CarveState::Place(self.ids.cave_air)
-                }
-            }
-        }
     }
 }
 
