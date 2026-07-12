@@ -105,9 +105,12 @@ impl FeatureDecorationRunner {
             FeatureKind::NetherForestVegetation(_) => place_nether_forest_vegetation,
             FeatureKind::NetherrackReplaceBlobs(_) => place_netherrack_replace_blobs,
             FeatureKind::Ore(_) => place_ore,
+            FeatureKind::Overlay(_) => place_overlay,
             FeatureKind::PointedDripstone(_) => place_pointed_dripstone,
+            FeatureKind::ProjectedRandomPatchySquare(_) => place_projected_random_patchy_square,
             FeatureKind::RandomBooleanSelector(_) => place_random_boolean_selector,
             FeatureKind::RandomSelector(_) => place_random_selector,
+            FeatureKind::RandomNeighborSpread(_) => place_random_neighbor_spread,
             FeatureKind::WeightedRandomSelector(_) => place_weighted_random_selector,
             FeatureKind::RootSystem(_) => place_root_system,
             FeatureKind::ScatteredOre(_) => place_scattered_ore,
@@ -115,12 +118,14 @@ impl FeatureDecorationRunner {
             FeatureKind::SeaPickle(_) => place_sea_pickle,
             FeatureKind::Seagrass(_) => place_seagrass,
             FeatureKind::Sequence(_) => place_sequence,
+            FeatureKind::SingleBlockPillar(_) => place_single_block_pillar,
             FeatureKind::SimpleBlock(_) => place_simple_block,
             FeatureKind::SimpleRandomSelector(_) => place_simple_random_selector,
             FeatureKind::Speleothem(_) => place_speleothem,
             FeatureKind::SpeleothemCluster(_) => place_speleothem_cluster,
             FeatureKind::Spike(_) => place_spike,
             FeatureKind::SpringFeature(_) => place_spring_feature,
+            FeatureKind::SteppedColumnCluster(_) => place_stepped_column_cluster,
             FeatureKind::Template(_) => place_template,
             FeatureKind::Tree(_) => place_tree,
             FeatureKind::TwistingVines(_) => place_twisting_vines,
@@ -154,6 +159,357 @@ fn place_random_boolean_selector(
         selected_feature,
         context.biome_zoom_seed,
     )
+}
+
+fn place_overlay(context: &mut FeaturePlaceContext<'_, '_>, kind: &FeatureKind) -> bool {
+    let FeatureKind::Overlay(config) = kind else {
+        panic!("overlay placer received wrong feature kind");
+    };
+
+    let mut placed_any = false;
+    for feature in &config.features {
+        placed_any |= FeatureDecorationRunner::place_placed_feature_ref(
+            context.region,
+            context.registry,
+            context.random,
+            context.origin,
+            feature,
+            context.biome_zoom_seed,
+        );
+    }
+    placed_any
+}
+
+fn place_single_block_pillar(
+    context: &mut FeaturePlaceContext<'_, '_>,
+    kind: &FeatureKind,
+) -> bool {
+    let FeatureKind::SingleBlockPillar(config) = kind else {
+        panic!("single_block_pillar placer received wrong feature kind");
+    };
+
+    let mut position = context.origin;
+    while FeatureDecorationRunner::test_block_predicate(
+        context.region,
+        context.registry,
+        &config.can_replace,
+        position,
+    ) && context.random.next_f32() < config.chance_to_continue
+        && !context.region.is_outside_build_height(position.y())
+    {
+        let state = FeatureDecorationRunner::sample_block_state_provider(
+            context.region,
+            context.registry,
+            context.random,
+            &config.block,
+            position,
+        );
+        let _ = context
+            .region
+            .set_block_state(position, state, UpdateFlags::UPDATE_CLIENTS);
+        position = position.relative(config.direction);
+    }
+
+    if let Some(cap_feature) = &config.cap_feature {
+        let _ = FeatureDecorationRunner::place_placed_feature_ref(
+            context.region,
+            context.registry,
+            context.random,
+            position.relative(config.direction.opposite()),
+            cap_feature,
+            context.biome_zoom_seed,
+        );
+    }
+    true
+}
+
+fn place_projected_random_patchy_square(
+    context: &mut FeaturePlaceContext<'_, '_>,
+    kind: &FeatureKind,
+) -> bool {
+    let FeatureKind::ProjectedRandomPatchySquare(config) = kind else {
+        panic!("projected_random_patchy_square placer received wrong feature kind");
+    };
+
+    let size = config.size.sample(context.random);
+    let bound = size * size + 1;
+    for dx in -size..=size {
+        for dz in -size..=size {
+            let probability = dx.abs() * dz.abs();
+            if context.random.next_i32_bounded(bound) >= bound - probability {
+                continue;
+            }
+
+            let mut position = context.origin.offset(dx, 0, dz);
+            let mut drop = config.max_projection_height;
+            while FeatureDecorationRunner::test_block_predicate(
+                context.region,
+                context.registry,
+                &config.project_through,
+                position.below(),
+            ) {
+                position = position.below();
+                drop -= 1;
+                if drop <= 0 {
+                    break;
+                }
+            }
+
+            if let Some(state) = FeatureDecorationRunner::sample_block_state_provider_optional(
+                context.region,
+                context.registry,
+                context.random,
+                &config.block,
+                position,
+            ) {
+                let _ =
+                    context
+                        .region
+                        .set_block_state(position, state, UpdateFlags::UPDATE_CLIENTS);
+            }
+        }
+    }
+    true
+}
+
+fn place_stepped_column_cluster(
+    context: &mut FeaturePlaceContext<'_, '_>,
+    kind: &FeatureKind,
+) -> bool {
+    let FeatureKind::SteppedColumnCluster(config) = kind else {
+        panic!("stepped_column_cluster placer received wrong feature kind");
+    };
+
+    if !stepped_column_can_place_at(context, config, context.origin) {
+        return false;
+    }
+
+    let column_height = config.height.sample(context.random);
+    let cluster_reach = column_height.min(config.cluster_reach.sample(context.random));
+    let count = config.column_count.sample(context.random);
+    let mut placed = false;
+
+    for _ in 0..count {
+        let origin =
+            stepped_column_random_between_closed(context.random, context.origin, cluster_reach);
+        let blocks_to_place = column_height - origin.0.manhattan_distance(context.origin.0) as i32;
+        if blocks_to_place >= 0 {
+            let column_reach = config.column_reach.sample(context.random);
+            placed |=
+                stepped_column_place_column(context, config, origin, blocks_to_place, column_reach);
+        }
+    }
+    placed
+}
+
+fn stepped_column_random_between_closed(
+    random: &mut WorldgenRandom,
+    origin: BlockPos,
+    reach: i32,
+) -> BlockPos {
+    // Vanilla BlockPos.randomBetweenClosed draws Y even when its range is one block.
+    BlockPos::new(
+        random.next_i32_between(origin.x() - reach, origin.x() + reach),
+        random.next_i32_between(origin.y(), origin.y()),
+        random.next_i32_between(origin.z() - reach, origin.z() + reach),
+    )
+}
+
+fn stepped_column_place_column(
+    context: &mut FeaturePlaceContext<'_, '_>,
+    config: &SteppedColumnClusterConfiguration,
+    origin: BlockPos,
+    column_height: i32,
+    reach: i32,
+) -> bool {
+    let mut placed_any = false;
+    for x in origin.x() - reach..=origin.x() + reach {
+        for z in origin.z() - reach..=origin.z() + reach {
+            let position = BlockPos::new(x, origin.y(), z);
+            let step_limit = position.0.manhattan_distance(origin.0) as i32;
+            let column_position = if FeatureDecorationRunner::test_block_predicate(
+                context.region,
+                context.registry,
+                &config.can_replace,
+                position,
+            ) {
+                stepped_column_find_surface(context, config, position, step_limit)
+            } else {
+                stepped_column_find_air(context, config, position, step_limit)
+            };
+            let Some(mut cursor) = column_position else {
+                continue;
+            };
+
+            let mut blocks_y = column_height - step_limit / 2;
+            while blocks_y >= 0 {
+                if FeatureDecorationRunner::test_block_predicate(
+                    context.region,
+                    context.registry,
+                    &config.can_replace,
+                    cursor,
+                ) {
+                    let state = FeatureDecorationRunner::sample_block_state_provider(
+                        context.region,
+                        context.registry,
+                        context.random,
+                        &config.block,
+                        cursor,
+                    );
+                    let _ =
+                        context
+                            .region
+                            .set_block_state(cursor, state, UpdateFlags::UPDATE_CLIENTS);
+                    cursor = cursor.above();
+                    placed_any = true;
+                } else {
+                    if !FeatureDecorationRunner::test_block_predicate(
+                        context.region,
+                        context.registry,
+                        &config.continue_through,
+                        cursor,
+                    ) {
+                        break;
+                    }
+                    cursor = cursor.above();
+                }
+                blocks_y -= 1;
+            }
+        }
+    }
+    placed_any
+}
+
+fn stepped_column_find_surface(
+    context: &FeaturePlaceContext<'_, '_>,
+    config: &SteppedColumnClusterConfiguration,
+    mut cursor: BlockPos,
+    mut limit: i32,
+) -> Option<BlockPos> {
+    while cursor.y() > context.region.min_y() + 1 && limit > 0 {
+        limit -= 1;
+        if stepped_column_can_place_at(context, config, cursor) {
+            return Some(cursor);
+        }
+        cursor = cursor.below();
+    }
+    None
+}
+
+fn stepped_column_can_place_at(
+    context: &FeaturePlaceContext<'_, '_>,
+    config: &SteppedColumnClusterConfiguration,
+    cursor: BlockPos,
+) -> bool {
+    if !FeatureDecorationRunner::test_block_predicate(
+        context.region,
+        context.registry,
+        &config.can_replace,
+        cursor,
+    ) {
+        return false;
+    }
+    let below = context.region.block_state(cursor.below());
+    !below.is_air()
+        && !FeatureDecorationRunner::block_matches_holder_set(
+            below.get_block(),
+            &config.cannot_place_on,
+        )
+}
+
+fn stepped_column_find_air(
+    context: &FeaturePlaceContext<'_, '_>,
+    config: &SteppedColumnClusterConfiguration,
+    mut cursor: BlockPos,
+    mut limit: i32,
+) -> Option<BlockPos> {
+    while cursor.y() < context.region.max_y_exclusive() && limit > 0 {
+        limit -= 1;
+        let state = context.region.block_state(cursor);
+        if FeatureDecorationRunner::block_matches_holder_set(
+            state.get_block(),
+            &config.cannot_place_on,
+        ) {
+            return None;
+        }
+        if state.is_air() {
+            return Some(cursor);
+        }
+        cursor = cursor.above();
+    }
+    None
+}
+
+fn place_random_neighbor_spread(
+    context: &mut FeaturePlaceContext<'_, '_>,
+    kind: &FeatureKind,
+) -> bool {
+    let FeatureKind::RandomNeighborSpread(config) = kind else {
+        panic!("random_neighbor_spread placer received wrong feature kind");
+    };
+
+    let origin_state = FeatureDecorationRunner::sample_block_state_provider(
+        context.region,
+        context.registry,
+        context.random,
+        &config.block,
+        context.origin,
+    );
+    let _ =
+        context
+            .region
+            .set_block_state(context.origin, origin_state, UpdateFlags::UPDATE_CLIENTS);
+
+    let attempts = config.attempts.sample(context.random);
+    for _ in 0..attempts {
+        let position = context.origin.offset(
+            config.xz_offset.sample(context.random),
+            config.y_offset.sample(context.random),
+            config.xz_offset.sample(context.random),
+        );
+        if !FeatureDecorationRunner::test_block_predicate(
+            context.region,
+            context.registry,
+            &config.can_replace,
+            position,
+        ) {
+            continue;
+        }
+
+        let mut neighbors = 0;
+        for direction in [
+            Direction::Down,
+            Direction::Up,
+            Direction::North,
+            Direction::South,
+            Direction::West,
+            Direction::East,
+        ] {
+            let state = context.region.block_state(position.relative(direction));
+            if FeatureDecorationRunner::block_matches_holder_set(
+                state.get_block(),
+                &config.accepted_neighbors,
+            ) {
+                neighbors += 1;
+            }
+            if neighbors > 1 {
+                break;
+            }
+        }
+        if neighbors == 1 {
+            let state = FeatureDecorationRunner::sample_block_state_provider(
+                context.region,
+                context.registry,
+                context.random,
+                &config.block,
+                position,
+            );
+            let _ = context
+                .region
+                .set_block_state(position, state, UpdateFlags::UPDATE_CLIENTS);
+        }
+    }
+    true
 }
 
 fn place_random_selector(context: &mut FeaturePlaceContext<'_, '_>, kind: &FeatureKind) -> bool {
@@ -1042,6 +1398,7 @@ fn place_root_system(context: &mut FeaturePlaceContext<'_, '_>, kind: &FeatureKi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use steel_utils::random::{Random as _, worldgen_random::WorldgenRandom};
 
     #[test]
     fn template_feature_position_uses_template_depth_for_north_offset() {
@@ -1053,5 +1410,23 @@ mod tests {
             ),
             BlockPos::new(95, 64, 197)
         );
+    }
+
+    #[test]
+    fn stepped_column_candidates_consume_the_fixed_y_draw() {
+        let origin = BlockPos::new(100, 64, 200);
+        let reach = 5;
+        let mut actual = WorldgenRandom::from_seed(0x1A2B_3C4D);
+        let mut expected = WorldgenRandom::from_seed(0x1A2B_3C4D);
+
+        let candidate = stepped_column_random_between_closed(&mut actual, origin, reach);
+        let expected_candidate = BlockPos::new(
+            origin.x() - reach + expected.next_i32_bounded(reach * 2 + 1),
+            origin.y() + expected.next_i32_bounded(1),
+            origin.z() - reach + expected.next_i32_bounded(reach * 2 + 1),
+        );
+
+        assert_eq!(candidate, expected_candidate);
+        assert_eq!(actual.next_i32(), expected.next_i32());
     }
 }
