@@ -1,8 +1,4 @@
-//! Build-time codegen for `ConfiguredCarver` statics.
-//!
-//! Reads `build_assets/builtin_datapacks/minecraft/worldgen/configured_carver/*.json`,
-//! deserialises each via `steel_utils::value_providers` types, and emits
-//! Rust source with a `pub static` per carver plus a `register_carvers` fn.
+//! Generates direct Snapshot-2 `worldgen/carver` registry entries.
 
 use std::fs;
 
@@ -10,42 +6,46 @@ use heck::ToShoutySnakeCase;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Deserialize;
-use serde_json::Value;
-use steel_utils::Identifier;
-use steel_utils::value_providers::{FloatProvider, HeightProvider, VerticalAnchor};
+use steel_utils::value_providers::{FloatProvider, HeightProvider, IntProvider, VerticalAnchor};
 
-// ── JSON-facing structs ─────────────────────────────────────────────────────
-
-#[derive(Deserialize, Debug)]
-struct CarverJson {
-    #[serde(rename = "type")]
-    carver_type: String,
-    config: Value,
+#[derive(Deserialize)]
+#[serde(tag = "type")]
+enum CarverJson {
+    #[serde(rename = "minecraft:cave")]
+    Cave(CaveJson),
+    #[serde(rename = "minecraft:canyon")]
+    Canyon(CanyonJson),
 }
 
-#[derive(Deserialize, Debug)]
-struct CarverConfigBaseJson {
+#[derive(Deserialize)]
+struct CaveJson {
     probability: f32,
     y: HeightProvider,
-    #[serde(rename = "yScale")]
-    y_scale: FloatProvider,
-    lava_level: VerticalAnchor,
-    replaceable: String,
+    count: IntProvider,
+    thickness: FloatProvider,
     #[serde(default)]
-    #[expect(dead_code, reason = "debug_settings parsed but ignored (see TODO)")]
-    debug_settings: Option<Value>,
-}
-
-#[derive(Deserialize, Debug)]
-struct CaveConfigJson {
-    #[serde(flatten)]
-    base: CarverConfigBaseJson,
+    weird_thickness_bias: bool,
+    room_vertical_radius_multiplier: FloatProvider,
     horizontal_radius_multiplier: FloatProvider,
     vertical_radius_multiplier: FloatProvider,
+    #[serde(default = "one_float")]
+    start_vertical_radius_multiplier: FloatProvider,
     floor_level: FloatProvider,
 }
 
-#[derive(Deserialize, Debug)]
+fn one_float() -> FloatProvider {
+    FloatProvider::Constant(1.0)
+}
+
+#[derive(Deserialize)]
+struct CanyonJson {
+    probability: f32,
+    y: HeightProvider,
+    vertical_rotation: FloatProvider,
+    shape: CanyonShapeJson,
+}
+
+#[derive(Deserialize)]
 struct CanyonShapeJson {
     distance_factor: FloatProvider,
     thickness: FloatProvider,
@@ -53,290 +53,226 @@ struct CanyonShapeJson {
     horizontal_radius_factor: FloatProvider,
     vertical_radius_default_factor: f32,
     vertical_radius_center_factor: f32,
+    y_scale: FloatProvider,
 }
 
-#[derive(Deserialize, Debug)]
-struct CanyonConfigJson {
-    #[serde(flatten)]
-    base: CarverConfigBaseJson,
-    vertical_rotation: FloatProvider,
-    shape: CanyonShapeJson,
-}
-
-// ── Codegen helpers ─────────────────────────────────────────────────────────
-
-fn generate_identifier(resource: &Identifier) -> TokenStream {
-    let namespace = resource.namespace.as_ref();
-    let path = resource.path.as_ref();
-    quote! { Identifier { namespace: Cow::Borrowed(#namespace), path: Cow::Borrowed(#path) } }
-}
-
-fn generate_vertical_anchor(v: VerticalAnchor) -> TokenStream {
-    match v {
-        VerticalAnchor::Absolute(y) => quote! { VerticalAnchor::Absolute(#y) },
-        VerticalAnchor::AboveBottom(o) => quote! { VerticalAnchor::AboveBottom(#o) },
-        VerticalAnchor::BelowTop(o) => quote! { VerticalAnchor::BelowTop(#o) },
+fn vertical_anchor(value: VerticalAnchor) -> TokenStream {
+    match value {
+        VerticalAnchor::Absolute(value) => quote! { VerticalAnchor::Absolute(#value) },
+        VerticalAnchor::AboveBottom(value) => quote! { VerticalAnchor::AboveBottom(#value) },
+        VerticalAnchor::BelowTop(value) => quote! { VerticalAnchor::BelowTop(#value) },
+        VerticalAnchor::RelativeToSeaLevel(value) => {
+            quote! { VerticalAnchor::RelativeToSeaLevel(#value) }
+        }
     }
 }
 
-fn generate_height_provider(h: HeightProvider) -> TokenStream {
-    match h {
-        HeightProvider::Constant(a) => {
-            let anchor = generate_vertical_anchor(a);
+fn height_provider(value: HeightProvider) -> TokenStream {
+    match value {
+        HeightProvider::Constant(anchor) => {
+            let anchor = vertical_anchor(anchor);
             quote! { HeightProvider::Constant(#anchor) }
         }
         HeightProvider::Uniform {
             min_inclusive,
             max_inclusive,
         } => {
-            let min = generate_vertical_anchor(min_inclusive);
-            let max = generate_vertical_anchor(max_inclusive);
-            quote! {
-                HeightProvider::Uniform {
-                    min_inclusive: #min,
-                    max_inclusive: #max,
-                }
-            }
+            let min = vertical_anchor(min_inclusive);
+            let max = vertical_anchor(max_inclusive);
+            quote! { HeightProvider::Uniform { min_inclusive: #min, max_inclusive: #max } }
         }
         HeightProvider::Trapezoid {
             min_inclusive,
             max_inclusive,
             plateau,
         } => {
-            let min = generate_vertical_anchor(min_inclusive);
-            let max = generate_vertical_anchor(max_inclusive);
-            quote! {
-                HeightProvider::Trapezoid {
-                    min_inclusive: #min,
-                    max_inclusive: #max,
-                    plateau: #plateau,
-                }
-            }
+            let min = vertical_anchor(min_inclusive);
+            let max = vertical_anchor(max_inclusive);
+            quote! { HeightProvider::Trapezoid { min_inclusive: #min, max_inclusive: #max, plateau: #plateau } }
         }
         HeightProvider::BiasedToBottom {
             min_inclusive,
             max_inclusive,
             inner,
         } => {
-            let min = generate_vertical_anchor(min_inclusive);
-            let max = generate_vertical_anchor(max_inclusive);
-            quote! {
-                HeightProvider::BiasedToBottom {
-                    min_inclusive: #min,
-                    max_inclusive: #max,
-                    inner: #inner,
-                }
-            }
+            let min = vertical_anchor(min_inclusive);
+            let max = vertical_anchor(max_inclusive);
+            quote! { HeightProvider::BiasedToBottom { min_inclusive: #min, max_inclusive: #max, inner: #inner } }
         }
         HeightProvider::VeryBiasedToBottom {
             min_inclusive,
             max_inclusive,
             inner,
         } => {
-            let min = generate_vertical_anchor(min_inclusive);
-            let max = generate_vertical_anchor(max_inclusive);
-            quote! {
-                HeightProvider::VeryBiasedToBottom {
-                    min_inclusive: #min,
-                    max_inclusive: #max,
-                    inner: #inner,
-                }
-            }
+            let min = vertical_anchor(min_inclusive);
+            let max = vertical_anchor(max_inclusive);
+            quote! { HeightProvider::VeryBiasedToBottom { min_inclusive: #min, max_inclusive: #max, inner: #inner } }
         }
     }
 }
 
-fn generate_float_provider(f: FloatProvider) -> TokenStream {
-    match f {
-        FloatProvider::Constant(v) => quote! { FloatProvider::Constant(#v) },
+fn float_provider(value: FloatProvider) -> TokenStream {
+    match value {
+        FloatProvider::Constant(value) => quote! { FloatProvider::Constant(#value) },
         FloatProvider::Uniform {
             min_inclusive,
             max_exclusive,
-        } => quote! {
-            FloatProvider::Uniform {
-                min_inclusive: #min_inclusive,
-                max_exclusive: #max_exclusive,
-            }
-        },
-        FloatProvider::Trapezoid { min, max, plateau } => quote! {
-            FloatProvider::Trapezoid {
-                min: #min,
-                max: #max,
-                plateau: #plateau,
-            }
-        },
+        } => {
+            quote! { FloatProvider::Uniform { min_inclusive: #min_inclusive, max_exclusive: #max_exclusive } }
+        }
+        FloatProvider::Trapezoid { min, max, plateau } => {
+            quote! { FloatProvider::Trapezoid { min: #min, max: #max, plateau: #plateau } }
+        }
         FloatProvider::ClampedNormal {
             mean,
             deviation,
             min,
             max,
-        } => quote! {
-            FloatProvider::ClampedNormal {
-                mean: #mean,
-                deviation: #deviation,
-                min: #min,
-                max: #max,
-            }
-        },
-    }
-}
-
-/// Parses a tag reference string like `#minecraft:overworld_carver_replaceables`
-/// into the underlying tag [`Identifier`]. Non-tag (inline list) forms are
-/// rejected — all vanilla carvers use tags.
-fn parse_replaceable_tag(s: &str) -> Identifier {
-    let stripped = s
-        .strip_prefix('#')
-        .unwrap_or_else(|| panic!("carver `replaceable` must be a `#tag` reference, got `{s}`"));
-    let (ns, path) = stripped.split_once(':').unwrap_or(("minecraft", stripped));
-    Identifier::new(ns.to_owned(), path.to_owned())
-}
-
-fn generate_base(base: &CarverConfigBaseJson) -> TokenStream {
-    let probability = base.probability;
-    let y = generate_height_provider(base.y);
-    let y_scale = generate_float_provider(base.y_scale);
-    let lava_level = generate_vertical_anchor(base.lava_level);
-    let tag = generate_identifier(&parse_replaceable_tag(&base.replaceable));
-
-    quote! {
-        CarverConfiguration {
-            probability: #probability,
-            y: #y,
-            y_scale: #y_scale,
-            lava_level: #lava_level,
-            replaceable_tag: #tag,
+        } => {
+            quote! { FloatProvider::ClampedNormal { mean: #mean, deviation: #deviation, min: #min, max: #max } }
         }
     }
 }
 
-fn generate_cave_kind(kind_name: &str, cfg: &CaveConfigJson) -> TokenStream {
-    let base = generate_base(&cfg.base);
-    let hrm = generate_float_provider(cfg.horizontal_radius_multiplier);
-    let vrm = generate_float_provider(cfg.vertical_radius_multiplier);
-    let floor = generate_float_provider(cfg.floor_level);
-    let kind_ident = Ident::new(kind_name, Span::call_site());
-
-    quote! {
-        ConfiguredCarverKind::#kind_ident(CaveCarverConfiguration {
-            base: #base,
-            horizontal_radius_multiplier: #hrm,
-            vertical_radius_multiplier: #vrm,
-            floor_level: #floor,
-        })
+fn int_provider(value: IntProvider) -> TokenStream {
+    match value {
+        IntProvider::Constant(value) => quote! { IntProvider::Constant(#value) },
+        IntProvider::Uniform {
+            min_inclusive,
+            max_inclusive,
+        } => {
+            quote! { IntProvider::Uniform { min_inclusive: #min_inclusive, max_inclusive: #max_inclusive } }
+        }
+        IntProvider::BiasedToBottom {
+            min_inclusive,
+            max_inclusive,
+        } => {
+            quote! { IntProvider::BiasedToBottom { min_inclusive: #min_inclusive, max_inclusive: #max_inclusive } }
+        }
+        IntProvider::VeryBiasedToBottom {
+            min_inclusive,
+            max_inclusive,
+        } => {
+            quote! { IntProvider::VeryBiasedToBottom { min_inclusive: #min_inclusive, max_inclusive: #max_inclusive } }
+        }
+        IntProvider::Trapezoid { min, max, plateau } => {
+            quote! { IntProvider::Trapezoid { min: #min, max: #max, plateau: #plateau } }
+        }
+        IntProvider::ClampedNormal {
+            mean,
+            deviation,
+            min_inclusive,
+            max_inclusive,
+        } => {
+            quote! { IntProvider::ClampedNormal { mean: #mean, deviation: #deviation, min_inclusive: #min_inclusive, max_inclusive: #max_inclusive } }
+        }
+        IntProvider::Clamped {
+            source,
+            min_inclusive,
+            max_inclusive,
+        } => {
+            let source = int_provider(*source);
+            quote! { IntProvider::Clamped { source: Box::new(#source), min_inclusive: #min_inclusive, max_inclusive: #max_inclusive } }
+        }
+        IntProvider::WeightedList { distribution } => {
+            let entries = distribution.into_iter().map(|entry| {
+                let data = int_provider(entry.data);
+                let weight = entry.weight;
+                quote! { steel_utils::value_providers::WeightedIntProvider { data: #data, weight: #weight } }
+            });
+            quote! { IntProvider::WeightedList { distribution: vec![#(#entries),*] } }
+        }
     }
 }
 
-fn generate_canyon_kind(cfg: &CanyonConfigJson) -> TokenStream {
-    let base = generate_base(&cfg.base);
-    let vrot = generate_float_provider(cfg.vertical_rotation);
-    let df = generate_float_provider(cfg.shape.distance_factor);
-    let thick = generate_float_provider(cfg.shape.thickness);
-    let ws = cfg.shape.width_smoothness;
-    let hrf = generate_float_provider(cfg.shape.horizontal_radius_factor);
-    let vrdf = cfg.shape.vertical_radius_default_factor;
-    let vrcf = cfg.shape.vertical_radius_center_factor;
-
-    quote! {
-        ConfiguredCarverKind::Canyon(CanyonCarverConfiguration {
-            base: #base,
-            vertical_rotation: #vrot,
-            shape: CanyonShapeConfiguration {
-                distance_factor: #df,
-                thickness: #thick,
-                width_smoothness: #ws,
-                horizontal_radius_factor: #hrf,
-                vertical_radius_default_factor: #vrdf,
-                vertical_radius_center_factor: #vrcf,
-            },
-        })
-    }
+fn cave_kind(value: CaveJson) -> TokenStream {
+    let CaveJson {
+        probability,
+        y,
+        count,
+        thickness,
+        weird_thickness_bias,
+        room_vertical_radius_multiplier,
+        horizontal_radius_multiplier,
+        vertical_radius_multiplier,
+        start_vertical_radius_multiplier,
+        floor_level,
+    } = value;
+    let y = height_provider(y);
+    let count = int_provider(count);
+    let thickness = float_provider(thickness);
+    let room = float_provider(room_vertical_radius_multiplier);
+    let horizontal = float_provider(horizontal_radius_multiplier);
+    let vertical = float_provider(vertical_radius_multiplier);
+    let start_vertical = float_provider(start_vertical_radius_multiplier);
+    let floor = float_provider(floor_level);
+    quote! { WorldCarverKind::Cave(CaveWorldCarver { probability: #probability, y: #y, count: #count, thickness: #thickness, weird_thickness_bias: #weird_thickness_bias, room_vertical_radius_multiplier: #room, horizontal_radius_multiplier: #horizontal, vertical_radius_multiplier: #vertical, start_vertical_radius_multiplier: #start_vertical, floor_level: #floor }) }
 }
 
-// ── Build entry point ───────────────────────────────────────────────────────
+fn canyon_kind(value: CanyonJson) -> TokenStream {
+    let CanyonJson {
+        probability,
+        y,
+        vertical_rotation,
+        shape,
+    } = value;
+    let y = height_provider(y);
+    let rotation = float_provider(vertical_rotation);
+    let distance = float_provider(shape.distance_factor);
+    let thickness = float_provider(shape.thickness);
+    let horizontal = float_provider(shape.horizontal_radius_factor);
+    let y_scale = float_provider(shape.y_scale);
+    let width = shape.width_smoothness;
+    let default_factor = shape.vertical_radius_default_factor;
+    let center_factor = shape.vertical_radius_center_factor;
+    quote! { WorldCarverKind::Canyon(CanyonWorldCarver { probability: #probability, y: #y, vertical_rotation: #rotation, shape: CanyonShape { distance_factor: #distance, thickness: #thickness, width_smoothness: #width, horizontal_radius_factor: #horizontal, vertical_radius_default_factor: #default_factor, vertical_radius_center_factor: #center_factor, y_scale: #y_scale } }) }
+}
 
 pub(crate) fn build() -> TokenStream {
-    let dir = "../steel-utils/build_assets/builtin_datapacks/minecraft/worldgen/configured_carver";
+    let dir = "../steel-utils/build_assets/builtin_datapacks/minecraft/worldgen/carver";
     println!("cargo:rerun-if-changed={dir}");
-
-    let mut entries: Vec<(String, TokenStream)> = Vec::new();
-
     let mut files: Vec<_> = fs::read_dir(dir)
-        .expect("configured_carver dir missing")
+        .expect("worldgen/carver dir missing")
         .filter_map(Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("json"))
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
         .collect();
-    // Sort for deterministic output
     files.sort_by_key(std::fs::DirEntry::file_name);
 
-    for entry in files {
-        let path = entry.path();
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .expect("invalid carver file name")
-            .to_string();
-        let content =
-            fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {name}.json: {e}"));
-        let raw: CarverJson = serde_json::from_str(&content)
-            .unwrap_or_else(|e| panic!("failed to parse {name}.json: {e}"));
+    let entries = files
+        .into_iter()
+        .map(|entry| {
+            let path = entry.path();
+            let name = path
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .expect("invalid carver file name")
+                .to_owned();
+            let content = fs::read_to_string(path).expect("failed to read direct carver data");
+            let value: CarverJson = serde_json::from_str(&content)
+                .unwrap_or_else(|error| panic!("failed to parse direct carver {name}: {error}"));
+            let kind = match value {
+                CarverJson::Cave(value) => cave_kind(value),
+                CarverJson::Canyon(value) => canyon_kind(value),
+            };
+            (name, kind)
+        })
+        .collect::<Vec<_>>();
 
-        let kind = match raw.carver_type.as_str() {
-            "minecraft:cave" => {
-                let cfg: CaveConfigJson = serde_json::from_value(raw.config)
-                    .unwrap_or_else(|e| panic!("failed to parse {name} cave config: {e}"));
-                generate_cave_kind("Cave", &cfg)
-            }
-            "minecraft:nether_cave" => {
-                let cfg: CaveConfigJson = serde_json::from_value(raw.config)
-                    .unwrap_or_else(|e| panic!("failed to parse {name} nether_cave config: {e}"));
-                generate_cave_kind("NetherCave", &cfg)
-            }
-            "minecraft:canyon" => {
-                let cfg: CanyonConfigJson = serde_json::from_value(raw.config)
-                    .unwrap_or_else(|e| panic!("failed to parse {name} canyon config: {e}"));
-                generate_canyon_kind(&cfg)
-            }
-            other => panic!("unknown configured_carver type `{other}` in {name}.json"),
-        };
-
-        entries.push((name, kind));
-    }
-
-    let mut stream = TokenStream::new();
-    stream.extend(quote! {
-        use crate::carver::{
-            CanyonCarverConfiguration, CanyonShapeConfiguration, CarverConfiguration,
-            CaveCarverConfiguration, ConfiguredCarver, ConfiguredCarverKind,
-            ConfiguredCarverRegistry,
-        };
-        use steel_utils::Identifier;
-        use steel_utils::value_providers::{FloatProvider, HeightProvider, VerticalAnchor};
-        use std::borrow::Cow;
-        use std::sync::{LazyLock, OnceLock};
-    });
-
-    let mut register = TokenStream::new();
-    for (name, kind) in &entries {
+    let declarations = entries.iter().map(|(name, kind)| {
         let ident = Ident::new(&name.to_shouty_snake_case(), Span::call_site());
-        let key = quote! { Identifier::vanilla_static(#name) };
-        stream.extend(quote! {
-            pub static #ident: LazyLock<ConfiguredCarver> = LazyLock::new(|| ConfiguredCarver {
-                key: #key,
-                kind: #kind,
-                id: OnceLock::new(),
-            });
-        });
-        register.extend(quote! {
-            registry.register(&#ident);
-        });
-    }
-
-    stream.extend(quote! {
-        pub fn register_configured_carvers(registry: &mut ConfiguredCarverRegistry) {
-            #register
-        }
+        quote! { pub static #ident: LazyLock<WorldCarver> = LazyLock::new(|| WorldCarver { key: Identifier::vanilla_static(#name), kind: #kind, id: OnceLock::new() }); }
+    });
+    let registrations = entries.iter().map(|(name, _)| {
+        let ident = Ident::new(&name.to_shouty_snake_case(), Span::call_site());
+        quote! { registry.register(&#ident); }
     });
 
-    stream
+    quote! {
+        use std::sync::{LazyLock, OnceLock};
+        use steel_utils::Identifier;
+        use steel_utils::value_providers::{FloatProvider, HeightProvider, IntProvider, VerticalAnchor};
+        use crate::carver::{CanyonShape, CanyonWorldCarver, CaveWorldCarver, WorldCarver, WorldCarverKind, WorldCarverRegistry};
+        #(#declarations)*
+        pub fn register_world_carvers(registry: &mut WorldCarverRegistry) { #(#registrations)* }
+    }
 }
