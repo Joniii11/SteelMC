@@ -170,7 +170,7 @@ const STRUCTURES: &str = "structures";
 const STRUCTURE_PROCESSORS: &str = "structure_processors";
 const TEMPLATE_POOLS: &str = "template_pools";
 const WORLD_CLOCKS: &str = "world_clocks";
-const CARVERS: &str = "configured_carvers";
+const CARVERS: &str = "world_carvers";
 const FEATURES: &str = "features";
 const PLACED_FEATURES: &str = "placed_features";
 

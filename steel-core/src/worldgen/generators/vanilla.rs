@@ -6,7 +6,7 @@ use smallvec::SmallVec;
 use steel_math::lerp2;
 use steel_registry::biome::BiomeRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::carver::ConfiguredCarverKind;
+use steel_registry::carver::WorldCarverKind;
 use steel_registry::{REGISTRY, RegistryEntry, RegistryExt, vanilla_biomes};
 use steel_utils::random::{
     Random, RandomSource, RandomSplitter, legacy_random::LegacyRandom, xoroshiro::Xoroshiro,
@@ -22,8 +22,9 @@ use crate::behavior::BlockStateBehaviorExt as _;
 use crate::chunk::chunk_access::ChunkAccess;
 use crate::chunk::heightmap::{Heightmap, HeightmapType};
 use crate::worldgen::carver::{
-    CarveRun, CarverBlockIds, CarvingContext, PreliminarySurfaceCorners, SourceChunk, cave,
+    CarveRun, CarverBlockIds, CarvingContext, PreliminarySurfaceCorners, SourceChunk,
 };
+use crate::worldgen::carving_mask::CarvingMask;
 use crate::worldgen::feature::FeatureDecorationRunner;
 use crate::worldgen::generator::{ChunkGenerator, worldgen_region_random_from_splitter};
 use crate::worldgen::region::WorldGenRegion;
@@ -691,7 +692,7 @@ impl<N: DimensionNoises> ChunkGenerator for VanillaGenerator<N> {
     #[expect(clippy::too_many_lines, reason = "matches vanilla carver setup flow")]
     fn apply_carvers(&self, chunk: &ChunkAccess) {
         // Carvers only run on proto chunks.
-        let ChunkAccess::Proto(proto) = chunk else {
+        let ChunkAccess::Proto(_) = chunk else {
             return;
         };
 
@@ -711,8 +712,8 @@ impl<N: DimensionNoises> ChunkGenerator for VanillaGenerator<N> {
         let height = N::Settings::HEIGHT;
         let noises = &*self.noises;
 
-        // Fresh aquifer (vanilla caches NoiseChunk across stages; see TODO on
-        // ProtoChunk::carving_mask for why we rebuild instead).
+        // Fresh aquifer (vanilla caches NoiseChunk across stages; Steel's
+        // generic ProtoChunk boundary currently cannot retain it).
         let mut column_cache = N::ColumnCache::default();
         if N::Settings::AQUIFERS_ENABLED {
             column_cache.init_grid(chunk_min_x, chunk_min_z, noises);
@@ -757,7 +758,6 @@ impl<N: DimensionNoises> ChunkGenerator for VanillaGenerator<N> {
             gen_depth: height,
             surface_system: &self.surface_system,
             aquifer,
-            default_block_id: self.default_block_id,
             psl_corners,
             chunk_min_x,
             chunk_min_z,
@@ -790,9 +790,12 @@ impl<N: DimensionNoises> ChunkGenerator for VanillaGenerator<N> {
             }
         }
 
-        // Grab (and lazily create) the carving mask on the proto chunk.
-        let mut mask_guard = proto.get_or_create_carving_mask();
-        let mask = &mut *mask_guard;
+        // Snapshot 2 creates a fresh direct-carver output for this stage.
+        // There is no ProtoChunk-persisted mask anymore.
+        let protected_blocks_on_top = 7;
+        let mask_min_y = min_y + 1;
+        let mask_max_y = min_y + height - 1 - protected_blocks_on_top;
+        let mut mask = CarvingMask::new(mask_min_y, mask_max_y);
 
         // `WorldgenRandom(LegacyRandomSource(generateUniqueSeed()))` — initial
         // seed is irrelevant; every carver overwrites it via
@@ -817,11 +820,14 @@ impl<N: DimensionNoises> ChunkGenerator for VanillaGenerator<N> {
             chunk_min_x,
             chunk_min_z,
             biome_getter: &mut biome_getter,
-            mask,
+            mask: &mut mask,
             ids,
         };
 
         run.run_all(&source_biomes, seed_i64, &mut random);
+        if !run.mask.is_empty() {
+            run.apply_carving_mask();
+        }
     }
 
     fn create_worldgen_region_random(&self, _world_seed: i64, center: ChunkPos) -> RandomSource {
@@ -845,9 +851,9 @@ where
     fn run_all(&mut self, source_biomes: &[SourceChunk], seed_i64: i64, random: &mut LegacyRandom) {
         for source in source_biomes {
             for (index, carver_key) in source.biome.carvers.iter().enumerate() {
-                let Some(carver) = REGISTRY.configured_carvers.by_key(carver_key) else {
+                let Some(carver) = REGISTRY.world_carvers.by_key(carver_key) else {
                     panic!(
-                        "biome {} references unknown configured carver {}",
+                        "biome {} references unknown world carver {}",
                         source.biome.key, carver_key
                     );
                 };
@@ -858,19 +864,19 @@ where
                     source.pos.0.y,
                 );
 
-                let probability = carver.base().probability;
+                let probability = match &carver.kind {
+                    WorldCarverKind::Cave(config) => config.probability,
+                    WorldCarverKind::Canyon(config) => config.probability,
+                };
                 if random.next_f32() > probability {
                     continue;
                 }
 
                 match &carver.kind {
-                    ConfiguredCarverKind::Cave(cfg) => {
-                        self.carve_cave(cfg, cave::CaveKind::Overworld, source.pos, random);
+                    WorldCarverKind::Cave(cfg) => {
+                        self.carve_cave(cfg, source.pos, random);
                     }
-                    ConfiguredCarverKind::NetherCave(cfg) => {
-                        self.carve_cave(cfg, cave::CaveKind::Nether, source.pos, random);
-                    }
-                    ConfiguredCarverKind::Canyon(cfg) => {
+                    WorldCarverKind::Canyon(cfg) => {
                         self.carve_canyon(cfg, source.pos, random);
                     }
                 }

@@ -1404,6 +1404,8 @@ fn chunk_stage_hashes_inner() {
         let mut feature_holders: Option<FeatureHolderMap> = None;
         let mut feature_dependencies_prepared = false;
         let mut generated_feature_positions = FxHashSet::default();
+        let mut surfaced_positions = FxHashSet::default();
+        let mut carved_positions = FxHashSet::default();
         let mut light_initialized = false;
         let mut light_propagated = false;
         let tracked_positions_sorted = sorted_positions(&tracked_positions);
@@ -1411,7 +1413,8 @@ fn chunk_stage_hashes_inner() {
         let light_feature_positions_sorted = sorted_positions(&light_feature_positions);
 
         for &stage in STAGES {
-            if debug_stage.as_deref().is_some_and(|filter| filter != stage) {
+            let verify_stage = debug_stage.as_deref().is_none_or(|filter| filter == stage);
+            if !verify_stage {
                 continue;
             }
             let reference_blocks = (stage != LIGHT_STAGE)
@@ -1438,9 +1441,8 @@ fn chunk_stage_hashes_inner() {
                 // but their feature stage must wait until after tracked feature hashes.
                 if !feature_dependencies_prepared {
                     let dependency_positions = sorted_positions(&feature_carver_positions);
-                    let tracked_block_stages_already_ran = debug_stage.is_none();
                     for &pos in &dependency_positions {
-                        if tracked_block_stages_already_ran && tracked_positions.contains(&pos) {
+                        if !surfaced_positions.insert(pos) {
                             continue;
                         }
                         let chunk = chunk_or_panic(&chunks, pos);
@@ -1462,7 +1464,7 @@ fn chunk_stage_hashes_inner() {
                         generator.build_surface(chunk, &neighbor_biomes);
                     }
                     for &pos in &dependency_positions {
-                        if tracked_block_stages_already_ran && tracked_positions.contains(&pos) {
+                        if !carved_positions.insert(pos) {
                             continue;
                         }
                         let chunk = chunk_or_panic(&chunks, pos);
@@ -1604,10 +1606,17 @@ fn chunk_stage_hashes_inner() {
                         };
 
                         match stage {
-                            "minecraft:surface" => generator.build_surface(chunk, &neighbor_biomes),
+                            "minecraft:surface" => {
+                                generator.build_surface(chunk, &neighbor_biomes);
+                                surfaced_positions.insert((chunk_x, chunk_z));
+                            }
                             "minecraft:carvers" => {
+                                if surfaced_positions.insert((chunk_x, chunk_z)) {
+                                    generator.build_surface(chunk, &neighbor_biomes);
+                                }
                                 recalculate_section_counts(chunk);
                                 generator.apply_carvers(chunk);
+                                carved_positions.insert((chunk_x, chunk_z));
                             }
                             _ => panic!("Stage {stage} not yet implemented in test harness"),
                         }
@@ -1615,6 +1624,10 @@ fn chunk_stage_hashes_inner() {
 
                     compute_block_hash(chunk.sections())
                 };
+
+                if !verify_stage {
+                    continue;
+                }
 
                 let ok = actual_hash == expected_hash;
                 if (i + 1) % 10 == 0 || i + 1 == total || !ok {
