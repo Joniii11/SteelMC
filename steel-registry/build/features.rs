@@ -198,6 +198,9 @@ fn generate_vertical_anchor(anchor: VerticalAnchor) -> TokenStream {
         VerticalAnchor::Absolute(value) => quote! { VerticalAnchor::Absolute(#value) },
         VerticalAnchor::AboveBottom(value) => quote! { VerticalAnchor::AboveBottom(#value) },
         VerticalAnchor::BelowTop(value) => quote! { VerticalAnchor::BelowTop(#value) },
+        VerticalAnchor::RelativeToSeaLevel(value) => {
+            quote! { VerticalAnchor::RelativeToSeaLevel(#value) }
+        }
     }
 }
 
@@ -309,12 +312,10 @@ fn generate_int_provider(provider: &IntProvider) -> TokenStream {
         IntProvider::VeryBiasedToBottom {
             min_inclusive,
             max_inclusive,
-            inner,
         } => quote! {
             IntProvider::VeryBiasedToBottom {
                 min_inclusive: #min_inclusive,
                 max_inclusive: #max_inclusive,
-                inner: #inner,
             }
         },
         IntProvider::Trapezoid { min, max, plateau } => quote! {
@@ -589,6 +590,14 @@ fn generate_block_predicate(predicate: &BlockPredicate) -> TokenStream {
             let offset = generate_offset(offset);
             quote! { BlockPredicate::InsideWorldBounds { offset: #offset } }
         }
+        BlockPredicate::HeightRange {
+            min_inclusive,
+            max_inclusive,
+        } => {
+            let min_inclusive = generate_vertical_anchor(*min_inclusive);
+            let max_inclusive = generate_vertical_anchor(*max_inclusive);
+            quote! { BlockPredicate::HeightRange { min_inclusive: #min_inclusive, max_inclusive: #max_inclusive } }
+        }
     }
 }
 
@@ -721,6 +730,18 @@ fn generate_placement_modifier(modifier: &PlacementModifier) -> TokenStream {
                 PlacementModifier::RandomOffset {
                     xz_spread: #xz_spread,
                     y_spread: #y_spread,
+                }
+            }
+        }
+        PlacementModifier::Offset { x, y, z } => {
+            let x = generate_int_provider(x);
+            let y = generate_int_provider(y);
+            let z = generate_int_provider(z);
+            quote! {
+                PlacementModifier::Offset {
+                    x: #x,
+                    y: #y,
+                    z: #z,
                 }
             }
         }
@@ -1718,6 +1739,25 @@ fn generate_feature_kind(kind: &FeatureKind) -> TokenStream {
                 })
             }
         }
+        FeatureKind::Overlay(config) => {
+            let features = generate_vec(&config.features, generate_placed_feature_ref);
+            quote! { FeatureKind::Overlay(OverlayConfiguration { features: #features }) }
+        }
+        FeatureKind::SingleBlockPillar(config) => {
+            let block = generate_block_state_provider(&config.block);
+            let can_replace = generate_block_predicate(&config.can_replace);
+            let direction = generate_direction(config.direction);
+            let chance = config.chance_to_continue;
+            let cap_feature = generate_option(&config.cap_feature, generate_placed_feature_ref);
+            quote! { FeatureKind::SingleBlockPillar(SingleBlockPillarConfiguration { block: #block, can_replace: #can_replace, direction: #direction, chance_to_continue: #chance, cap_feature: #cap_feature }) }
+        }
+        FeatureKind::ProjectedRandomPatchySquare(config) => {
+            let block = generate_block_state_provider(&config.block);
+            let project_through = generate_block_predicate(&config.project_through);
+            let size = generate_int_provider(&config.size);
+            let max_projection_height = config.max_projection_height;
+            quote! { FeatureKind::ProjectedRandomPatchySquare(ProjectedRandomPatchySquareConfiguration { block: #block, project_through: #project_through, size: #size, max_projection_height: #max_projection_height }) }
+        }
         FeatureKind::PointedDripstone(config) => {
             let chance_of_taller_dripstone = config.chance_of_taller_dripstone;
             let chance_of_directional_spread = config.chance_of_directional_spread;
@@ -1751,6 +1791,15 @@ fn generate_feature_kind(kind: &FeatureKind) -> TokenStream {
                     default: #default,
                 })
             }
+        }
+        FeatureKind::RandomNeighborSpread(config) => {
+            let block = generate_block_state_provider(&config.block);
+            let accepted_neighbors = generate_block_holder_set(&config.accepted_neighbors);
+            let can_replace = generate_block_predicate(&config.can_replace);
+            let attempts = generate_int_provider(&config.attempts);
+            let xz_offset = generate_int_provider(&config.xz_offset);
+            let y_offset = generate_int_provider(&config.y_offset);
+            quote! { FeatureKind::RandomNeighborSpread(RandomNeighborSpreadConfiguration { block: #block, accepted_neighbors: #accepted_neighbors, can_replace: #can_replace, attempts: #attempts, xz_offset: #xz_offset, y_offset: #y_offset }) }
         }
         FeatureKind::WeightedRandomSelector(config) => {
             let features = generate_vec(&config.features, generate_weighted_random_placed_feature);
@@ -1918,6 +1967,17 @@ fn generate_feature_kind(kind: &FeatureKind) -> TokenStream {
                     valid_blocks: #valid_blocks,
                 })
             }
+        }
+        FeatureKind::SteppedColumnCluster(config) => {
+            let block = generate_block_state_provider(&config.block);
+            let continue_through = generate_block_predicate(&config.continue_through);
+            let can_replace = generate_block_predicate(&config.can_replace);
+            let cannot_place_on = generate_block_holder_set(&config.cannot_place_on);
+            let cluster_reach = generate_int_provider(&config.cluster_reach);
+            let column_count = generate_int_provider(&config.column_count);
+            let column_reach = generate_int_provider(&config.column_reach);
+            let height = generate_int_provider(&config.height);
+            quote! { FeatureKind::SteppedColumnCluster(SteppedColumnClusterConfiguration { block: #block, continue_through: #continue_through, can_replace: #can_replace, cannot_place_on: #cannot_place_on, cluster_reach: #cluster_reach, column_count: #column_count, column_reach: #column_reach, height: #height }) }
         }
         FeatureKind::Template(config) => {
             let templates = generate_vec(&config.templates, generate_weighted_template_entry);
