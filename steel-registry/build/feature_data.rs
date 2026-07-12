@@ -11,7 +11,9 @@ use serde::{Deserialize, Deserializer, de::Error as _};
 use serde_json::{Map, Value};
 use steel_utils::{
     Direction, Identifier, Rotation,
-    value_providers::{FloatProvider, HeightProvider, IntProvider, UniformIntProvider},
+    value_providers::{
+        FloatProvider, HeightProvider, IntProvider, UniformIntProvider, VerticalAnchor,
+    },
 };
 
 /// A feature reference, either a registry key or an inline feature.
@@ -90,21 +92,26 @@ pub enum FeatureKind {
     NetherForestVegetation(NetherForestVegetationConfiguration),
     NetherrackReplaceBlobs(NetherrackReplaceBlobsConfiguration),
     Ore(OreConfiguration),
+    Overlay(OverlayConfiguration),
     PointedDripstone(PointedDripstoneConfiguration),
     RandomBooleanSelector(RandomBooleanSelectorConfiguration),
     RandomSelector(RandomSelectorConfiguration),
+    RandomNeighborSpread(RandomNeighborSpreadConfiguration),
     RootSystem(RootSystemConfiguration),
     ScatteredOre(OreConfiguration),
     SculkPatch(SculkPatchConfiguration),
     SeaPickle(SeaPickleConfiguration),
     Seagrass(SeagrassConfiguration),
     Sequence(CompositeFeatureConfiguration),
+    SingleBlockPillar(SingleBlockPillarConfiguration),
     SimpleBlock(SimpleBlockConfiguration),
     SimpleRandomSelector(SimpleRandomSelectorConfiguration),
     Speleothem(SpeleothemConfiguration),
     SpeleothemCluster(SpeleothemClusterConfiguration),
+    ProjectedRandomPatchySquare(ProjectedRandomPatchySquareConfiguration),
     Spike(SpikeConfiguration),
     SpringFeature(SpringConfiguration),
+    SteppedColumnCluster(SteppedColumnClusterConfiguration),
     Template(TemplateFeatureConfiguration),
     Tree(TreeConfiguration),
     TwistingVines(TwistingVinesConfiguration),
@@ -205,6 +212,7 @@ fn deserialize_feature_kind(
             FeatureKind::NetherrackReplaceBlobs(parse!(NetherrackReplaceBlobsConfiguration)?)
         }
         "minecraft:ore" => FeatureKind::Ore(parse!(OreConfiguration)?),
+        "minecraft:overlay" => FeatureKind::Overlay(parse!(OverlayConfiguration)?),
         "minecraft:pointed_dripstone" => {
             FeatureKind::PointedDripstone(parse!(PointedDripstoneConfiguration)?)
         }
@@ -213,6 +221,9 @@ fn deserialize_feature_kind(
         }
         "minecraft:random_selector" => {
             FeatureKind::RandomSelector(parse!(RandomSelectorConfiguration)?)
+        }
+        "minecraft:random_neighbor_spread" => {
+            FeatureKind::RandomNeighborSpread(parse!(RandomNeighborSpreadConfiguration)?)
         }
         "minecraft:weighted_random_selector" => {
             FeatureKind::WeightedRandomSelector(parse!(WeightedRandomFeatureConfiguration)?)
@@ -223,6 +234,9 @@ fn deserialize_feature_kind(
         "minecraft:sea_pickle" => FeatureKind::SeaPickle(parse!(SeaPickleConfiguration)?),
         "minecraft:seagrass" => FeatureKind::Seagrass(parse!(SeagrassConfiguration)?),
         "minecraft:sequence" => FeatureKind::Sequence(parse!(CompositeFeatureConfiguration)?),
+        "minecraft:single_block_pillar" => {
+            FeatureKind::SingleBlockPillar(parse!(SingleBlockPillarConfiguration)?)
+        }
         "minecraft:simple_block" => FeatureKind::SimpleBlock(parse!(SimpleBlockConfiguration)?),
         "minecraft:simple_random_selector" => {
             FeatureKind::SimpleRandomSelector(parse!(SimpleRandomSelectorConfiguration)?)
@@ -231,8 +245,14 @@ fn deserialize_feature_kind(
         "minecraft:speleothem_cluster" => {
             FeatureKind::SpeleothemCluster(parse!(SpeleothemClusterConfiguration)?)
         }
+        "minecraft:projected_random_patchy_square" => FeatureKind::ProjectedRandomPatchySquare(
+            parse!(ProjectedRandomPatchySquareConfiguration)?,
+        ),
         "minecraft:spike" => FeatureKind::Spike(parse!(SpikeConfiguration)?),
         "minecraft:spring_feature" => FeatureKind::SpringFeature(parse!(SpringConfiguration)?),
+        "minecraft:stepped_column_cluster" => {
+            FeatureKind::SteppedColumnCluster(parse!(SteppedColumnClusterConfiguration)?)
+        }
         "minecraft:template" => FeatureKind::Template(parse!(TemplateFeatureConfiguration)?),
         "minecraft:tree" => FeatureKind::Tree(parse!(TreeConfiguration)?),
         "minecraft:twisting_vines" => {
@@ -399,6 +419,11 @@ pub enum BlockPredicate {
         #[serde(default = "default_offset")]
         offset: Offset,
     },
+    #[serde(rename = "minecraft:height_range")]
+    HeightRange {
+        min_inclusive: VerticalAnchor,
+        max_inclusive: VerticalAnchor,
+    },
 }
 
 /// Block-state provider used by features.
@@ -536,6 +561,12 @@ pub enum PlacementModifier {
     RandomOffset {
         xz_spread: IntProvider,
         y_spread: IntProvider,
+    },
+    #[serde(rename = "minecraft:offset")]
+    Offset {
+        x: IntProvider,
+        y: IntProvider,
+        z: IntProvider,
     },
     #[serde(rename = "minecraft:rarity_filter")]
     RarityFilter { chance: i32 },
@@ -1048,6 +1079,67 @@ pub struct RandomBooleanSelectorConfiguration {
 pub struct RandomSelectorConfiguration {
     pub features: Vec<WeightedPlacedFeature>,
     pub default: PlacedFeatureRef,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RandomNeighborSpreadConfiguration {
+    pub block: BlockStateProvider,
+    pub accepted_neighbors: BlockHolderSet,
+    pub can_replace: BlockPredicate,
+    pub attempts: IntProvider,
+    #[serde(rename = "xy_offset")]
+    pub xz_offset: IntProvider,
+    pub y_offset: IntProvider,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OverlayConfiguration {
+    pub features: Vec<PlacedFeatureRef>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SingleBlockPillarConfiguration {
+    pub block: BlockStateProvider,
+    #[serde(default = "default_true_predicate")]
+    pub can_replace: BlockPredicate,
+    #[serde(deserialize_with = "deserialize_direction")]
+    pub direction: Direction,
+    #[serde(default = "default_one_f32")]
+    pub chance_to_continue: f32,
+    #[serde(default)]
+    pub cap_feature: Option<PlacedFeatureRef>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectedRandomPatchySquareConfiguration {
+    pub block: BlockStateProvider,
+    pub project_through: BlockPredicate,
+    pub size: IntProvider,
+    pub max_projection_height: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SteppedColumnClusterConfiguration {
+    pub block: BlockStateProvider,
+    pub continue_through: BlockPredicate,
+    pub can_replace: BlockPredicate,
+    pub cannot_place_on: BlockHolderSet,
+    pub cluster_reach: IntProvider,
+    pub column_count: IntProvider,
+    pub column_reach: IntProvider,
+    pub height: IntProvider,
+}
+
+const fn default_true_predicate() -> BlockPredicate {
+    BlockPredicate::True
+}
+const fn default_one_f32() -> f32 {
+    1.0
 }
 
 #[derive(Debug, Clone, Deserialize)]
