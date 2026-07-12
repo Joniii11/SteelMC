@@ -27,9 +27,9 @@ pub(super) use steel_registry::feature::{
     RandomSpreadFoliagePlacer, RootPlacer, RootSystemConfiguration, RuleTest,
     SculkPatchConfiguration, SeaPickleConfiguration, SeagrassConfiguration,
     SimpleBlockConfiguration, SpeleothemClusterConfiguration, SpeleothemConfiguration,
-    SpikeConfiguration, SpringConfiguration, TreeConfiguration, TreeDecorator, TrunkPlacer,
-    TwistingVinesConfiguration, UnderwaterMagmaConfiguration, UpwardsBranchingTrunkPlacer,
-    VegetationPatchConfiguration, VerticalSurface,
+    SpikeConfiguration, SpringConfiguration, SteppedColumnClusterConfiguration, TreeConfiguration,
+    TreeDecorator, TrunkPlacer, TwistingVinesConfiguration, UnderwaterMagmaConfiguration,
+    UpwardsBranchingTrunkPlacer, VegetationPatchConfiguration, VerticalSurface,
 };
 pub(super) use steel_registry::fluid::{FluidRef, FluidState, FluidStateExt as _};
 pub(super) use steel_registry::{
