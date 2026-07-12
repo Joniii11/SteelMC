@@ -11,7 +11,9 @@ use crate::fluid::FluidRef;
 use glam::IVec3;
 use steel_utils::{
     Direction, Identifier, Rotation,
-    value_providers::{FloatProvider, HeightProvider, IntProvider, UniformIntProvider},
+    value_providers::{
+        FloatProvider, HeightProvider, IntProvider, UniformIntProvider, VerticalAnchor,
+    },
 };
 
 /// A feature reference, either a registry entry or an inline feature.
@@ -86,21 +88,26 @@ pub enum FeatureKind {
     NetherForestVegetation(NetherForestVegetationConfiguration),
     NetherrackReplaceBlobs(NetherrackReplaceBlobsConfiguration),
     Ore(OreConfiguration),
+    Overlay(OverlayConfiguration),
     PointedDripstone(PointedDripstoneConfiguration),
     RandomBooleanSelector(RandomBooleanSelectorConfiguration),
     RandomSelector(RandomSelectorConfiguration),
+    RandomNeighborSpread(RandomNeighborSpreadConfiguration),
     RootSystem(RootSystemConfiguration),
     ScatteredOre(OreConfiguration),
     SculkPatch(SculkPatchConfiguration),
     SeaPickle(SeaPickleConfiguration),
     Seagrass(SeagrassConfiguration),
     Sequence(CompositeFeatureConfiguration),
+    SingleBlockPillar(SingleBlockPillarConfiguration),
     SimpleBlock(SimpleBlockConfiguration),
     SimpleRandomSelector(SimpleRandomSelectorConfiguration),
     Speleothem(SpeleothemConfiguration),
     SpeleothemCluster(SpeleothemClusterConfiguration),
+    ProjectedRandomPatchySquare(ProjectedRandomPatchySquareConfiguration),
     Spike(SpikeConfiguration),
     SpringFeature(SpringConfiguration),
+    SteppedColumnCluster(SteppedColumnClusterConfiguration),
     Template(TemplateFeatureConfiguration),
     Tree(TreeConfiguration),
     TwistingVines(TwistingVinesConfiguration),
@@ -190,6 +197,10 @@ pub enum BlockPredicate {
     },
     InsideWorldBounds {
         offset: Offset,
+    },
+    HeightRange {
+        min_inclusive: VerticalAnchor,
+        max_inclusive: VerticalAnchor,
     },
 }
 
@@ -313,6 +324,12 @@ pub enum PlacementModifier {
     RandomOffset {
         xz_spread: IntProvider,
         y_spread: IntProvider,
+    },
+    /// Snapshot-2 independent random offsets for X, Y, and Z.
+    Offset {
+        x: IntProvider,
+        y: IntProvider,
+        z: IntProvider,
     },
     RarityFilter {
         chance: i32,
@@ -636,6 +653,51 @@ pub struct RandomBooleanSelectorConfiguration {
 pub struct RandomSelectorConfiguration {
     pub features: Vec<WeightedPlacedFeature>,
     pub default: PlacedFeatureRef,
+}
+
+#[derive(Debug, Clone)]
+pub struct RandomNeighborSpreadConfiguration {
+    pub block: BlockStateProvider,
+    pub accepted_neighbors: BlockHolderSet,
+    pub can_replace: BlockPredicate,
+    pub attempts: IntProvider,
+    pub xz_offset: IntProvider,
+    pub y_offset: IntProvider,
+}
+
+/// Snapshot-2 overlay feature: runs every nested placed feature at the same origin.
+#[derive(Debug, Clone)]
+pub struct OverlayConfiguration {
+    pub features: Vec<PlacedFeatureRef>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SingleBlockPillarConfiguration {
+    pub block: BlockStateProvider,
+    pub can_replace: BlockPredicate,
+    pub direction: Direction,
+    pub chance_to_continue: f32,
+    pub cap_feature: Option<PlacedFeatureRef>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectedRandomPatchySquareConfiguration {
+    pub block: BlockStateProvider,
+    pub project_through: BlockPredicate,
+    pub size: IntProvider,
+    pub max_projection_height: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SteppedColumnClusterConfiguration {
+    pub block: BlockStateProvider,
+    pub continue_through: BlockPredicate,
+    pub can_replace: BlockPredicate,
+    pub cannot_place_on: BlockHolderSet,
+    pub cluster_reach: IntProvider,
+    pub column_count: IntProvider,
+    pub column_reach: IntProvider,
+    pub height: IntProvider,
 }
 
 #[derive(Debug, Clone)]

@@ -26,6 +26,8 @@ pub enum VerticalAnchor {
     AboveBottom(i32),
     /// `min_y + height - 1 - offset` (i.e. `max_y - offset`).
     BelowTop(i32),
+    /// `sea_level + offset`.
+    RelativeToSeaLevel(i32),
 }
 
 impl VerticalAnchor {
@@ -38,6 +40,20 @@ impl VerticalAnchor {
             Self::Absolute(y) => y,
             Self::AboveBottom(offset) => min_y + offset,
             Self::BelowTop(offset) => min_y + height - 1 - offset,
+            Self::RelativeToSeaLevel(_) => {
+                panic!("relative_to_sea_level requires a sea-level-aware worldgen context")
+            }
+        }
+    }
+
+    /// Resolves an anchor against the complete Snapshot-2 worldgen context.
+    #[must_use]
+    pub const fn resolve_y_with_sea_level(self, min_y: i32, height: i32, sea_level: i32) -> i32 {
+        match self {
+            Self::Absolute(y) => y,
+            Self::AboveBottom(offset) => min_y + offset,
+            Self::BelowTop(offset) => min_y + height - 1 - offset,
+            Self::RelativeToSeaLevel(offset) => sea_level + offset,
         }
     }
 }
@@ -53,13 +69,21 @@ impl<'de> Deserialize<'de> for VerticalAnchor {
             above_bottom: Option<i32>,
             #[serde(default)]
             below_top: Option<i32>,
+            #[serde(default)]
+            relative_to_sea_level: Option<i32>,
         }
         let raw = Raw::deserialize(d)?;
-        match (raw.absolute, raw.above_bottom, raw.below_top) {
-            (Some(y), None, None) => Ok(Self::Absolute(y)),
-            (None, Some(o), None) => Ok(Self::AboveBottom(o)),
-            (None, None, Some(o)) => Ok(Self::BelowTop(o)),
-            (None, None, None) => Err(D::Error::custom(
+        match (
+            raw.absolute,
+            raw.above_bottom,
+            raw.below_top,
+            raw.relative_to_sea_level,
+        ) {
+            (Some(y), None, None, None) => Ok(Self::Absolute(y)),
+            (None, Some(o), None, None) => Ok(Self::AboveBottom(o)),
+            (None, None, Some(o), None) => Ok(Self::BelowTop(o)),
+            (None, None, None, Some(o)) => Ok(Self::RelativeToSeaLevel(o)),
+            (None, None, None, None) => Err(D::Error::custom(
                 "VerticalAnchor requires exactly one of absolute/above_bottom/below_top",
             )),
             _ => Err(D::Error::custom(
@@ -306,14 +330,12 @@ pub enum IntProvider {
         /// Inclusive upper bound.
         max_inclusive: i32,
     },
-    /// Heavily biased toward the bottom.
+    /// Heavily biased toward the bottom with three nested `nextInt` draws.
     VeryBiasedToBottom {
         /// Inclusive lower bound.
         min_inclusive: i32,
         /// Inclusive upper bound.
         max_inclusive: i32,
-        /// Minimum span of the inner window.
-        inner: i32,
     },
     /// Sum of two uniform draws, symmetric triangle when `plateau == 0`.
     Trapezoid {
@@ -515,17 +537,11 @@ impl IntProvider {
             Self::VeryBiasedToBottom {
                 min_inclusive,
                 max_inclusive,
-                inner,
             } => {
-                let limit = *max_inclusive - *min_inclusive - *inner + 1;
-                if limit <= 0 {
-                    *min_inclusive
-                } else {
-                    let upper_inclusive = random.next_i32_bounded(limit) + *min_inclusive + *inner;
-                    let biased_upper_inclusive =
-                        random.next_i32_between(*min_inclusive, upper_inclusive - 1);
-                    random.next_i32_between(*min_inclusive, biased_upper_inclusive - 1 + *inner)
-                }
+                let span = *max_inclusive - *min_inclusive + 1;
+                let first_bound = random.next_i32_bounded(span) + 1;
+                let second_bound = random.next_i32_bounded(first_bound) + 1;
+                *min_inclusive + random.next_i32_bounded(second_bound)
             }
             Self::Trapezoid { min, max, plateau } => {
                 if *plateau == 0 && *max == -*min {
@@ -599,8 +615,6 @@ impl<'de> Deserialize<'de> for IntProvider {
             VeryBiasedToBottom {
                 min_inclusive: i32,
                 max_inclusive: i32,
-                #[serde(default = "default_inner")]
-                inner: i32,
             },
             #[serde(rename = "minecraft:trapezoid")]
             Trapezoid { min: i32, max: i32, plateau: i32 },
@@ -621,10 +635,6 @@ impl<'de> Deserialize<'de> for IntProvider {
             WeightedList {
                 distribution: Vec<WeightedIntProvider>,
             },
-        }
-
-        const fn default_inner() -> i32 {
-            1
         }
 
         let value = serde_json::Value::deserialize(d)?;
@@ -654,11 +664,9 @@ impl<'de> Deserialize<'de> for IntProvider {
                 Tagged::VeryBiasedToBottom {
                     min_inclusive,
                     max_inclusive,
-                    inner,
                 } => Self::VeryBiasedToBottom {
                     min_inclusive,
                     max_inclusive,
-                    inner,
                 },
                 Tagged::Trapezoid { min, max, plateau } => Self::Trapezoid { min, max, plateau },
                 Tagged::ClampedNormal {
@@ -1133,6 +1141,24 @@ mod test {
         let sample = provider.sample(&mut rng);
         let expected = rng_ref.next_i32_bounded(8) - rng_ref.next_i32_bounded(8);
         assert_eq!(sample, expected);
+    }
+
+    #[test]
+    fn very_biased_to_bottom_int_matches_vanilla_rng_sequence() {
+        let provider = IntProvider::VeryBiasedToBottom {
+            min_inclusive: 0,
+            max_inclusive: 14,
+        };
+        let mut actual = LegacyRandom::from_seed(0);
+        let sample = provider.sample(&mut actual);
+
+        let mut expected = LegacyRandom::from_seed(0);
+        let first_bound = expected.next_i32_bounded(15) + 1;
+        let second_bound = expected.next_i32_bounded(first_bound) + 1;
+        let expected_sample = expected.next_i32_bounded(second_bound);
+
+        assert_eq!(sample, expected_sample);
+        assert_eq!(actual.next_i32(), expected.next_i32());
     }
 
     /// Matches vanilla's `Mth.randomBetween`: `min + nextFloat()*(max-min)`.
