@@ -35,7 +35,7 @@ use crate::{
     biome::BiomeRegistry,
     block_entity_type::BlockEntityTypeRegistry,
     blocks::BlockRegistry,
-    carver::ConfiguredCarverRegistry,
+    carver::WorldCarverRegistry,
     cat_sound_variant::CatSoundVariantRegistry,
     cat_variant::CatVariantRegistry,
     chat_type::ChatTypeRegistry,
@@ -477,8 +477,8 @@ pub mod shared_structs;
 
 #[expect(warnings)]
 #[rustfmt::skip]
-#[path = "generated/vanilla_configured_carvers.rs"]
-pub mod vanilla_configured_carvers;
+#[path = "generated/vanilla_world_carvers.rs"]
+pub mod vanilla_world_carvers;
 
 #[expect(warnings)]
 #[rustfmt::skip]
@@ -609,8 +609,7 @@ pub const ENTITY_TYPE_REGISTRY: Identifier = Identifier::vanilla_static("entity_
 pub const SOUND_EVENT_REGISTRY: Identifier = Identifier::vanilla_static("sound_event");
 pub const POI_TYPE_REGISTRY: Identifier = Identifier::vanilla_static("point_of_interest_type");
 pub const WORLD_CLOCK_REGISTRY: Identifier = Identifier::vanilla_static("world_clock");
-pub const CONFIGURED_CARVER_REGISTRY: Identifier =
-    Identifier::vanilla_static("worldgen/configured_carver");
+pub const CARVER_REGISTRY: Identifier = Identifier::vanilla_static("worldgen/carver");
 pub const FEATURE_REGISTRY: Identifier = Identifier::vanilla_static("worldgen/feature");
 pub const PLACED_FEATURE_REGISTRY: Identifier =
     Identifier::vanilla_static("worldgen/placed_feature");
@@ -665,7 +664,7 @@ pub struct Registry {
     pub poi_types: PoiTypeRegistry,
     pub enchantments: EnchantmentRegistry,
     pub world_clocks: WorldClockRegistry,
-    pub configured_carvers: ConfiguredCarverRegistry,
+    pub world_carvers: WorldCarverRegistry,
     pub features: FeatureRegistry,
     pub placed_features: PlacedFeatureRegistry,
     pub structures: StructureRegistry,
@@ -780,7 +779,7 @@ impl Registry {
             &mut registry.structure_processors,
         );
 
-        vanilla_configured_carvers::register_configured_carvers(&mut registry.configured_carvers);
+        vanilla_world_carvers::register_world_carvers(&mut registry.world_carvers);
         vanilla_features::register_features(&mut registry.features);
         vanilla_placed_features::register_placed_features(&mut registry.placed_features);
 
@@ -836,7 +835,7 @@ impl Registry {
         self.poi_types.freeze();
         self.enchantments.freeze();
         self.world_clocks.freeze();
-        self.configured_carvers.freeze();
+        self.world_carvers.freeze();
         self.features.freeze();
         self.placed_features.freeze();
         self.structures.freeze();
@@ -847,8 +846,8 @@ impl Registry {
         for (_, biome) in self.biomes.iter() {
             for carver_key in &biome.carvers {
                 assert!(
-                    self.configured_carvers.by_key(carver_key).is_some(),
-                    "biome {} references unknown configured carver {}",
+                    self.world_carvers.by_key(carver_key).is_some(),
+                    "biome {} references unknown world carver {}",
                     biome.key,
                     carver_key
                 );
@@ -1035,7 +1034,7 @@ impl Registry {
             world_clocks: WorldClockRegistry::new(),
             poi_types: PoiTypeRegistry::new(),
             enchantments: EnchantmentRegistry::new(),
-            configured_carvers: ConfiguredCarverRegistry::new(),
+            world_carvers: WorldCarverRegistry::new(),
             features: FeatureRegistry::new(),
             placed_features: PlacedFeatureRegistry::new(),
             structures: StructureRegistry::new(),
@@ -1087,7 +1086,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "references unknown configured carver")]
+    #[should_panic(expected = "references unknown world carver")]
     fn freeze_rejects_missing_biome_carver_reference() {
         let mut registry = Registry::new_empty();
         registry.biomes.register(biome_with_refs(
