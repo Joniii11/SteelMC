@@ -843,7 +843,7 @@ impl FeatureDecorationRunner {
     }
 
     fn shelf_mushroom_pos_for(log_pos: BlockPos, facing: Direction) -> BlockPos {
-        log_pos.relative(facing.opposite())
+        log_pos.relative(facing)
     }
 
     fn place_shelf_mushroom(
@@ -957,6 +957,28 @@ impl FeatureDecorationRunner {
             };
             let j = random.next_i32_bounded(bound) as usize;
             positions.swap(i, j);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shelf_mushrooms_extend_in_their_facing_direction() {
+        let log = BlockPos::new(10, 64, 20);
+
+        for facing in [
+            Direction::North,
+            Direction::South,
+            Direction::West,
+            Direction::East,
+        ] {
+            assert_eq!(
+                FeatureDecorationRunner::shelf_mushroom_pos_for(log, facing),
+                log.relative(facing)
+            );
         }
     }
 }

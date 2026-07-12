@@ -91,6 +91,22 @@ impl FeatureDecorationRunner {
                 let position = Self::offset(origin, offset);
                 !region.is_outside_build_height(position.y())
             }
+            BlockPredicate::HeightRange {
+                min_inclusive,
+                max_inclusive,
+            } => {
+                let min = min_inclusive.resolve_y_with_sea_level(
+                    region.min_y(),
+                    region.height(),
+                    region.sea_level(),
+                );
+                let max = max_inclusive.resolve_y_with_sea_level(
+                    region.min_y(),
+                    region.height(),
+                    region.sea_level(),
+                );
+                (min..=max).contains(&origin.y())
+            }
         }
     }
 

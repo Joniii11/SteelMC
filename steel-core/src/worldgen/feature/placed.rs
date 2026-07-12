@@ -347,6 +347,23 @@ impl FeatureDecorationRunner {
                     modifier_index + 1,
                 );
             }
+            PlacementModifier::Offset { x, y, z } => {
+                let position = BlockPos::new(
+                    origin.x() + x.sample(random),
+                    origin.y() + y.sample(random),
+                    origin.z() + z.sample(random),
+                );
+                placed = Self::place_placed_feature_from_modifier(
+                    region,
+                    registry,
+                    random,
+                    position,
+                    feature,
+                    biome_filter,
+                    biome_zoom_seed,
+                    modifier_index + 1,
+                );
+            }
             PlacementModifier::RarityFilter { chance } => {
                 assert!(
                     *chance > 0,
