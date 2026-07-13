@@ -154,6 +154,15 @@ fn validate_component_hashes(hashed: &HashedPatchMap, patch: &DataComponentPatch
     // For each component in our patch, verify the client sent the correct hash
     for (key, entry) in patch.iter() {
         if let ComponentPatchEntry::Set(value) = entry {
+            let Some(component_entry) = REGISTRY.data_components.by_key(key) else {
+                continue; // Unknown component, skip
+            };
+            if !component_entry.is_persistent() {
+                log::info!(
+                    "HashedStack mismatch: transient component {key} cannot be represented by Vanilla HashOps"
+                );
+                return false;
+            }
             let Some(id) = REGISTRY.data_components.id_from_key(key) else {
                 continue; // Unknown component, skip
             };
@@ -1463,5 +1472,38 @@ pub trait Menu {
                 i += step;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use steel_protocol::packets::game::HashedPatchMap;
+    use steel_registry::{
+        data_components::{
+            DataComponentPatch,
+            vanilla_components::{ADDITIONAL_TRADE_COST, MAP_POST_PROCESSING, MapPostProcessing},
+        },
+        test_support::init_test_registry,
+    };
+
+    use super::validate_component_hashes;
+
+    #[test]
+    fn transient_component_sets_are_not_hashable() {
+        init_test_registry();
+
+        let mut additional_trade_cost = DataComponentPatch::new();
+        additional_trade_cost.set(ADDITIONAL_TRADE_COST, 12);
+        assert!(!validate_component_hashes(
+            &HashedPatchMap::default(),
+            &additional_trade_cost
+        ));
+
+        let mut map_post_processing = DataComponentPatch::new();
+        map_post_processing.set(MAP_POST_PROCESSING, MapPostProcessing::Scale);
+        assert!(!validate_component_hashes(
+            &HashedPatchMap::default(),
+            &map_post_processing
+        ));
     }
 }
