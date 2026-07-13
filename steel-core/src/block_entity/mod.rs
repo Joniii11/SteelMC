@@ -138,6 +138,7 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// Saves this block entity using Vanilla full metadata shape
     #[must_use]
     fn save_with_full_metadata(&self) -> NbtCompound {
+        // TODO persist block entity components
         let mut nbt = NbtCompound::new();
         self.save_additional(&mut nbt);
 

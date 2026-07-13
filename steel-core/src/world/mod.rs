@@ -52,7 +52,7 @@ use steel_registry::game_rules::{GameRuleRef, GameRuleValue};
 use steel_registry::item_stack::ItemStack;
 use steel_registry::level_events;
 use steel_registry::loot_table::LootContext;
-use steel_registry::sound_event::SoundEventRef;
+use steel_registry::sound_event::{SoundEventHolder, SoundEventRef};
 use steel_registry::vanilla_block_tags::BlockTag;
 use steel_registry::vanilla_game_rules::{
     BLOCK_DROPS, GLOBAL_SOUND_EVENTS, PLAYERS_NETHER_PORTAL_DEFAULT_DELAY, RANDOM_TICK_SPEED,
@@ -219,6 +219,77 @@ fn triangle_random(mode: f64, deviation: f64) -> f64 {
     mode + deviation * (rand::random::<f64>() - rand::random::<f64>())
 }
 
+/// `Mth.nextDouble`
+fn next_double_between(random: &mut impl Random, min: f64, max: f64) -> f64 {
+    if min >= max {
+        min
+    } else {
+        random.next_f64() * (max - min) + min
+    }
+}
+
+/// `Block.popResource` position
+fn pop_resource_position(random: &mut impl Random, pos: BlockPos, item_half_height: f64) -> DVec3 {
+    let x_offset = next_double_between(random, -0.25, 0.25);
+    let y_offset = next_double_between(random, -0.25, 0.25);
+    let z_offset = next_double_between(random, -0.25, 0.25);
+    DVec3::new(
+        f64::from(pos.x()) + 0.5 + x_offset,
+        f64::from(pos.y()) + 0.5 + y_offset - item_half_height,
+        f64::from(pos.z()) + 0.5 + z_offset,
+    )
+}
+
+/// `Block.popResourceFromFace` kinematics
+fn pop_resource_from_face_kinematics(
+    random: &mut impl Random,
+    pos: BlockPos,
+    face: Direction,
+    item_half_width: f64,
+    item_half_height: f64,
+) -> (DVec3, DVec3) {
+    let (step_x, step_y, step_z) = face.offset();
+    let x = f64::from(pos.x())
+        + 0.5
+        + if step_x == 0 {
+            next_double_between(random, -0.25, 0.25)
+        } else {
+            f64::from(step_x) * (0.5 + item_half_width)
+        };
+    let y = f64::from(pos.y())
+        + 0.5
+        + if step_y == 0 {
+            next_double_between(random, -0.25, 0.25)
+        } else {
+            f64::from(step_y) * (0.5 + item_half_height)
+        }
+        - item_half_height;
+    let z = f64::from(pos.z())
+        + 0.5
+        + if step_z == 0 {
+            next_double_between(random, -0.25, 0.25)
+        } else {
+            f64::from(step_z) * (0.5 + item_half_width)
+        };
+    let delta_x = if step_x == 0 {
+        next_double_between(random, -0.1, 0.1)
+    } else {
+        f64::from(step_x) * 0.1
+    };
+    let delta_y = if step_y == 0 {
+        next_double_between(random, 0.0, 0.1)
+    } else {
+        f64::from(step_y) * 0.1 + 0.1
+    };
+    let delta_z = if step_z == 0 {
+        next_double_between(random, -0.1, 0.1)
+    } else {
+        f64::from(step_z) * 0.1
+    };
+
+    (DVec3::new(x, y, z), DVec3::new(delta_x, delta_y, delta_z))
+}
+
 const fn initialize_border_packet(snapshot: WorldBorderSnapshot) -> CInitializeBorder {
     CInitializeBorder {
         new_center_x: snapshot.center_x,
@@ -352,7 +423,7 @@ struct NavigatingMobTracker {
     ids: SyncMutex<FxHashSet<i32>>,
 }
 
-/// The synchronized runtime source behind Vanilla's `Level.getRandom()`
+/// `Level.getRandom` source
 struct WorldRandom {
     source: SyncMutex<LegacyRandom>,
 }
@@ -1834,6 +1905,24 @@ impl World {
         block_state: BlockStateId,
     ) -> bool {
         self.set_block(pos, block_state, UpdateFlags::UPDATE_ALL)
+    }
+
+    /// Updates neighbor shapes
+    #[must_use]
+    pub fn update_from_neighbor_shapes(
+        self: &Arc<Self>,
+        state: BlockStateId,
+        pos: BlockPos,
+    ) -> BlockStateId {
+        let mut updated = state;
+        for direction in Direction::UPDATE_SHAPE_ORDER {
+            let neighbor_pos = pos.relative(direction);
+            let neighbor_state = self.get_block_state(neighbor_pos);
+            let behavior = BLOCK_BEHAVIORS.get_behavior(updated.get_block());
+            updated =
+                behavior.update_shape(updated, self, pos, direction, neighbor_pos, neighbor_state);
+        }
+        updated
     }
 
     /// Sets a block at the given position with a custom update limit.
@@ -4079,7 +4168,27 @@ impl World {
         pitch: f32,
         exclude: Option<i32>,
     ) {
-        self.play_sound_at(
+        self.play_sound_holder(
+            &SoundEventHolder::registry(sound),
+            source,
+            pos,
+            volume,
+            pitch,
+            exclude,
+        );
+    }
+
+    /// Plays a holder sound at a block
+    pub fn play_sound_holder(
+        &self,
+        sound: &SoundEventHolder,
+        source: SoundSource,
+        pos: BlockPos,
+        volume: f32,
+        pitch: f32,
+        exclude: Option<i32>,
+    ) {
+        self.play_sound_holder_at(
             sound,
             source,
             DVec3::new(
@@ -4103,6 +4212,26 @@ impl World {
         pitch: f32,
         exclude: Option<i32>,
     ) {
+        self.play_sound_holder_at(
+            &SoundEventHolder::registry(sound),
+            source,
+            pos,
+            volume,
+            pitch,
+            exclude,
+        );
+    }
+
+    /// Plays a holder sound
+    pub fn play_sound_holder_at(
+        &self,
+        sound: &SoundEventHolder,
+        source: SoundSource,
+        pos: DVec3,
+        volume: f32,
+        pitch: f32,
+        exclude: Option<i32>,
+    ) {
         const MAX_DISTANCE_SQ: f64 = 64.0 * 64.0;
 
         let chunk = ChunkPos::new(
@@ -4113,7 +4242,7 @@ impl World {
         // Generate a random seed for sound variations
         let seed = rand::random::<i64>();
 
-        let packet = CSound::new(sound, source, pos, volume, pitch, seed);
+        let packet = CSound::new_holder(sound.clone(), source, pos, volume, pitch, seed);
         let Ok(encoded) =
             EncodedPacket::from_bare(packet, self.compression, ConnectionProtocol::Play)
         else {
@@ -4161,6 +4290,18 @@ impl World {
         exclude: Option<i32>,
     ) {
         self.play_sound(sound, SoundSource::Blocks, pos, volume, pitch, exclude);
+    }
+
+    /// Plays a block holder sound
+    pub fn play_block_sound_holder(
+        &self,
+        sound: &SoundEventHolder,
+        pos: BlockPos,
+        volume: f32,
+        pitch: f32,
+        exclude: Option<i32>,
+    ) {
+        self.play_sound_holder(sound, SoundSource::Blocks, pos, volume, pitch, exclude);
     }
 
     /// Returns the runtime entity manager.
@@ -4451,11 +4592,11 @@ impl World {
         Some(entity)
     }
 
-    /// Drops an item at a block position with random offset and velocity.
+    /// Drops an item with level RNG
     ///
     /// Mirrors vanilla's `Block.popResource()`. Used for block drops.
     /// The item spawns near the center of the block with slight random offset
-    /// and small random velocity.
+    /// Uses default velocity
     pub fn pop_resource(
         self: &Arc<Self>,
         pos: BlockPos,
@@ -5000,6 +5141,12 @@ mod tests {
             diff.length_squared() < 1.0e-24,
             "expected {left:?} to equal {right:?}"
         );
+    }
+
+    fn assert_vec3_bits_eq(actual: DVec3, expected: DVec3) {
+        assert_eq!(actual.x.to_bits(), expected.x.to_bits());
+        assert_eq!(actual.y.to_bits(), expected.y.to_bits());
+        assert_eq!(actual.z.to_bits(), expected.z.to_bits());
     }
 
     #[test]

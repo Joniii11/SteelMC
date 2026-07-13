@@ -1,7 +1,10 @@
+use std::io::{Result, Write};
+
 use glam::{DVec3, IVec3};
-use steel_macros::{ClientPacket, WriteTo};
+use steel_macros::ClientPacket;
 use steel_registry::packets::play::C_SOUND;
-use steel_registry::sound_event::SoundEventRef;
+use steel_registry::sound_event::{SoundEventHolder, SoundEventRef};
+use steel_utils::{codec::VarInt, serial::WriteTo};
 
 /// Sound source categories (matches vanilla `SoundSource` enum order).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,17 +35,12 @@ impl SoundSource {
 ///
 /// The position is encoded at 8x precision (divide by 8 to get actual block coordinates).
 /// This allows sub-block positioning for more accurate sound placement.
-#[derive(WriteTo, ClientPacket, Clone, Debug)]
+#[derive(ClientPacket, Clone, Debug)]
 #[packet_id(Play = C_SOUND)]
 pub struct CSound {
-    /// The holder-encoded sound event ID (`VarInt`).
-    ///
-    /// Vanilla reserves `0` for direct sound events, so registered sound events
-    /// are encoded as `registry_id + 1`.
-    #[write(as = VarInt)]
-    pub sound_id: i32,
+    /// `Holder<SoundEvent>`
+    pub sound: SoundEventHolder,
     /// The sound source category (`VarInt`).
-    #[write(as = VarInt)]
     pub source: i32,
     /// X position multiplied by 8 (fixed-point).
     pub pos: IVec3,
@@ -73,8 +71,28 @@ impl CSound {
         pitch: f32,
         seed: i64,
     ) -> Self {
+        Self::new_holder(
+            SoundEventHolder::registry(sound),
+            source,
+            pos,
+            volume,
+            pitch,
+            seed,
+        )
+    }
+
+    /// Holder sound packet
+    #[must_use]
+    pub fn new_holder(
+        sound: SoundEventHolder,
+        source: SoundSource,
+        pos: DVec3,
+        volume: f32,
+        pitch: f32,
+        seed: i64,
+    ) -> Self {
         Self {
-            sound_id: sound.packet_holder_id(),
+            sound,
             source: source.as_varint(),
             pos: IVec3::new(
                 (pos.x * 8.0) as i32,
@@ -112,14 +130,49 @@ impl CSound {
             seed,
         )
     }
+
+    /// Block holder sound packet
+    #[must_use]
+    pub fn block_sound_holder(
+        sound: SoundEventHolder,
+        pos: steel_utils::BlockPos,
+        volume: f32,
+        pitch: f32,
+        seed: i64,
+    ) -> Self {
+        Self::new_holder(
+            sound,
+            SoundSource::Blocks,
+            pos.0.as_dvec3().map(|value| value + 0.5),
+            volume,
+            pitch,
+            seed,
+        )
+    }
+}
+
+impl WriteTo for CSound {
+    fn write(&self, writer: &mut impl Write) -> Result<()> {
+        self.sound.write(writer)?;
+        VarInt(self.source).write(writer)?;
+        self.pos.write(writer)?;
+        self.volume.write(writer)?;
+        self.pitch.write(writer)?;
+        self.seed.write(writer)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Once;
+    use std::{io::Cursor, sync::Once};
 
-    use steel_registry::{REGISTRY, Registry, RegistryEntry, sound_events};
-    use steel_utils::BlockPos;
+    use steel_registry::{
+        REGISTRY, Registry, RegistryEntry, sound_event::SoundEventHolder, sound_events,
+    };
+    use steel_utils::{
+        BlockPos, Identifier,
+        serial::{ReadFrom, WriteTo},
+    };
 
     use super::CSound;
 
@@ -150,6 +203,34 @@ mod tests {
             sound_events::BLOCK_WOODEN_BUTTON_CLICK_ON.packet_holder_id(),
             expected_holder_id
         );
-        assert_eq!(packet.sound_id, expected_holder_id);
+        assert_eq!(
+            packet.sound,
+            SoundEventHolder::registry(&sound_events::BLOCK_WOODEN_BUTTON_CLICK_ON)
+        );
+    }
+
+    #[test]
+    fn direct_sound_packet_writes_a_direct_holder() {
+        init_registry();
+
+        let packet = CSound::block_sound_holder(
+            SoundEventHolder::Direct {
+                sound_id: Identifier::vanilla_static("item.axe.strip"),
+                fixed_range: Some(32.0),
+            },
+            BlockPos::ZERO,
+            1.0,
+            1.0,
+            0,
+        );
+        let mut bytes = Vec::new();
+        packet
+            .write(&mut bytes)
+            .expect("sound packet should encode");
+        assert_eq!(bytes.first(), Some(&0));
+
+        let sound = SoundEventHolder::read(&mut Cursor::new(bytes.as_slice()))
+            .expect("direct sound holder should decode");
+        assert_eq!(sound, packet.sound);
     }
 }
