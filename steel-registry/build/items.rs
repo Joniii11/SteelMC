@@ -190,7 +190,7 @@ fn generate_block_transformer_component(value: &Value) -> TokenStream {
                             Some("north") => quote! { steel_utils::Direction::North },
                             Some("south") => quote! { steel_utils::Direction::South },
                             Some("west") => quote! { steel_utils::Direction::West },
-                            Some("east") => quote! { steel_utils::Direction::East },,
+                            Some("east") => quote! { steel_utils::Direction::East },
                             _ => panic!("invalid block transformer disallowed face {face}"),
                         })
                         .collect::<Vec<_>>()
