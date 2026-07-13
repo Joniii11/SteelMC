@@ -23,15 +23,21 @@ mod front_vec;
 pub mod geometry;
 /// CRC32C hashing for component validation.
 pub mod hash;
+/// Java helpers
+pub mod java;
 /// A module for custom locks.
 pub mod locks;
 /// Utilities for Steel logging.
 pub mod logger;
+/// NBT helpers
+pub mod nbt;
 pub mod random;
 /// helpful tools for registry
 pub mod registry;
 pub mod rotation;
 pub mod serial;
+/// SNBT helpers
+pub mod snbt;
 pub mod text;
 /// A module for common types.
 pub mod types;

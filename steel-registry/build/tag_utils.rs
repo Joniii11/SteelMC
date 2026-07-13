@@ -112,6 +112,19 @@ pub fn resolve_all_tags(all_tags: &FxHashMap<String, Vec<String>>) -> Vec<(Strin
     sorted
 }
 
+/// Extracted tag identifier
+pub fn tag_identifier(tag_name: &str) -> TokenStream {
+    let Some((namespace, path)) = tag_name.split_once(':') else {
+        return quote! { Identifier::vanilla_static(#tag_name) };
+    };
+
+    if namespace == "minecraft" {
+        quote! { Identifier::vanilla_static(#path) }
+    } else {
+        quote! { Identifier::new_static(#namespace, #path) }
+    }
+}
+
 /// Builds a complete tag module for a vanilla-only registry.
 ///
 /// Generates: static tag arrays, `pub const` tag identifiers, and a register function.
@@ -163,14 +176,14 @@ pub fn build_simple_tags(
         let tag_ident = Ident::new(&tag_name.to_shouty_snake_case(), Span::call_site());
 
         let entry_strs = entries.iter().map(std::string::String::as_str);
-        let tag_key = tag_name.as_str();
+        let tag_key = tag_identifier(tag_name);
 
         static_arrays.extend(quote! {
             static #tag_list_ident: &[&str] = &[#(#entry_strs),*];
         });
 
         const_identifiers.extend(quote! {
-            pub const #tag_ident: Identifier = Identifier::vanilla_static(#tag_key);
+            pub const #tag_ident: Identifier = #tag_key;
         });
 
         register_stream.extend(quote! {

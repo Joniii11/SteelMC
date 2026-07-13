@@ -14,6 +14,10 @@
 //!
 //! All numeric values are little-endian (matching Guava's Hasher).
 
+use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
+
+use crate::snbt::unwrap_vanilla_list_element;
+
 /// Type tags matching Minecraft's `HashOps` implementation.
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -324,6 +328,64 @@ pub fn sort_map_entries(entries: &mut [HashEntry]) {
     });
 }
 
+/// NBT `HashOps` hash
+pub fn hash_nbt_tag(hasher: &mut ComponentHasher, tag: &NbtTag) {
+    match tag {
+        NbtTag::Byte(value) => hasher.put_byte(*value),
+        NbtTag::Short(value) => hasher.put_short(*value),
+        NbtTag::Int(value) => hasher.put_int(*value),
+        NbtTag::Long(value) => hasher.put_long(*value),
+        NbtTag::Float(value) => hasher.put_float(*value),
+        NbtTag::Double(value) => hasher.put_double(*value),
+        NbtTag::ByteArray(values) => hasher.put_byte_array(values),
+        NbtTag::String(value) => {
+            let value = value.to_str();
+            hasher.put_string(&value);
+        }
+        NbtTag::List(list) => hash_nbt_list(hasher, list),
+        NbtTag::Compound(compound) => hash_nbt_compound(hasher, compound),
+        NbtTag::IntArray(values) => hasher.put_int_array(values),
+        NbtTag::LongArray(values) => hasher.put_long_array(values),
+    }
+}
+
+fn hash_nbt_list(hasher: &mut ComponentHasher, list: &NbtList) {
+    hasher.start_list();
+    for value in list.as_nbt_tags() {
+        hash_nested_value(hasher, |nested| {
+            hash_nbt_tag(nested, unwrap_vanilla_list_element(&value));
+        });
+    }
+    hasher.end_list();
+}
+
+fn hash_nbt_compound(hasher: &mut ComponentHasher, compound: &NbtCompound) {
+    let mut entries = Vec::with_capacity(compound.len());
+    for (key, value) in compound.iter() {
+        let mut key_hasher = ComponentHasher::new();
+        let key = key.to_str();
+        key_hasher.put_string(&key);
+
+        let mut value_hasher = ComponentHasher::new();
+        hash_nbt_tag(&mut value_hasher, value);
+        entries.push(HashEntry::new(key_hasher, value_hasher));
+    }
+
+    sort_map_entries(&mut entries);
+    hasher.start_map();
+    for entry in entries {
+        hasher.put_raw_bytes(&entry.key_bytes);
+        hasher.put_raw_bytes(&entry.value_bytes);
+    }
+    hasher.end_map();
+}
+
+fn hash_nested_value(hasher: &mut ComponentHasher, hash_value: impl FnOnce(&mut ComponentHasher)) {
+    let mut nested = ComponentHasher::new();
+    hash_value(&mut nested);
+    hasher.put_raw_bytes(&(nested.finish() as u32).to_le_bytes());
+}
+
 /// Trait for types that can be hashed for component validation.
 pub trait HashComponent {
     /// Hashes this value into the given hasher.
@@ -459,6 +521,57 @@ mod tests {
         let hash = hasher.finish();
         // Format: [TAG_LIST_START=4] [TAG_LIST_END=5]
         assert_ne!(hash, 0);
+    }
+
+    #[test]
+    fn nbt_hash_unwraps_vanilla_heterogeneous_list_elements() {
+        let mut wrapper = NbtCompound::new();
+        wrapper.insert("", 7_i32);
+        let encoded = NbtTag::List(NbtList::Compound(vec![wrapper]));
+        let logical = NbtTag::List(NbtList::Int(vec![7]));
+
+        let mut encoded_hasher = ComponentHasher::new();
+        hash_nbt_tag(&mut encoded_hasher, &encoded);
+        let mut logical_hasher = ComponentHasher::new();
+        hash_nbt_tag(&mut logical_hasher, &logical);
+
+        assert_eq!(encoded_hasher.finish(), logical_hasher.finish());
+    }
+
+    #[test]
+    fn nbt_hashes_with_the_equivalent_dynamic_ops_shape() {
+        let tag = NbtTag::List(NbtList::Int(vec![2, 3]));
+        let mut nbt_hasher = ComponentHasher::new();
+        hash_nbt_tag(&mut nbt_hasher, &tag);
+
+        let mut expected = ComponentHasher::new();
+        expected.start_list();
+        for value in [2, 3] {
+            let mut nested = ComponentHasher::new();
+            nested.put_int(value);
+            expected.put_raw_bytes(&(nested.finish() as u32).to_le_bytes());
+        }
+        expected.end_list();
+
+        assert_eq!(nbt_hasher.finish(), expected.finish());
+    }
+
+    #[test]
+    fn compound_hash_is_independent_of_nbt_entry_order() {
+        let mut first = NbtCompound::new();
+        first.insert("first", 1_i32);
+        first.insert("second", 2_i32);
+
+        let mut second = NbtCompound::new();
+        second.insert("second", 2_i32);
+        second.insert("first", 1_i32);
+
+        let mut first_hasher = ComponentHasher::new();
+        hash_nbt_tag(&mut first_hasher, &NbtTag::Compound(first));
+        let mut second_hasher = ComponentHasher::new();
+        hash_nbt_tag(&mut second_hasher, &NbtTag::Compound(second));
+
+        assert_eq!(first_hasher.finish(), second_hasher.finish());
     }
 
     #[test]

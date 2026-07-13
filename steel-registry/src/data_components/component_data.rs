@@ -4,9 +4,11 @@
 //! Vanilla components get dedicated enum variants for zero-cost access, while plugin
 //! components use the `Other` variant with opaque bytes.
 use super::components::{
-    AttackRange, DamageTypeComponent, Equippable, ItemAttributeModifiers, ItemEnchantments,
-    PiercingWeapon, Tool, UseCooldown, Weapon,
+    AdventureModePredicate, AttackRange, BlockTransformer, DamageTypeComponent, Equippable,
+    ItemAttributeModifiers, ItemEnchantments, PiercingWeapon, ProvidesPotteryPattern, Tool,
+    UseCooldown, Weapon,
 };
+use steel_utils::hash::{ComponentHasher, HashComponent};
 use text_components::TextComponent;
 
 /// Discriminant for [`ComponentData`] variants.
@@ -20,6 +22,9 @@ pub enum ComponentDataDiscriminant {
     I32,
     Float,
     DamageType,
+    AdventureModePredicate,
+    BlockTransformer,
+    ProvidesPotteryPattern,
     Tool,
     Weapon,
     AttackRange,
@@ -73,6 +78,12 @@ pub enum ComponentData {
     Float(f32),
     /// `minecraft:damage_type`
     DamageType(DamageTypeComponent),
+    /// `minecraft:can_place_on` / `minecraft:can_break`
+    AdventureModePredicate(AdventureModePredicate),
+    /// `minecraft:block_transformer`
+    BlockTransformer(BlockTransformer),
+    /// `minecraft:provides_pottery_pattern`
+    ProvidesPotteryPattern(ProvidesPotteryPattern),
 
     /// minecraft:tool
     Tool(Tool),
@@ -127,6 +138,9 @@ impl ComponentData {
             Self::I32(_) => ComponentDataDiscriminant::I32,
             Self::Float(_) => ComponentDataDiscriminant::Float,
             Self::DamageType(_) => ComponentDataDiscriminant::DamageType,
+            Self::AdventureModePredicate(_) => ComponentDataDiscriminant::AdventureModePredicate,
+            Self::BlockTransformer(_) => ComponentDataDiscriminant::BlockTransformer,
+            Self::ProvidesPotteryPattern(_) => ComponentDataDiscriminant::ProvidesPotteryPattern,
             Self::Tool(_) => ComponentDataDiscriminant::Tool,
             Self::Weapon(_) => ComponentDataDiscriminant::Weapon,
             Self::AttackRange(_) => ComponentDataDiscriminant::AttackRange,
@@ -141,33 +155,38 @@ impl ComponentData {
         }
     }
 
-    /// Computes a hash of this component value for validation.
-    ///
-    /// Uses CRC32C hashing matching Minecraft's `HashOps` implementation.
+    /// Persistent `HashOps` hash
     #[must_use]
     pub fn compute_hash(&self) -> i32 {
-        use steel_utils::hash::{ComponentHasher, HashComponent};
-
         let mut hasher = ComponentHasher::new();
+        self.hash_component(&mut hasher);
+        hasher.finish()
+    }
+}
 
+impl HashComponent for ComponentData {
+    fn hash_component(&self, hasher: &mut ComponentHasher) {
         match self {
             // Primitives
             Self::Empty => hasher.put_empty(),
-            Self::Bool(v) => v.hash_component(&mut hasher),
-            Self::I32(v) => v.hash_component(&mut hasher),
-            Self::Float(v) => v.hash_component(&mut hasher),
-            Self::DamageType(v) => v.hash_component(&mut hasher),
+            Self::Bool(v) => v.hash_component(hasher),
+            Self::I32(v) => v.hash_component(hasher),
+            Self::Float(v) => v.hash_component(hasher),
+            Self::DamageType(v) => v.hash_component(hasher),
+            Self::AdventureModePredicate(v) => v.hash_component(hasher),
+            Self::BlockTransformer(v) => v.hash_component(hasher),
+            Self::ProvidesPotteryPattern(v) => v.hash_component(hasher),
 
             // Complex types
-            Self::Tool(v) => v.hash_component(&mut hasher),
-            Self::Weapon(v) => v.hash_component(&mut hasher),
-            Self::AttackRange(v) => v.hash_component(&mut hasher),
-            Self::UseCooldown(v) => v.hash_component(&mut hasher),
-            Self::PiercingWeapon(v) => v.hash_component(&mut hasher),
-            Self::Equippable(v) => v.hash_component(&mut hasher),
-            Self::AttributeModifiers(v) => v.hash_component(&mut hasher),
-            Self::Enchantments(v) => v.hash_component(&mut hasher),
-            Self::TextComponent(v) => v.hash_component(&mut hasher),
+            Self::Tool(v) => v.hash_component(hasher),
+            Self::Weapon(v) => v.hash_component(hasher),
+            Self::AttackRange(v) => v.hash_component(hasher),
+            Self::UseCooldown(v) => v.hash_component(hasher),
+            Self::PiercingWeapon(v) => v.hash_component(hasher),
+            Self::Equippable(v) => v.hash_component(hasher),
+            Self::AttributeModifiers(v) => v.hash_component(hasher),
+            Self::Enchantments(v) => v.hash_component(hasher),
+            Self::TextComponent(v) => v.hash_component(hasher),
 
             // Stub/plugin types - hash as empty map for now
             // TODO: Implement proper hashing when these types are implemented
@@ -176,8 +195,6 @@ impl ComponentData {
                 hasher.end_map();
             }
         }
-
-        hasher.finish()
     }
 }
 
@@ -311,6 +328,66 @@ impl Component for DamageTypeComponent {
     fn from_data_ref(data: &ComponentData) -> Option<&Self> {
         match data {
             ComponentData::DamageType(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl Component for BlockTransformer {
+    fn into_data(self) -> ComponentData {
+        ComponentData::BlockTransformer(self)
+    }
+
+    fn from_data(data: ComponentData) -> Option<Self> {
+        match data {
+            ComponentData::BlockTransformer(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    fn from_data_ref(data: &ComponentData) -> Option<&Self> {
+        match data {
+            ComponentData::BlockTransformer(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl Component for ProvidesPotteryPattern {
+    fn into_data(self) -> ComponentData {
+        ComponentData::ProvidesPotteryPattern(self)
+    }
+
+    fn from_data(data: ComponentData) -> Option<Self> {
+        match data {
+            ComponentData::ProvidesPotteryPattern(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn from_data_ref(data: &ComponentData) -> Option<&Self> {
+        match data {
+            ComponentData::ProvidesPotteryPattern(value) => Some(value),
+            _ => None,
+        }
+    }
+}
+
+impl Component for AdventureModePredicate {
+    fn into_data(self) -> ComponentData {
+        ComponentData::AdventureModePredicate(self)
+    }
+
+    fn from_data(data: ComponentData) -> Option<Self> {
+        match data {
+            ComponentData::AdventureModePredicate(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    fn from_data_ref(data: &ComponentData) -> Option<&Self> {
+        match data {
+            ComponentData::AdventureModePredicate(v) => Some(v),
             _ => None,
         }
     }

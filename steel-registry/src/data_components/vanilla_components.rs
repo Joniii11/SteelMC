@@ -6,16 +6,22 @@ use steel_utils::Identifier;
 use text_components::TextComponent;
 
 use super::component_data::ComponentData;
-use super::registry::DataComponentRegistry;
 pub use super::registry::DataComponentType;
+use super::registry::{ComponentCodecs, DataComponentPredicateTypeRegistry, DataComponentRegistry};
 pub use crate::attribute::AttributeModifierOperation;
 pub use crate::equipment::{EquipmentSlot, EquipmentSlotGroup};
 
 // Re-export component types for convenience
 pub use super::components::{
-    AttackRange, DamageTypeComponent, Equippable, EquippableAllowedEntities,
-    ItemAttributeModifierDisplay, ItemAttributeModifierEntry, ItemAttributeModifiers,
-    ItemEnchantments, PiercingWeapon, Tool, ToolRule, UseCooldown, Weapon,
+    AdventureModePredicate, AttackRange, BlockHolderSet, BlockPredicate, BlockTransformData,
+    BlockTransformer, DamageTypeComponent, DataComponentExactPredicate, DataComponentMatchers,
+    DataComponentPredicate, DropStrategy, Equippable, EquippableAllowedEntities,
+    ExactDataComponentPredicate, ItemAttributeModifierDisplay, ItemAttributeModifierEntry,
+    ItemAttributeModifiers, ItemEnchantments, MapPostProcessing, NbtPredicate, PiercingWeapon,
+    ProvidesPotteryPattern, StatePropertiesPredicate, StatePropertyMatcher,
+    StatePropertyValueMatcher, Tool, ToolRule, TransformBlockState, TransformHolderSet,
+    TransformNoiseParameters, TransformParticle, TransformPredicate, TransformStateProvider,
+    TransformStateProviderRule, TransformType, UseCooldown, Weapon, WeightedTransformBlockState,
 };
 
 pub const MAX_STACK_SIZE: DataComponentType<i32> =
@@ -41,6 +47,9 @@ pub const UNBREAKABLE: DataComponentType<()> =
 
 pub const TOOL: DataComponentType<Tool> =
     DataComponentType::new(Identifier::vanilla_static("tool"));
+
+pub const BLOCK_TRANSFORMER: DataComponentType<BlockTransformer> =
+    DataComponentType::new(Identifier::vanilla_static("block_transformer"));
 
 pub const WEAPON: DataComponentType<Weapon> =
     DataComponentType::new(Identifier::vanilla_static("weapon"));
@@ -148,7 +157,7 @@ pub const KINETIC_WEAPON: DataComponentType<()> =
 pub const SWING_ANIMATION: DataComponentType<()> =
     DataComponentType::new(Identifier::vanilla_static("swing_animation"));
 
-pub const ADDITIONAL_TRADE_COST: DataComponentType<()> =
+pub const ADDITIONAL_TRADE_COST: DataComponentType<i32> =
     DataComponentType::new(Identifier::vanilla_static("additional_trade_cost"));
 
 pub const STORED_ENCHANTMENTS: DataComponentType<ItemEnchantments> =
@@ -168,7 +177,7 @@ pub const MAP_ID: DataComponentType<()> =
 pub const MAP_DECORATIONS: DataComponentType<()> =
     DataComponentType::new(Identifier::vanilla_static("map_decorations"));
 
-pub const MAP_POST_PROCESSING: DataComponentType<()> =
+pub const MAP_POST_PROCESSING: DataComponentType<MapPostProcessing> =
     DataComponentType::new(Identifier::vanilla_static("map_post_processing"));
 
 pub const CHARGED_PROJECTILES: DataComponentType<()> =
@@ -349,11 +358,16 @@ pub const SHEEP_COLOR: DataComponentType<()> =
 pub const SHULKER_COLOR: DataComponentType<()> =
     DataComponentType::new(Identifier::vanilla_static("shulker/color"));
 
+pub const PROVIDES_POTTERY_PATTERN: DataComponentType<ProvidesPotteryPattern> =
+    DataComponentType::new(Identifier::vanilla_static("provides_pottery_pattern"));
+
 /// Helper to create stub reader/writer functions for unimplemented components.
 /// These components use the Todo variant as a placeholder.
+// TODO replace persistent component stubs
 macro_rules! register_stub {
     ($registry:expr, $key:expr) => {{
         const fn network_reader(
+            _context: &crate::data_components::DataComponentCodecContext<'_>,
             cursor: &mut std::io::Cursor<&[u8]>,
         ) -> std::io::Result<ComponentData> {
             // Stub: read nothing, return Todo
@@ -362,6 +376,7 @@ macro_rules! register_stub {
         }
 
         const fn network_writer(
+            _context: &crate::data_components::DataComponentCodecContext<'_>,
             data: &ComponentData,
             _writer: &mut Vec<u8>,
         ) -> std::io::Result<()> {
@@ -370,34 +385,44 @@ macro_rules! register_stub {
             Ok(())
         }
 
-        const fn nbt_reader(_tag: simdnbt::borrow::NbtTag) -> Option<ComponentData> {
+        const fn nbt_reader(
+            _context: &crate::data_components::DataComponentCodecContext<'_>,
+            _tag: simdnbt::borrow::NbtTag,
+        ) -> Option<ComponentData> {
             Some(ComponentData::Todo)
         }
 
-        fn nbt_writer(_data: &ComponentData) -> simdnbt::owned::NbtTag {
+        fn nbt_writer(
+            _context: &crate::data_components::DataComponentCodecContext<'_>,
+            _data: &ComponentData,
+        ) -> simdnbt::owned::NbtTag {
             simdnbt::owned::NbtTag::Compound(simdnbt::owned::NbtCompound::new())
         }
 
         $registry.register_dynamic(
             $key,
             crate::data_components::ComponentDataDiscriminant::Todo,
-            network_reader,
-            network_writer,
-            nbt_reader,
-            nbt_writer,
+            ComponentCodecs::persistent(network_reader, network_writer, nbt_reader, nbt_writer),
         );
     }};
 }
 
 /// Network reader for VarInt-encoded i32 components.
-fn varint_reader(cursor: &mut std::io::Cursor<&[u8]>) -> std::io::Result<ComponentData> {
+fn varint_reader(
+    _context: &crate::data_components::DataComponentCodecContext<'_>,
+    cursor: &mut std::io::Cursor<&[u8]>,
+) -> std::io::Result<ComponentData> {
     use steel_utils::{codec::VarInt, serial::ReadFrom};
     let value = VarInt::read(cursor)?;
     Ok(ComponentData::I32(value.0))
 }
 
 /// Network writer for VarInt-encoded i32 components.
-fn varint_writer(data: &ComponentData, writer: &mut Vec<u8>) -> std::io::Result<()> {
+fn varint_writer(
+    _context: &crate::data_components::DataComponentCodecContext<'_>,
+    data: &ComponentData,
+    writer: &mut Vec<u8>,
+) -> std::io::Result<()> {
     use steel_utils::{codec::VarInt, serial::WriteTo};
     if let ComponentData::I32(v) = data {
         VarInt(*v).write(writer)
@@ -458,9 +483,23 @@ pub fn register_vanilla_data_components(registry: &mut DataComponentRegistry) {
     // 13: enchantments
     registry.register(ENCHANTMENTS, ComponentDataDiscriminant::Enchantments);
     // 14: can_place_on
-    register_stub!(registry, CAN_PLACE_ON.key.clone());
+    registry.register_custom(
+        CAN_PLACE_ON.key.clone(),
+        ComponentDataDiscriminant::AdventureModePredicate,
+        super::components::adventure_mode_predicate_network_reader,
+        super::components::adventure_mode_predicate_network_writer,
+        super::components::adventure_mode_predicate_nbt_reader,
+        super::components::adventure_mode_predicate_nbt_writer,
+    );
     // 15: can_break
-    register_stub!(registry, CAN_BREAK.key.clone());
+    registry.register_custom(
+        CAN_BREAK.key.clone(),
+        ComponentDataDiscriminant::AdventureModePredicate,
+        super::components::adventure_mode_predicate_network_reader,
+        super::components::adventure_mode_predicate_network_writer,
+        super::components::adventure_mode_predicate_nbt_reader,
+        super::components::adventure_mode_predicate_nbt_writer,
+    );
     // 16: attribute_modifiers
     registry.register(
         ATTRIBUTE_MODIFIERS,
@@ -478,7 +517,7 @@ pub fn register_vanilla_data_components(registry: &mut DataComponentRegistry) {
         varint_writer,
     );
     // 20: creative_slot_lock
-    registry.register(CREATIVE_SLOT_LOCK, ComponentDataDiscriminant::Empty);
+    registry.register_transient(CREATIVE_SLOT_LOCK, ComponentDataDiscriminant::Empty);
     // 21: enchantment_glint_override
     registry.register(ENCHANTMENT_GLINT_OVERRIDE, ComponentDataDiscriminant::Bool);
     // 22: intangible_projectile
@@ -520,161 +559,251 @@ pub fn register_vanilla_data_components(registry: &mut DataComponentRegistry) {
     // 40: swing_animation
     register_stub!(registry, SWING_ANIMATION.key.clone());
     // 41: additional_trade_cost
-    register_stub!(registry, ADDITIONAL_TRADE_COST.key.clone());
-    // 42: stored_enchantments
+    registry.register_custom_network_transient(
+        ADDITIONAL_TRADE_COST,
+        ComponentDataDiscriminant::I32,
+        varint_reader,
+        varint_writer,
+    );
+    // 42: block_transformer
+    registry.register_custom(
+        BLOCK_TRANSFORMER.key.clone(),
+        ComponentDataDiscriminant::BlockTransformer,
+        super::components::block_transformer_network_reader,
+        super::components::block_transformer_network_writer,
+        super::components::block_transformer_nbt_reader,
+        super::components::block_transformer_nbt_writer,
+    );
+    // 43: stored_enchantments
     registry.register(STORED_ENCHANTMENTS, ComponentDataDiscriminant::Enchantments);
-    // 43: dye
+    // 44: dye
     register_stub!(registry, DYE.key.clone());
-    // 44: dyed_color
+    // 45: dyed_color
     register_stub!(registry, DYED_COLOR.key.clone());
-    // 45: map_color
+    // 46: map_color
     register_stub!(registry, MAP_COLOR.key.clone());
-    // 46: map_id
+    // 47: map_id
     register_stub!(registry, MAP_ID.key.clone());
-    // 47: map_decorations
+    // 48: map_decorations
     register_stub!(registry, MAP_DECORATIONS.key.clone());
-    // 48: map_post_processing
-    register_stub!(registry, MAP_POST_PROCESSING.key.clone());
-    // 49: charged_projectiles
+    // 49: map_post_processing
+    registry.register_custom_network_transient(
+        MAP_POST_PROCESSING,
+        ComponentDataDiscriminant::I32,
+        super::components::map_post_processing_network_reader,
+        super::components::map_post_processing_network_writer,
+    );
+    // 50: charged_projectiles
     register_stub!(registry, CHARGED_PROJECTILES.key.clone());
-    // 50: bundle_contents
+    // 51: bundle_contents
     register_stub!(registry, BUNDLE_CONTENTS.key.clone());
-    // 51: potion_contents
+    // 52: potion_contents
     register_stub!(registry, POTION_CONTENTS.key.clone());
-    // 52: potion_duration_scale
+    // 53: potion_duration_scale
     registry.register(POTION_DURATION_SCALE, ComponentDataDiscriminant::Float);
-    // 53: suspicious_stew_effects
+    // 54: suspicious_stew_effects
     register_stub!(registry, SUSPICIOUS_STEW_EFFECTS.key.clone());
-    // 54: writable_book_content
+    // 55: writable_book_content
     register_stub!(registry, WRITABLE_BOOK_CONTENT.key.clone());
-    // 55: written_book_content
+    // 56: written_book_content
     register_stub!(registry, WRITTEN_BOOK_CONTENT.key.clone());
-    // 56: trim
+    // 57: trim
     register_stub!(registry, TRIM.key.clone());
-    // 57: debug_stick_state
+    // 58: debug_stick_state
     register_stub!(registry, DEBUG_STICK_STATE.key.clone());
-    // 58: entity_data
+    // 59: entity_data
     register_stub!(registry, ENTITY_DATA.key.clone());
-    // 59: bucket_entity_data
+    // 60: bucket_entity_data
     register_stub!(registry, BUCKET_ENTITY_DATA.key.clone());
-    // 60: block_entity_data
+    // 61: block_entity_data
     register_stub!(registry, BLOCK_ENTITY_DATA.key.clone());
-    // 61: instrument
+    // 62: instrument
     register_stub!(registry, INSTRUMENT.key.clone());
-    // 62: provides_trim_material
+    // 63: provides_trim_material
     register_stub!(registry, PROVIDES_TRIM_MATERIAL.key.clone());
-    // 63: ominous_bottle_amplifier
+    // 64: ominous_bottle_amplifier
     register_stub!(registry, OMINOUS_BOTTLE_AMPLIFIER.key.clone());
-    // 64: jukebox_playable
+    // 65: jukebox_playable
     register_stub!(registry, JUKEBOX_PLAYABLE.key.clone());
-    // 65: provides_banner_patterns
+    // 66: provides_banner_patterns
     register_stub!(registry, PROVIDES_BANNER_PATTERNS.key.clone());
-    // 66: recipes
+    // 67: recipes
     register_stub!(registry, RECIPES.key.clone());
-    // 67: lodestone_tracker
+    // 68: lodestone_tracker
     register_stub!(registry, LODESTONE_TRACKER.key.clone());
-    // 68: firework_explosion
+    // 69: firework_explosion
     register_stub!(registry, FIREWORK_EXPLOSION.key.clone());
-    // 69: fireworks
+    // 70: fireworks
     register_stub!(registry, FIREWORKS.key.clone());
-    // 70: profile
+    // 71: profile
     register_stub!(registry, PROFILE.key.clone());
-    // 71: note_block_sound
+    // 72: note_block_sound
     register_stub!(registry, NOTE_BLOCK_SOUND.key.clone());
-    // 72: banner_patterns
+    // 73: banner_patterns
     register_stub!(registry, BANNER_PATTERNS.key.clone());
-    // 73: base_color
+    // 74: base_color
     register_stub!(registry, BASE_COLOR.key.clone());
-    // 74: pot_decorations
+    // 75: pot_decorations
     register_stub!(registry, POT_DECORATIONS.key.clone());
-    // 75: container
+    // 76: container
     register_stub!(registry, CONTAINER.key.clone());
-    // 76: block_state
+    // 77: block_state
     register_stub!(registry, BLOCK_STATE.key.clone());
-    // 77: bees
+    // 78: bees
     register_stub!(registry, BEES.key.clone());
-    // 78: sulfur_cube_content
+    // 79: sulfur_cube_content
     register_stub!(registry, SULFUR_CUBE_CONTENT.key.clone());
-    // 79: lock
+    // 80: lock
     register_stub!(registry, LOCK.key.clone());
-    // 80: container_loot
+    // 81: container_loot
     register_stub!(registry, CONTAINER_LOOT.key.clone());
-    // 81: break_sound
+    // 82: break_sound
     register_stub!(registry, BREAK_SOUND.key.clone());
-    // 82: villager/variant
+    // 83: villager/variant
     register_stub!(registry, VILLAGER_VARIANT.key.clone());
-    // 83: wolf/variant
+    // 84: wolf/variant
     register_stub!(registry, WOLF_VARIANT.key.clone());
-    // 84: wolf/sound_variant
+    // 85: wolf/sound_variant
     register_stub!(registry, WOLF_SOUND_VARIANT.key.clone());
-    // 85: wolf/collar
+    // 86: wolf/collar
     register_stub!(registry, WOLF_COLLAR.key.clone());
-    // 86: fox/variant
+    // 87: fox/variant
     register_stub!(registry, FOX_VARIANT.key.clone());
-    // 87: salmon/size
+    // 88: salmon/size
     register_stub!(registry, SALMON_SIZE.key.clone());
-    // 88: parrot/variant
+    // 89: parrot/variant
     register_stub!(registry, PARROT_VARIANT.key.clone());
-    // 89: tropical_fish/pattern
+    // 90: tropical_fish/pattern
     register_stub!(registry, TROPICAL_FISH_PATTERN.key.clone());
-    // 90: tropical_fish/base_color
+    // 91: tropical_fish/base_color
     register_stub!(registry, TROPICAL_FISH_BASE_COLOR.key.clone());
-    // 91: tropical_fish/pattern_color
+    // 92: tropical_fish/pattern_color
     register_stub!(registry, TROPICAL_FISH_PATTERN_COLOR.key.clone());
-    // 92: mooshroom/variant
+    // 93: mooshroom/variant
     register_stub!(registry, MOOSHROOM_VARIANT.key.clone());
-    // 93: rabbit/variant
+    // 94: rabbit/variant
     register_stub!(registry, RABBIT_VARIANT.key.clone());
-    // 94: pig/variant
+    // 95: pig/variant
     register_stub!(registry, PIG_VARIANT.key.clone());
-    // 95: pig/sound_variant
+    // 96: pig/sound_variant
     register_stub!(registry, PIG_SOUND_VARIANT.key.clone());
-    // 96: cow/variant
+    // 97: cow/variant
     register_stub!(registry, COW_VARIANT.key.clone());
-    // 97: cow/sound_variant
+    // 98: cow/sound_variant
     register_stub!(registry, COW_SOUND_VARIANT.key.clone());
-    // 98: chicken/variant
+    // 99: chicken/variant
     register_stub!(registry, CHICKEN_VARIANT.key.clone());
-    // 99: chicken/sound_variant
+    // 100: chicken/sound_variant
     register_stub!(registry, CHICKEN_SOUND_VARIANT.key.clone());
-    // 100: zombie_nautilus/variant
+    // 101: zombie_nautilus/variant
     register_stub!(registry, ZOMBIE_NAUTILUS_VARIANT.key.clone());
-    // 101: frog/variant
+    // 102: frog/variant
     register_stub!(registry, FROG_VARIANT.key.clone());
-    // 102: horse/variant
+    // 103: horse/variant
     register_stub!(registry, HORSE_VARIANT.key.clone());
-    // 103: painting/variant
+    // 104: painting/variant
     register_stub!(registry, PAINTING_VARIANT.key.clone());
-    // 104: llama/variant
+    // 105: llama/variant
     register_stub!(registry, LLAMA_VARIANT.key.clone());
-    // 105: axolotl/variant
+    // 106: axolotl/variant
     register_stub!(registry, AXOLOTL_VARIANT.key.clone());
-    // 106: cat/variant
+    // 107: cat/variant
     register_stub!(registry, CAT_VARIANT.key.clone());
-    // 107: cat/sound_variant
+    // 108: cat/sound_variant
     register_stub!(registry, CAT_SOUND_VARIANT.key.clone());
-    // 108: cat/collar
+    // 109: cat/collar
     register_stub!(registry, CAT_COLLAR.key.clone());
-    // 109: sheep/color
+    // 110: sheep/color
     register_stub!(registry, SHEEP_COLOR.key.clone());
-    // 110: shulker/color
+    // 111: shulker/color
     register_stub!(registry, SHULKER_COLOR.key.clone());
+    // 112: provides_pottery_pattern
+    registry.register_custom(
+        PROVIDES_POTTERY_PATTERN.key.clone(),
+        ComponentDataDiscriminant::ProvidesPotteryPattern,
+        super::components::provides_pottery_pattern_network_reader,
+        super::components::provides_pottery_pattern_network_writer,
+        super::components::provides_pottery_pattern_nbt_reader,
+        super::components::provides_pottery_pattern_nbt_writer,
+    );
+}
+
+/// Vanilla predicate types
+pub fn register_vanilla_data_component_predicate_types(
+    registry: &mut DataComponentPredicateTypeRegistry,
+) {
+    registry.register(Identifier::vanilla_static("damage"));
+    registry.register(Identifier::vanilla_static("enchantments"));
+    registry.register(Identifier::vanilla_static("stored_enchantments"));
+    registry.register(Identifier::vanilla_static("potion_contents"));
+    registry.register(Identifier::vanilla_static("custom_data"));
+    registry.register(Identifier::vanilla_static("container"));
+    registry.register(Identifier::vanilla_static("bundle_contents"));
+    registry.register(Identifier::vanilla_static("firework_explosion"));
+    registry.register(Identifier::vanilla_static("fireworks"));
+    registry.register(Identifier::vanilla_static("writable_book_content"));
+    registry.register(Identifier::vanilla_static("written_book_content"));
+    registry.register(Identifier::vanilla_static("attribute_modifiers"));
+    registry.register(Identifier::vanilla_static("trim"));
+    registry.register(Identifier::vanilla_static("jukebox_playable"));
+    registry.register(Identifier::vanilla_static("villager/variant"));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::RegistryExt;
 
     #[test]
-    fn sulfur_cube_content_keeps_vanilla_26_2_component_order() {
+    fn snapshot_2_block_transformer_keeps_vanilla_component_order() {
         let mut registry = DataComponentRegistry::new();
         register_vanilla_data_components(&mut registry);
 
-        assert_eq!(registry.get_key_by_id(77), Some(&BEES.key));
-        assert_eq!(registry.get_key_by_id(78), Some(&SULFUR_CUBE_CONTENT.key));
-        assert_eq!(registry.get_key_by_id(79), Some(&LOCK.key));
-        assert_eq!(registry.get_key_by_id(80), Some(&CONTAINER_LOOT.key));
-        assert_eq!(registry.get_key_by_id(81), Some(&BREAK_SOUND.key));
-        assert_eq!(registry.get_key_by_id(82), Some(&VILLAGER_VARIANT.key));
+        assert_eq!(registry.get_key_by_id(42), Some(&BLOCK_TRANSFORMER.key));
+        assert_eq!(registry.get_key_by_id(43), Some(&STORED_ENCHANTMENTS.key));
+        assert_eq!(registry.get_key_by_id(78), Some(&BEES.key));
+        assert_eq!(registry.get_key_by_id(79), Some(&SULFUR_CUBE_CONTENT.key));
+        assert_eq!(registry.get_key_by_id(80), Some(&LOCK.key));
+        assert_eq!(registry.get_key_by_id(81), Some(&CONTAINER_LOOT.key));
+        assert_eq!(registry.get_key_by_id(82), Some(&BREAK_SOUND.key));
+        assert_eq!(registry.get_key_by_id(83), Some(&VILLAGER_VARIANT.key));
+        assert_eq!(registry.get_key_by_id(111), Some(&SHULKER_COLOR.key));
+        assert_eq!(
+            registry.get_key_by_id(112),
+            Some(&PROVIDES_POTTERY_PATTERN.key)
+        );
+    }
+
+    #[test]
+    fn snapshot_2_marks_exactly_the_transient_vanilla_components() {
+        let mut registry = DataComponentRegistry::new();
+        register_vanilla_data_components(&mut registry);
+
+        for id in [20, 41, 49] {
+            let entry = registry
+                .by_id(id)
+                .expect("transient component ID must be registered");
+            assert!(
+                !entry.is_persistent(),
+                "component ID {id} must be transient"
+            );
+            assert!(
+                entry.nbt_reader.is_none() && entry.nbt_writer.is_none(),
+                "transient component ID {id} must not install persistent NBT codecs"
+            );
+        }
+        for id in [19, 21, 40, 42, 48, 50] {
+            let entry = registry
+                .by_id(id)
+                .expect("persistent component ID must be registered");
+            assert!(
+                entry.is_persistent(),
+                "component ID {id} must be persistent"
+            );
+            assert!(
+                entry.nbt_reader.is_some() && entry.nbt_writer.is_some(),
+                "persistent component ID {id} must install both NBT codecs"
+            );
+        }
     }
 }

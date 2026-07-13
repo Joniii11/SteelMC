@@ -78,6 +78,261 @@ fn generate_tool_component(value: &Value) -> TokenStream {
     }
 }
 
+fn generate_transform_predicate(value: &Value) -> TokenStream {
+    let kind = value["type"]
+        .as_str()
+        .unwrap_or_else(|| panic!("block transformer predicate missing type: {value}"));
+    match kind {
+        "minecraft:matching_blocks" => {
+            let offset = generate_transform_offset(value);
+            let blocks =
+                generate_transform_holder_set(&value["blocks"], "matching_blocks predicate blocks");
+            quote! {
+                vanilla_components::TransformPredicate::MatchingBlocks {
+                    offset: #offset,
+                    blocks: #blocks,
+                }
+            }
+        }
+        "minecraft:matching_block_tag" => {
+            let tag = value["tag"]
+                .as_str()
+                .unwrap_or_else(|| panic!("matching_block_tag predicate missing tag: {value}"));
+            let tag = identifier_token(tag);
+            let offset = generate_transform_offset(value);
+            quote! {
+                vanilla_components::TransformPredicate::MatchingBlockTag {
+                    offset: #offset,
+                    tag: #tag,
+                }
+            }
+        }
+        "minecraft:all_of" => {
+            let predicates = value["predicates"]
+                .as_array()
+                .unwrap_or_else(|| panic!("all_of predicate missing predicates: {value}"))
+                .iter()
+                .map(generate_transform_predicate)
+                .collect::<Vec<_>>();
+            quote! { vanilla_components::TransformPredicate::All(vec![#(#predicates),*]) }
+        }
+        _ => panic!("unsupported block transformer predicate {kind}"),
+    }
+}
+
+fn generate_transform_offset(value: &Value) -> TokenStream {
+    let Some(offset) = value.get("offset") else {
+        return quote! { (0, 0, 0) };
+    };
+    let offset = offset
+        .as_array()
+        .unwrap_or_else(|| panic!("block transformer offset must be an array: {value}"));
+    assert_eq!(
+        offset.len(),
+        3,
+        "block transformer offset must have three entries"
+    );
+    let x = offset[0].as_i64().expect("offset x must be an integer") as i32;
+    let y = offset[1].as_i64().expect("offset y must be an integer") as i32;
+    let z = offset[2].as_i64().expect("offset z must be an integer") as i32;
+    quote! { (#x, #y, #z) }
+}
+
+fn generate_transform_holder_set(value: &Value, owner: &str) -> TokenStream {
+    let entries = match value {
+        Value::String(value) if value.starts_with('#') => {
+            let tag = identifier_token(&value[1..]);
+            return quote! { vanilla_components::TransformHolderSet::Tag(#tag) };
+        }
+        Value::String(value) => vec![value.as_str()],
+        Value::Array(values) => values
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{owner} entries must be strings: {value}"))
+            })
+            .collect(),
+        _ => panic!("{owner} must be a string or string array: {value}"),
+    };
+    let entries = entries.iter().map(|entry| identifier_token(entry));
+    quote! { vanilla_components::TransformHolderSet::Entries(vec![#(#entries),*]) }
+}
+
+fn generate_block_transformer_component(value: &Value) -> TokenStream {
+    let transforms = value
+        .as_array()
+        .unwrap_or_else(|| panic!("block_transformer must be an array: {value}"))
+        .iter()
+        .map(|transform| {
+            let block_state_provider = generate_transform_provider(
+                &transform["block_state_provider"],
+                "block transformer block_state_provider",
+            );
+            let sound =
+                sound_event_holder_token(transform, "sound", "minecraft:intentionally_empty");
+            let particle = match transform.get("particle").and_then(Value::as_str) {
+                None | Some("none") => quote! { vanilla_components::TransformParticle::None },
+                Some("scrape") => quote! { vanilla_components::TransformParticle::Scrape },
+                Some("wax_on") => quote! { vanilla_components::TransformParticle::WaxOn },
+                Some("wax_off") => quote! { vanilla_components::TransformParticle::WaxOff },
+                Some(value) => panic!("unknown block transformer particle {value}"),
+            };
+            let faces = transform
+                .get("disallowed_faces")
+                .and_then(Value::as_array)
+                .map(|faces| {
+                    faces
+                        .iter()
+                        .map(|face| match face.as_str() {
+                            Some("down") => quote! {steel_utils::Direction::Down },
+                            Some("up") => quote! { steel_utils::Direction::Up },
+                            Some("north") => quote! { steel_utils::Direction::North },
+                            Some("south") => quote! { steel_utils::Direction::South },
+                            Some("west") => quote! { steel_utils::Direction::West },
+                            Some("east") => quote! { steel_utils::Direction::East },,
+                            _ => panic!("invalid block transformer disallowed face {face}"),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let loot = transform.get("loot").and_then(Value::as_str).map_or_else(
+                || quote! { None },
+                |loot| {
+                    let loot = identifier_token(loot);
+                    quote! { Some(#loot) }
+                },
+            );
+            let drop_strategy = match transform.get("drop_strategy").and_then(Value::as_str) {
+                Some("clicked_face") => quote! { vanilla_components::DropStrategy::ClickedFace },
+                None | Some("from_middle") => {
+                    quote! { vanilla_components::DropStrategy::FromMiddle }
+                }
+                Some(value) => panic!("unknown block transformer drop strategy {value}"),
+            };
+            let transform_type = match transform.get("transform_type").and_then(Value::as_str) {
+                Some("copper_chest") => quote! { vanilla_components::TransformType::CopperChest },
+                None | Some("single_block") => {
+                    quote! { vanilla_components::TransformType::SingleBlock }
+                }
+                Some(value) => panic!("unknown block transformer type {value}"),
+            };
+            let consume_on_use = transform
+                .get("consume_on_use")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            let item_damage_per_use = transform
+                .get("item_damage_per_use")
+                .and_then(Value::as_i64)
+                .unwrap_or(0) as i32;
+            quote! {
+                vanilla_components::BlockTransformData {
+                    block_state_provider: #block_state_provider,
+                    sound: #sound,
+                    particle: #particle,
+                    disallowed_faces: vec![#(#faces),*],
+                    loot: #loot,
+                    drop_strategy: #drop_strategy,
+                    transform_type: #transform_type,
+                    consume_on_use: #consume_on_use,
+                    item_damage_per_use: #item_damage_per_use,
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    quote! { vanilla_components::BlockTransformer { transforms: vec![#(#transforms),*] } }
+}
+
+fn generate_transform_provider(value: &Value, owner: &str) -> TokenStream {
+    let kind = value["type"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{owner} is missing a provider type: {value}"));
+    match kind {
+        "minecraft:simple_state_provider" => {
+            let state = generate_transform_block_state(&value["state"]);
+            quote! { vanilla_components::TransformStateProvider::Simple { state: #state } }
+        }
+        "minecraft:copy_properties_provider" => {
+            let source = generate_transform_provider(
+                &value["source_block_state_provider"],
+                "copy properties provider source",
+            );
+            quote! {
+                vanilla_components::TransformStateProvider::CopyProperties {
+                    source: Box::new(#source),
+                }
+            }
+        }
+        "minecraft:rule_based_state_provider" => {
+            let fallback = value.get("fallback").map_or_else(
+                || quote! { None },
+                |fallback| {
+                    let fallback =
+                        generate_transform_provider(fallback, "rule based provider fallback");
+                    quote! { Some(Box::new(#fallback)) }
+                },
+            );
+            let rules = value["rules"]
+                .as_array()
+                .unwrap_or_else(|| {
+                    panic!("rule based state provider rules must be an array: {value}")
+                })
+                .iter()
+                .map(|rule| {
+                    let if_true = generate_transform_predicate(&rule["if_true"]);
+                    let then = generate_transform_provider(
+                        &rule["then"],
+                        "rule based provider rule target",
+                    );
+                    quote! {
+                        vanilla_components::TransformStateProviderRule {
+                            if_true: #if_true,
+                            then: #then,
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            quote! {
+                vanilla_components::TransformStateProvider::RuleBased {
+                    fallback: #fallback,
+                    rules: vec![#(#rules),*],
+                }
+            }
+        }
+        _ => panic!("unsupported extracted block transformer provider {kind}"),
+    }
+}
+
+fn generate_transform_block_state(state: &Value) -> TokenStream {
+    let block = state["Name"]
+        .as_str()
+        .unwrap_or_else(|| panic!("block transformer state missing Name: {state}"));
+    let block = identifier_token(block);
+    let properties = generate_transform_block_state_properties(state);
+    quote! {
+        vanilla_components::TransformBlockState {
+            block: #block,
+            properties: #properties,
+        }
+    }
+}
+
+fn generate_transform_block_state_properties(state: &Value) -> TokenStream {
+    let Some(properties) = state.get("Properties") else {
+        return quote! { vec![] };
+    };
+    let properties = properties.as_object().unwrap_or_else(|| {
+        panic!("block transformer target state Properties must be an object: {state}")
+    });
+    let values = properties.iter().map(|(name, value)| {
+        let value = value.as_str().unwrap_or_else(|| {
+            panic!("block transformer target state property {name} must be a string: {state}")
+        });
+        quote! { (#name.to_owned(), #value.to_owned()) }
+    });
+    quote! { vec![#(#values),*] }
+}
+
 /// Parses a block or tag reference string into an Identifier `TokenStream`.
 /// For tags like "#minecraft:mineable/pickaxe", creates Identifier { namespace: "#minecraft", path: "mineable/pickaxe" }
 /// For blocks like "minecraft:stone", creates Identifier { namespace: "minecraft", path: "stone" }
@@ -527,7 +782,10 @@ fn get_craft_remainder(item_name: &str) -> Option<&'static str> {
     }
 }
 
-fn generate_builder_calls(item: &Item) -> Vec<TokenStream> {
+fn generate_builder_calls(
+    item: &Item,
+    transformer_names: &BTreeMap<String, Ident>,
+) -> Vec<TokenStream> {
     let mut builder_calls = Vec::new();
 
     for (key, value) in &item.components {
@@ -652,6 +910,38 @@ fn generate_builder_calls(item: &Item) -> Vec<TokenStream> {
                 builder_calls
                     .push(quote! { .builder_set(vanilla_components::TOOL, Some(#tool_token)) });
             }
+            "minecraft:block_transformer" => {
+                let key = serde_json::to_string(value)
+                    .expect("block_transformer component must serialize to JSON");
+                let name = transformer_names
+                    .get(&key)
+                    .expect("block_transformer component must have a generated shared definition");
+                builder_calls.push(quote! {
+                    .builder_set(vanilla_components::BLOCK_TRANSFORMER, Some((#name).clone()))
+                });
+            }
+            "minecraft:provides_pottery_pattern" => {
+                let pattern = value
+                    .as_str()
+                    .expect("provides_pottery_pattern component must be an identifier string");
+                let pattern = Identifier::from_str(pattern).unwrap_or_else(|error| {
+                    panic!("invalid provides_pottery_pattern identifier {pattern:?}: {error}")
+                });
+                assert_eq!(
+                    pattern.namespace.as_ref(),
+                    "minecraft",
+                    "vanilla provides_pottery_pattern references must use the minecraft namespace: {pattern}"
+                );
+                let pattern = Ident::new(&pattern.path.to_shouty_snake_case(), Span::call_site());
+                builder_calls.push(quote! {
+                    .builder_set(
+                        vanilla_components::PROVIDES_POTTERY_PATTERN,
+                        Some(vanilla_components::ProvidesPotteryPattern {
+                            pattern: &crate::vanilla_decorated_pot_patterns::#pattern,
+                        }),
+                    )
+                });
+            }
             "minecraft:attribute_modifiers" => {
                 if let Some(modifiers) = generate_attribute_modifiers_component(value) {
                     builder_calls.push(quote! {
@@ -740,6 +1030,29 @@ pub(crate) fn build() -> TokenStream {
     let mut item_definitions = TokenStream::new();
     let mut item_construction = TokenStream::new();
 
+    let mut transformer_names = BTreeMap::new();
+    let mut transformer_definitions = TokenStream::new();
+    for item in &item_assets.items {
+        let Some(transformer) = item.components.get("minecraft:block_transformer") else {
+            continue;
+        };
+        let key = serde_json::to_string(transformer)
+            .expect("block_transformer component must serialize to JSON");
+        if transformer_names.contains_key(&key) {
+            continue;
+        }
+        let name = Ident::new(
+            &format!("BLOCK_TRANSFORMER_{}", transformer_names.len()),
+            Span::call_site(),
+        );
+        let transformer = generate_block_transformer_component(transformer);
+        transformer_definitions.extend(quote! {
+            static #name: LazyLock<vanilla_components::BlockTransformer> =
+                LazyLock::new(|| #transformer);
+        });
+        transformer_names.insert(key, name);
+    }
+
     let mut register_stream = TokenStream::new();
     for item in &item_assets.items {
         let item_ident = Ident::new(&item.name, Span::call_site());
@@ -751,7 +1064,7 @@ pub(crate) fn build() -> TokenStream {
 
         if let Some(block_name) = &item.block_item {
             let block_ident = Ident::new(&block_name.to_shouty_snake_case(), Span::call_site());
-            let builder_calls = generate_builder_calls(item);
+            let builder_calls = generate_builder_calls(item, &transformer_names);
 
             if builder_calls.is_empty() {
                 if block_name == &item.name {
@@ -778,7 +1091,7 @@ pub(crate) fn build() -> TokenStream {
                 }
             }
         } else {
-            let builder_calls = generate_builder_calls(item);
+            let builder_calls = generate_builder_calls(item, &transformer_names);
 
             let craft_remainder_value = if let Some(remainder) = get_craft_remainder(&item.name) {
                 quote! { Some(Identifier::vanilla_static(#remainder)) }
@@ -810,6 +1123,8 @@ pub(crate) fn build() -> TokenStream {
         };
         use steel_utils::Identifier;
         use std::sync::{LazyLock, OnceLock};
+
+        #transformer_definitions
 
         pub static ITEMS: LazyLock<Items> = LazyLock::new(Items::init);
 

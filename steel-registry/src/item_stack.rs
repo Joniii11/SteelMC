@@ -1,6 +1,6 @@
 //! Item stack implementation.
 
-use std::io::{Cursor, Result, Write};
+use std::io::{Cursor, Error, ErrorKind, Result, Write};
 
 use rand::RngExt;
 
@@ -14,8 +14,8 @@ use crate::{
     REGISTRY, RegistryEntry, RegistryExt,
     damage_type::DamageTypeRef,
     data_components::{
-        Component, ComponentData, ComponentPatchEntry, DataComponentMap, DataComponentPatch,
-        DataComponentType,
+        Component, ComponentData, ComponentPatchEntry, DataComponentCodecContext, DataComponentMap,
+        DataComponentPatch, DataComponentType,
         vanilla_components::{
             ATTACK_RANGE, ATTRIBUTE_MODIFIERS, AttackRange, DAMAGE, DAMAGE_TYPE, ENCHANTMENTS,
             EQUIPPABLE, Equippable, ItemAttributeModifiers, ItemEnchantments, MAX_DAMAGE,
@@ -519,7 +519,7 @@ impl ItemStack {
     }
 
     /// Enchants this item randomly with enchantments from the given options.
-    pub const fn enchant_randomly<R: rand::Rng>(
+    pub const fn enchant_randomly<R: crate::loot_table::LootRandom>(
         &mut self,
         _options: &crate::loot_table::EnchantmentOptions,
         _rng: &mut R,
@@ -533,7 +533,7 @@ impl ItemStack {
     }
 
     /// Enchants this item as if using an enchanting table at the given level.
-    pub const fn enchant_with_levels<R: rand::Rng>(
+    pub const fn enchant_with_levels<R: crate::loot_table::LootRandom>(
         &mut self,
         _level: i32,
         _options: &crate::loot_table::EnchantmentOptions,
@@ -548,7 +548,7 @@ impl ItemStack {
     }
 
     /// Copies components from a source (block entity, attacker, etc.) to this item.
-    pub const fn copy_components<R: rand::Rng>(
+    pub const fn copy_components<R: crate::loot_table::LootRandom>(
         &mut self,
         _source: crate::loot_table::CopySource,
         _include: &[Identifier],
@@ -560,7 +560,7 @@ impl ItemStack {
     }
 
     /// Copies block state properties to this item (for blocks like `note_block`).
-    pub const fn copy_block_state<R: rand::Rng>(
+    pub const fn copy_block_state<R: crate::loot_table::LootRandom>(
         &mut self,
         _block: &Identifier,
         _properties: &[&str],
@@ -626,7 +626,7 @@ impl ItemStack {
     }
 
     /// Sets the suspicious stew effects for this item.
-    pub const fn set_stew_effects<R: rand::Rng>(
+    pub const fn set_stew_effects<R: crate::loot_table::LootRandom>(
         &mut self,
         _effects: &[crate::loot_table::StewEffect],
         _rng: &mut R,
@@ -637,7 +637,11 @@ impl ItemStack {
     }
 
     /// Sets the instrument for a goat horn.
-    pub const fn set_instrument<R: rand::Rng>(&mut self, _options: &Identifier, _rng: &mut R) {
+    pub const fn set_instrument<R: crate::loot_table::LootRandom>(
+        &mut self,
+        _options: &Identifier,
+        _rng: &mut R,
+    ) {
         // TODO: Implement instrument setting
         // Pick a random instrument from the tag and set INSTRUMENT component
     }
@@ -679,7 +683,7 @@ impl ItemStack {
     }
 
     /// Copies the name from a source entity/block to this item.
-    pub const fn copy_name<R: rand::Rng>(
+    pub const fn copy_name<R: crate::loot_table::LootRandom>(
         &mut self,
         _source: crate::loot_table::CopySource,
         _ctx: &crate::loot_table::LootContext<'_, R>,
@@ -697,7 +701,7 @@ impl ItemStack {
     }
 
     /// Sets container inventory contents.
-    pub const fn set_contents<R: rand::Rng>(
+    pub const fn set_contents<R: crate::loot_table::LootRandom>(
         &mut self,
         _entries: &[crate::loot_table::LootEntry],
         _component_type: &Identifier,
@@ -708,7 +712,7 @@ impl ItemStack {
     }
 
     /// Modifies existing container contents.
-    pub const fn modify_contents<R: rand::Rng>(
+    pub const fn modify_contents<R: crate::loot_table::LootRandom>(
         &mut self,
         _modifier: &[crate::loot_table::ConditionalLootFunction],
         _component_type: &Identifier,
@@ -725,7 +729,7 @@ impl ItemStack {
     }
 
     /// Sets attribute modifiers on this item.
-    pub const fn set_attributes<R: rand::Rng>(
+    pub const fn set_attributes<R: crate::loot_table::LootRandom>(
         &mut self,
         _modifiers: &[crate::loot_table::AttributeModifier],
         _replace: bool,
@@ -736,7 +740,7 @@ impl ItemStack {
     }
 
     /// Fills a player head with texture from an entity.
-    pub const fn fill_player_head<R: rand::Rng>(
+    pub const fn fill_player_head<R: crate::loot_table::LootRandom>(
         &mut self,
         _entity: crate::loot_table::LootContextEntity,
         _ctx: &crate::loot_table::LootContext<'_, R>,
@@ -746,7 +750,7 @@ impl ItemStack {
     }
 
     /// Copies custom NBT data from a source.
-    pub const fn copy_custom_data<R: rand::Rng>(
+    pub const fn copy_custom_data<R: crate::loot_table::LootRandom>(
         &mut self,
         _source: crate::loot_table::CopySource,
         _operations: &[crate::loot_table::CopyDataOperation],
@@ -892,6 +896,20 @@ impl std::fmt::Display for ItemStack {
 
 impl WriteTo for ItemStack {
     fn write(&self, writer: &mut impl Write) -> Result<()> {
+        self.write_with_context(
+            &crate::data_components::DataComponentCodecContext::new(&REGISTRY),
+            writer,
+        )
+    }
+}
+
+impl ItemStack {
+    /// Contextual item write
+    pub fn write_with_context(
+        &self,
+        context: &crate::data_components::DataComponentCodecContext<'_>,
+        writer: &mut impl Write,
+    ) -> Result<()> {
         if self.is_empty() {
             VarInt(0).write(writer)?;
         } else {
@@ -899,7 +917,7 @@ impl WriteTo for ItemStack {
             // Write item ID as VarInt
             VarInt(self.item.id() as i32).write(writer)?;
             // Write DataComponentPatch
-            self.patch.write(writer)?;
+            self.patch.write_with_context(context, writer)?;
         }
         Ok(())
     }
@@ -907,16 +925,47 @@ impl WriteTo for ItemStack {
 
 impl ReadFrom for ItemStack {
     fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
+        Self::read_with_context(
+            &crate::data_components::DataComponentCodecContext::new(&REGISTRY),
+            data,
+        )
+    }
+}
+
+impl ItemStack {
+    fn read_item_ref(
+        context: &DataComponentCodecContext<'_>,
+        data: &mut Cursor<&[u8]>,
+    ) -> Result<ItemRef> {
+        let item_id = VarInt::read(data)?.0;
+        let item_id = usize::try_from(item_id).map_err(|_| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!("negative item registry ID: {item_id}"),
+            )
+        })?;
+        context.registry().items.by_id(item_id).ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!("unknown item registry ID: {item_id}"),
+            )
+        })
+    }
+
+    /// Contextual item read
+    pub fn read_with_context(
+        context: &crate::data_components::DataComponentCodecContext<'_>,
+        data: &mut Cursor<&[u8]>,
+    ) -> Result<Self> {
         let count = VarInt::read(data)?.0;
         if count <= 0 {
             return Ok(Self::empty());
         }
 
-        let item_id = VarInt::read(data)?.0 as usize;
-        let item = REGISTRY.items.by_id(item_id).unwrap_or(&ITEMS.air);
+        let item = Self::read_item_ref(context, data)?;
 
         // Read DataComponentPatch
-        let patch = DataComponentPatch::read(data)?;
+        let patch = DataComponentPatch::read_with_context(context, data)?;
 
         Ok(Self { item, count, patch })
     }
@@ -927,15 +976,26 @@ impl ItemStack {
     ///
     /// Vanilla uses this for serverbound packets where component data is
     /// length-prefixed (e.g., `ServerboundSetCreativeModeSlotPacket`).
+    // TODO validate untrusted persistent stacks
     pub fn read_untrusted(data: &mut Cursor<&[u8]>) -> Result<Self> {
+        Self::read_untrusted_with_context(
+            &crate::data_components::DataComponentCodecContext::new(&REGISTRY),
+            data,
+        )
+    }
+
+    /// Contextual untrusted item read
+    pub fn read_untrusted_with_context(
+        context: &crate::data_components::DataComponentCodecContext<'_>,
+        data: &mut Cursor<&[u8]>,
+    ) -> Result<Self> {
         let count = VarInt::read(data)?.0;
         if count <= 0 {
             return Ok(Self::empty());
         }
 
-        let item_id = VarInt::read(data)?.0 as usize;
-        let item = REGISTRY.items.by_id(item_id).unwrap_or(&ITEMS.air);
-        let patch = DataComponentPatch::read_delimited(data)?;
+        let item = Self::read_item_ref(context, data)?;
+        let patch = DataComponentPatch::read_delimited_with_context(context, data)?;
 
         Ok(Self { item, count, patch })
     }
@@ -967,6 +1027,15 @@ impl ItemStack {
     /// Converts this item stack to an NBT tag for persistent storage without consuming it.
     #[must_use]
     pub fn to_nbt_tag_ref(&self) -> simdnbt::owned::NbtTag {
+        self.to_nbt_tag_with_context(&DataComponentCodecContext::new(&REGISTRY))
+    }
+
+    /// Contextual item NBT
+    #[must_use]
+    pub fn to_nbt_tag_with_context(
+        &self,
+        context: &DataComponentCodecContext<'_>,
+    ) -> simdnbt::owned::NbtTag {
         if self.is_empty() {
             // Empty stacks are represented as an empty compound
             return simdnbt::owned::NbtTag::Compound(NbtCompound::new());
@@ -980,9 +1049,9 @@ impl ItemStack {
         // count: The stack count (vanilla uses Int for NBT storage)
         compound.insert("count", self.count);
 
-        // components: The component patch (only if non-empty)
-        if !self.patch.is_empty() {
-            compound.insert("components", self.patch.to_nbt_tag_ref());
+        // Persistent components
+        if !self.patch.is_persistently_empty(context) {
+            compound.insert("components", self.patch.to_nbt_tag_with_context(context));
         }
 
         simdnbt::owned::NbtTag::Compound(compound)
@@ -1001,6 +1070,17 @@ impl FromNbtTag for ItemStack {
     /// }
     /// ```
     fn from_nbt_tag(tag: BorrowedNbtTag) -> Option<Self> {
+        Self::from_nbt_tag_with_context(&DataComponentCodecContext::new(&REGISTRY), tag)
+    }
+}
+
+impl ItemStack {
+    /// Contextual item NBT read
+    #[must_use]
+    pub fn from_nbt_tag_with_context(
+        context: &DataComponentCodecContext<'_>,
+        tag: BorrowedNbtTag,
+    ) -> Option<Self> {
         let compound = tag.compound()?;
 
         // Get the item ID
@@ -1008,16 +1088,16 @@ impl FromNbtTag for ItemStack {
         let id = id_str.parse::<Identifier>().ok()?;
 
         // Look up the item in the registry
-        let item = REGISTRY.items.by_key(&id)?;
+        let item = context.registry().items.by_key(&id)?;
 
         // Get the count (default to 1 if not present)
         let count = compound.get("count").and_then(|t| t.int()).unwrap_or(1);
 
         // Parse components if present
-        let patch = compound
-            .get("components")
-            .and_then(DataComponentPatch::from_nbt_tag)
-            .unwrap_or_default();
+        let patch = match compound.get("components") {
+            Some(components) => DataComponentPatch::from_nbt_tag_with_context(context, components)?,
+            None => DataComponentPatch::new(),
+        };
 
         Some(Self { item, count, patch })
     }
@@ -1030,22 +1110,145 @@ impl ItemStack {
     /// and want to avoid the overhead of converting to an owned tag first.
     #[must_use]
     pub fn from_borrowed_compound(compound: &NbtCompoundView<'_, '_>) -> Option<Self> {
+        Self::from_borrowed_compound_with_context(
+            &DataComponentCodecContext::new(&REGISTRY),
+            compound,
+        )
+    }
+
+    /// Contextual borrowed item NBT read
+    #[must_use]
+    pub fn from_borrowed_compound_with_context(
+        context: &DataComponentCodecContext<'_>,
+        compound: &NbtCompoundView<'_, '_>,
+    ) -> Option<Self> {
         // Get the item ID
         let id_str = compound.string("id")?.to_str();
         let id = id_str.parse::<Identifier>().ok()?;
 
         // Look up the item in the registry
-        let item = REGISTRY.items.by_key(&id)?;
+        let item = context.registry().items.by_key(&id)?;
 
         // Get the count (default to 1 if not present)
         let count = compound.int("count").unwrap_or(1);
 
         // Parse components if present
-        let patch = compound
-            .get("components")
-            .and_then(DataComponentPatch::from_nbt_tag)
-            .unwrap_or_default();
+        let patch = match compound.get("components") {
+            Some(components) => DataComponentPatch::from_nbt_tag_with_context(context, components)?,
+            None => DataComponentPatch::new(),
+        };
 
         Some(Self::with_count_and_patch(item, count, patch))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use steel_utils::{codec::VarInt, serial::WriteTo};
+
+    use super::ItemStack;
+    use crate::{
+        REGISTRY, RegistryEntry, RegistryExt,
+        data_components::{
+            ComponentData, DataComponentCodecContext,
+            components::{
+                AdventureModePredicate, BlockHolderSet, BlockPredicate, DataComponentMatchers,
+            },
+            vanilla_components::CAN_BREAK,
+        },
+        test_support::init_test_registry,
+    };
+
+    #[test]
+    fn network_item_stack_rejects_unknown_item_registry_ids() {
+        init_test_registry();
+        let context = DataComponentCodecContext::new(&REGISTRY);
+        let mut bytes = Vec::new();
+        VarInt(1)
+            .write(&mut bytes)
+            .expect("item count should write to a Vec");
+        VarInt(i32::MAX)
+            .write(&mut bytes)
+            .expect("item ID should write to a Vec");
+        let mut cursor = Cursor::new(bytes.as_slice());
+
+        let error = ItemStack::read_with_context(&context, &mut cursor)
+            .expect_err("unknown item registry IDs must fail decoding");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn untrusted_item_stack_decodes_delimited_adventure_mode_components() {
+        init_test_registry();
+        let context = DataComponentCodecContext::new(&REGISTRY);
+        let item = context
+            .registry()
+            .items
+            .by_key(&steel_utils::Identifier::vanilla_static("wooden_pickaxe"))
+            .expect("wooden pickaxe must be registered");
+        let oak_log = context
+            .registry()
+            .blocks
+            .by_key(&steel_utils::Identifier::vanilla_static("oak_log"))
+            .expect("oak log must be registered");
+        let predicate = AdventureModePredicate {
+            predicates: vec![BlockPredicate {
+                blocks: Some(BlockHolderSet::Blocks(vec![oak_log])),
+                properties: None,
+                nbt: None,
+                components: DataComponentMatchers::ANY,
+            }],
+        };
+
+        let component_id = context
+            .registry()
+            .data_components
+            .id_from_key(&CAN_BREAK.key)
+            .expect("can_break must have a component registry ID");
+        let entry = context
+            .registry()
+            .data_components
+            .by_id(component_id)
+            .expect("can_break component must be registered");
+        let mut payload = Vec::new();
+        (entry.network_writer)(
+            &context,
+            &ComponentData::AdventureModePredicate(predicate.clone()),
+            &mut payload,
+        )
+        .expect("adventure predicate stream encoding must succeed");
+
+        let mut bytes = Vec::new();
+        VarInt(1)
+            .write(&mut bytes)
+            .expect("item count should write to a Vec");
+        VarInt(i32::try_from(item.id()).expect("item ID must fit a VarInt"))
+            .write(&mut bytes)
+            .expect("item ID should write to a Vec");
+        VarInt(1)
+            .write(&mut bytes)
+            .expect("added component count should write to a Vec");
+        VarInt(0)
+            .write(&mut bytes)
+            .expect("removed component count should write to a Vec");
+        VarInt(i32::try_from(component_id).expect("component ID must fit a VarInt"))
+            .write(&mut bytes)
+            .expect("component ID should write to a Vec");
+        VarInt(i32::try_from(payload.len()).expect("component payload must fit a VarInt"))
+            .write(&mut bytes)
+            .expect("component payload length should write to a Vec");
+        bytes.extend_from_slice(&payload);
+
+        let mut cursor = Cursor::new(bytes.as_slice());
+        let stack = ItemStack::read_untrusted_with_context(&context, &mut cursor)
+            .expect("untrusted item stack must decode");
+
+        assert_eq!(stack.item, item);
+        assert_eq!(stack.count, 1);
+        assert_eq!(stack.get(CAN_BREAK), Some(&predicate));
+        assert_eq!(usize::try_from(cursor.position()), Ok(bytes.len()));
     }
 }

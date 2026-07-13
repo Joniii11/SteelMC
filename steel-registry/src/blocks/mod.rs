@@ -485,6 +485,43 @@ impl BlockRegistry {
         ))
     }
 
+    /// Randomized integer property
+    #[must_use]
+    pub fn set_integer_property_by_name(
+        &self,
+        state: BlockStateId,
+        property_name: &str,
+        value: impl FnOnce() -> i32,
+    ) -> BlockStateId {
+        let Some(block) = self.by_state_id(state) else {
+            panic!("randomized int provider received invalid block state id {state:?}");
+        };
+        let Some(property_index) = block
+            .properties
+            .iter()
+            .position(|property| property.get_name() == property_name)
+        else {
+            return state;
+        };
+        let Some((minimum, maximum)) = block.properties[property_index].integer_bounds() else {
+            return state;
+        };
+        let value = value();
+        assert!(
+            (minimum..=maximum).contains(&value),
+            "randomized int provider produced invalid value {value} for property {property_name} on {}",
+            block.key
+        );
+
+        let block_id = self.state_to_block_id[state.0 as usize];
+        let base_state_id = self.block_to_base_state[block_id];
+        let relative_index = state.0 - base_state_id;
+        let mut property_indices = Self::decode_property_indices(block, relative_index);
+        property_indices[property_index] = (i64::from(value) - i64::from(minimum)) as usize;
+
+        BlockStateId(base_state_id + Self::encode_property_indices(block, &property_indices))
+    }
+
     /// Returns every state id of `block` whose properties match all `(name, value)` pairs
     /// in `filter`. An empty filter yields all states of the block (vanilla's
     /// `getStatesOfBlock`); a non-empty filter keeps only matching states (vanilla's
@@ -871,14 +908,40 @@ impl BlockRegistry {
     }
 
     pub fn copy_matching_properties(&self, source: BlockStateId, target: BlockRef) -> BlockStateId {
-        let props = self.get_properties(source);
-        let matching: Vec<(&str, &str)> = props
-            .iter()
-            .filter(|(name, _)| target.properties.iter().any(|p| p.get_name() == *name))
-            .copied()
-            .collect();
-        self.state_id_from_block_properties(target, &matching)
-            .unwrap_or_else(|| self.get_default_state_id(target))
+        self.with_properties_of(self.get_default_state_id(target), source)
+    }
+
+    /// `BlockState.withPropertiesOf`
+    #[must_use]
+    pub fn with_properties_of(&self, state: BlockStateId, source: BlockStateId) -> BlockStateId {
+        let Some(target_block) = self.by_state_id(state) else {
+            return state;
+        };
+        if self.by_state_id(source).is_none() {
+            return state;
+        }
+
+        let mut properties = self.get_properties(state);
+        for (name, value) in self.get_properties(source) {
+            let Some(index) = properties
+                .iter()
+                .position(|(target_name, _)| *target_name == name)
+            else {
+                continue;
+            };
+
+            let previous_value = properties[index].1;
+            properties[index].1 = value;
+            if self
+                .state_id_from_block_properties(target_block, &properties)
+                .is_none()
+            {
+                properties[index].1 = previous_value;
+            }
+        }
+
+        self.state_id_from_block_properties(target_block, &properties)
+            .unwrap_or(state)
     }
 }
 
@@ -921,6 +984,7 @@ mod tests {
     use super::*;
     use crate::blocks::properties::{BlockStateProperties, Direction};
     use crate::vanilla_blocks;
+    use steel_utils::random::{Random, legacy_random::LegacyRandom};
 
     fn create_test_registry() -> BlockRegistry {
         let mut registry = BlockRegistry::new();
@@ -961,6 +1025,23 @@ mod tests {
         assert!(prop_names.contains(&"south"));
         assert!(prop_names.contains(&"west"));
         assert!(prop_names.contains(&"power"));
+    }
+
+    #[test]
+    fn with_properties_of_skips_incompatible_source_values() {
+        let registry = create_test_registry();
+        let lightning_rod = registry
+            .by_key(&Identifier::vanilla_static("lightning_rod"))
+            .expect("lightning rod should exist");
+        let furnace = registry
+            .by_key(&Identifier::vanilla_static("furnace"))
+            .expect("furnace should exist");
+        let source = registry
+            .state_id_from_block_defaulted_properties(lightning_rod, [("facing", "up")])
+            .expect("lightning rod should support up facing");
+        let target = registry.get_default_state_id(furnace);
+
+        assert_eq!(registry.with_properties_of(target, source), target);
     }
 
     #[test]
@@ -1165,6 +1246,55 @@ mod tests {
         let horizontal_facing =
             registry.try_get_property(upward_dispenser, &BlockStateProperties::HORIZONTAL_FACING);
         assert_eq!(horizontal_facing, None);
+    }
+
+    #[test]
+    fn named_integer_property_updates_only_integer_properties() {
+        let registry = create_test_registry();
+        let wheat = registry.get_default_state_id(&vanilla_blocks::WHEAT);
+        let aged_wheat = registry.set_integer_property_by_name(wheat, "age", || 3);
+        assert_eq!(
+            registry
+                .get_properties(aged_wheat)
+                .into_iter()
+                .find(|(name, _)| *name == "age"),
+            Some(("age", "3"))
+        );
+
+        let door = registry.get_default_state_id(&vanilla_blocks::OAK_DOOR);
+        assert_eq!(
+            registry.set_integer_property_by_name(door, "open", || 1),
+            door,
+            "non-integer properties must be ignored"
+        );
+        assert_eq!(
+            registry.set_integer_property_by_name(wheat, "missing", || 1),
+            wheat,
+            "missing properties must be ignored"
+        );
+    }
+
+    #[test]
+    fn named_integer_property_does_not_consume_rng_when_property_is_missing() {
+        let registry = create_test_registry();
+        let wheat = registry.get_default_state_id(&vanilla_blocks::WHEAT);
+        let mut expected = LegacyRandom::from_seed(0x5EED);
+        let mut sampled = LegacyRandom::from_seed(0x5EED);
+
+        assert_eq!(
+            registry.set_integer_property_by_name(wheat, "missing", || sampled.next_i32()),
+            wheat
+        );
+        assert_eq!(sampled.next_i32(), expected.next_i32());
+    }
+
+    #[test]
+    #[should_panic(expected = "randomized int provider produced invalid value")]
+    fn named_integer_property_rejects_invalid_values_like_vanilla_set_value() {
+        let registry = create_test_registry();
+        let wheat = registry.get_default_state_id(&vanilla_blocks::WHEAT);
+
+        let _ = registry.set_integer_property_by_name(wheat, "age", || 8);
     }
 
     #[test]

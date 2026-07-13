@@ -5,7 +5,67 @@ use crate::{
 };
 use rand::RngExt;
 use rustc_hash::FxHashMap;
-use steel_utils::{BlockStateId, Identifier};
+use steel_utils::{BlockStateId, Identifier, random::Random as VanillaRandom};
+
+/// Loot RNG
+pub trait LootRandom {
+    /// `RandomSource.nextInt`
+    fn next_i32_bounded(&mut self, bound: i32) -> i32;
+
+    /// `RandomSource.nextFloat`
+    fn next_f32(&mut self) -> f32;
+}
+
+impl<R: rand::Rng + ?Sized> LootRandom for R {
+    fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+        self.random_range(0..bound)
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        self.random()
+    }
+}
+
+/// Vanilla loot RNG
+pub trait VanillaLootRandomSource {
+    /// `RandomSource.nextInt`
+    fn next_i32_bounded(&mut self, bound: i32) -> i32;
+
+    /// `RandomSource.nextFloat`
+    fn next_f32(&mut self) -> f32;
+}
+
+impl<R: VanillaRandom + ?Sized> VanillaLootRandomSource for R {
+    fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+        VanillaRandom::next_i32_bounded(self, bound)
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        VanillaRandom::next_f32(self)
+    }
+}
+
+pub struct VanillaLootRandom<'a, R: VanillaLootRandomSource + ?Sized> {
+    source: &'a mut R,
+}
+
+impl<'a, R: VanillaLootRandomSource + ?Sized> VanillaLootRandom<'a, R> {
+    /// Wraps vanilla RNG
+    #[must_use]
+    pub const fn new(source: &'a mut R) -> Self {
+        Self { source }
+    }
+}
+
+impl<R: VanillaLootRandomSource + ?Sized> LootRandom for VanillaLootRandom<'_, R> {
+    fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+        self.source.next_i32_bounded(bound)
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        self.source.next_f32()
+    }
+}
 
 /// Entity target for loot context lookups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,14 +167,14 @@ pub enum ScoreboardTarget {
 
 impl NumberProvider {
     /// Get a value from this provider using the given RNG.
-    pub fn get<R: rand::Rng>(&self, rng: &mut R, ctx: Option<&LootContextRef<'_>>) -> f32 {
+    pub fn get<R: LootRandom>(&self, rng: &mut R, ctx: Option<&LootContextRef<'_>>) -> f32 {
         match self {
             Self::Constant(v) => *v,
-            Self::Uniform { min, max } => rng.random_range(*min..=*max),
+            Self::Uniform { min, max } => rng.next_f32() * (*max - *min) + *min,
             Self::Binomial { n, p } => {
                 let mut count = 0;
                 for _ in 0..*n {
-                    if rng.random::<f32>() < *p {
+                    if rng.next_f32() < *p {
                         count += 1;
                     }
                 }
@@ -137,14 +197,14 @@ impl NumberProvider {
     }
 
     /// Get a value without context (for backwards compatibility).
-    pub fn get_simple(&self, rng: &mut impl rand::Rng) -> f32 {
+    pub fn get_simple(&self, rng: &mut impl LootRandom) -> f32 {
         match self {
             Self::Constant(v) => *v,
-            Self::Uniform { min, max } => rng.random_range(*min..=*max),
+            Self::Uniform { min, max } => rng.next_f32() * (*max - *min) + *min,
             Self::Binomial { n, p } => {
                 let mut count = 0;
                 for _ in 0..*n {
-                    if rng.random::<f32>() < *p {
+                    if rng.next_f32() < *p {
                         count += 1;
                     }
                 }
@@ -156,12 +216,12 @@ impl NumberProvider {
     }
 
     /// Get the value as an integer.
-    pub fn get_int(&self, rng: &mut impl rand::Rng) -> i32 {
+    pub fn get_int(&self, rng: &mut impl LootRandom) -> i32 {
         self.get_simple(rng).floor() as i32
     }
 
     /// Get the value as an integer with context.
-    pub fn get_int_with_ctx<R: rand::Rng>(
+    pub fn get_int_with_ctx<R: LootRandom>(
         &self,
         rng: &mut R,
         ctx: Option<&LootContextRef<'_>>,
@@ -179,7 +239,7 @@ pub struct NumberProviderRange {
 
 impl NumberProviderRange {
     /// Check if a value is within this range.
-    pub fn test(&self, value: f32, rng: &mut impl rand::Rng) -> bool {
+    pub fn test(&self, value: f32, rng: &mut impl LootRandom) -> bool {
         if let Some(min) = &self.min
             && value < min.get_simple(rng)
         {
@@ -240,7 +300,7 @@ pub struct LootContextRef<'a> {
 /// Context for loot table evaluation, containing all relevant game state.
 ///
 /// This mirrors vanilla's `LootContext` / `LootParams` system.
-pub struct LootContext<'a, R: rand::Rng> {
+pub struct LootContext<'a, R: LootRandom> {
     /// Random number generator.
     pub rng: &'a mut R,
     /// Luck value (e.g., from Luck of the Sea enchantment).
@@ -341,7 +401,7 @@ pub struct BlockEntityRef<'a> {
     pub inventory: Option<&'a [ItemStack]>,
 }
 
-impl<'a, R: rand::Rng> LootContext<'a, R> {
+impl<'a, R: LootRandom> LootContext<'a, R> {
     /// Create a new loot context with just an RNG.
     pub const fn new(rng: &'a mut R) -> Self {
         Self {
@@ -669,12 +729,12 @@ pub struct DamageTagPredicate {
 
 impl LootCondition {
     /// Test if this condition passes given the loot context.
-    pub fn test<R: rand::Rng>(&self, ctx: &mut LootContext<'_, R>) -> bool {
+    pub fn test<R: LootRandom>(&self, ctx: &mut LootContext<'_, R>) -> bool {
         match self {
             LootCondition::SurvivesExplosion => {
                 if let Some(radius) = ctx.explosion_radius {
                     // Vanilla: 1/radius chance to survive
-                    ctx.rng.random::<f32>() <= (1.0 / radius)
+                    ctx.rng.next_f32() <= (1.0 / radius)
                 } else {
                     true // No explosion, always survives
                 }
@@ -701,7 +761,7 @@ impl LootCondition {
                     false // No block state in context
                 }
             }
-            LootCondition::RandomChance(chance) => ctx.rng.random::<f32>() < *chance,
+            LootCondition::RandomChance(chance) => ctx.rng.next_f32() < *chance,
             LootCondition::RandomChanceWithEnchantedBonus {
                 enchantment,
                 unenchanted_chance,
@@ -719,7 +779,7 @@ impl LootCondition {
                 } else {
                     *unenchanted_chance
                 };
-                ctx.rng.random::<f32>() < effective_chance
+                ctx.rng.next_f32() < effective_chance
             }
             LootCondition::MatchTool(predicate) => {
                 if let Some(tool) = ctx.tool {
@@ -736,7 +796,7 @@ impl LootCondition {
                 let level = ctx.get_enchantment_level_by_id(enchantment);
                 let index = (level as usize).min(chances.len().saturating_sub(1));
                 let chance = chances.get(index).copied().unwrap_or(0.0);
-                ctx.rng.random::<f32>() < chance
+                ctx.rng.next_f32() < chance
             }
             LootCondition::Inverted(inner) => !inner.test(ctx),
             LootCondition::AnyOf(conditions) => conditions.iter().any(|c| c.test(ctx)),
@@ -798,7 +858,7 @@ impl LootCondition {
 impl ToolPredicate {
     /// Test if the tool matches this predicate.
     #[must_use]
-    pub fn test<R: rand::Rng>(&self, tool: &ItemStack, _ctx: &LootContext<'_, R>) -> bool {
+    pub fn test<R: LootRandom>(&self, tool: &ItemStack, _ctx: &LootContext<'_, R>) -> bool {
         match self {
             ToolPredicate::Item(item_id) => tool.item.key == *item_id,
             ToolPredicate::HasEnchantment {
@@ -846,7 +906,7 @@ fn tool_enchantment_matches(
 }
 
 impl EntityPredicate {
-    fn test<R: rand::Rng>(&self, entity: EntityRef<'_>, ctx: &LootContext<'_, R>) -> bool {
+    fn test<R: LootRandom>(&self, entity: EntityRef<'_>, ctx: &LootContext<'_, R>) -> bool {
         if let Some(entity_type) = &self.entity_type
             && entity.entity_type != Some(entity_type)
         {
@@ -889,7 +949,7 @@ impl EntityFlags {
 }
 
 impl EntityEquipment {
-    fn test<R: rand::Rng>(
+    fn test<R: LootRandom>(
         &self,
         equipment: Option<&EntityEquipmentRef<'_>>,
         ctx: &LootContext<'_, R>,
@@ -917,7 +977,7 @@ impl EntityEquipment {
     }
 }
 
-fn slot_predicate_matches<R: rand::Rng>(
+fn slot_predicate_matches<R: LootRandom>(
     predicate: &Option<ToolPredicate>,
     item_stack: Option<&ItemStack>,
     ctx: &LootContext<'_, R>,
@@ -932,7 +992,7 @@ fn slot_predicate_matches<R: rand::Rng>(
 }
 
 impl DamageSourcePredicate {
-    fn test<R: rand::Rng>(&self, ctx: &LootContext<'_, R>) -> bool {
+    fn test<R: LootRandom>(&self, ctx: &LootContext<'_, R>) -> bool {
         let Some(damage_source) = ctx.damage_source else {
             return false;
         };
@@ -1459,7 +1519,7 @@ impl LootTable {
     /// 4. Apply entry-level functions to each item
     /// 5. Apply pool-level functions to all items from that pool
     /// 6. Apply table-level functions to all items from the table
-    pub fn get_random_items<R: rand::Rng>(&self, ctx: &mut LootContext<'_, R>) -> Vec<ItemStack> {
+    pub fn get_random_items<R: LootRandom>(&self, ctx: &mut LootContext<'_, R>) -> Vec<ItemStack> {
         let mut result = Vec::new();
         for pool in self.pools {
             pool.add_random_items(ctx, &mut result);
@@ -1484,7 +1544,7 @@ impl LootTable {
 
 impl LootPool {
     /// Add random items from this pool to the result.
-    fn add_random_items<R: rand::Rng>(
+    fn add_random_items<R: LootRandom>(
         &self,
         ctx: &mut LootContext<'_, R>,
         result: &mut Vec<ItemStack>,
@@ -1521,7 +1581,7 @@ impl LootPool {
     }
 
     /// Select and add a single random item from this pool.
-    fn add_random_item<R: rand::Rng>(
+    fn add_random_item<R: LootRandom>(
         &self,
         ctx: &mut LootContext<'_, R>,
         result: &mut Vec<ItemStack>,
@@ -1553,7 +1613,7 @@ impl LootPool {
         let selected = if valid_entries.len() == 1 {
             valid_entries[0].0
         } else {
-            let mut index = ctx.rng.random_range(0..total_weight);
+            let mut index = ctx.rng.next_i32_bounded(total_weight);
             let mut selected_entry = valid_entries[0].0;
             for (entry, weight) in &valid_entries {
                 index -= weight;
@@ -1572,7 +1632,7 @@ impl LootPool {
 
 impl LootEntry {
     /// Create items from this entry and add them to the result.
-    fn create_items<R: rand::Rng>(
+    fn create_items<R: LootRandom>(
         &self,
         ctx: &mut LootContext<'_, R>,
         result: &mut Vec<ItemStack>,
@@ -1641,8 +1701,10 @@ impl LootEntry {
                 if let Some(items) = REGISTRY.items.get_tag(name) {
                     if *expand {
                         // Pick one random item from the tag (weighted equally)
-                        if !items.is_empty() {
-                            let index = ctx.rng.random_range(0..items.len());
+                        if let Ok(bound) = i32::try_from(items.len())
+                            && bound > 0
+                        {
+                            let index = ctx.rng.next_i32_bounded(bound) as usize;
                             let mut item = ItemStack::new(items[index]);
                             for cond_func in *functions {
                                 if cond_func.conditions.iter().all(|c| c.test(ctx)) {
@@ -1748,7 +1810,7 @@ impl LootFunction {
     /// - Components/NBT (`CopyComponents`, `SetComponents`, `CopyState`)
     /// - Item type (`FurnaceSmelt`)
     /// - And more...
-    pub fn apply<R: rand::Rng>(&self, item: &mut ItemStack, ctx: &mut LootContext<'_, R>) {
+    pub fn apply<R: LootRandom>(&self, item: &mut ItemStack, ctx: &mut LootContext<'_, R>) {
         match self {
             LootFunction::SetCount {
                 count: provider,
@@ -1767,7 +1829,7 @@ impl LootFunction {
                     let probability = 1.0 / radius;
                     let mut result_count = 0;
                     for _ in 0..item.count {
-                        if ctx.rng.random::<f32>() <= probability {
+                        if ctx.rng.next_f32() <= probability {
                             result_count += 1;
                         }
                     }
@@ -1955,12 +2017,12 @@ impl LootFunction {
 
 impl BonusFormula {
     /// Apply the bonus formula to calculate new count.
-    pub fn apply<R: rand::Rng>(&self, count: i32, level: i32, rng: &mut R) -> i32 {
+    pub fn apply<R: LootRandom>(&self, count: i32, level: i32, rng: &mut R) -> i32 {
         match self {
             BonusFormula::OreDrops => {
                 if level > 0 {
                     // Vanilla: count * (max(0, random(0..level+2) - 1) + 1)
-                    let bonus = rng.random_range(0..level + 2) - 1;
+                    let bonus = rng.next_i32_bounded(level + 2) - 1;
                     let multiplier = bonus.max(0) + 1;
                     count * multiplier
                 } else {
@@ -1970,7 +2032,7 @@ impl BonusFormula {
             BonusFormula::UniformBonusCount { bonus_multiplier } => {
                 // Vanilla: count + random(0..bonusMultiplier * level + 1)
                 if level > 0 {
-                    count + rng.random_range(0..bonus_multiplier * level + 1)
+                    count + rng.next_i32_bounded(bonus_multiplier * level + 1)
                 } else {
                     count
                 }
@@ -1980,7 +2042,7 @@ impl BonusFormula {
                 let trials = level + extra;
                 let mut bonus = 0;
                 for _ in 0..trials {
-                    if rng.random::<f32>() < *probability {
+                    if rng.next_f32() < *probability {
                         bonus += 1;
                     }
                 }

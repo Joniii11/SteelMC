@@ -34,11 +34,15 @@ pub mod vanilla_components;
 pub use component_data::{Component, ComponentData, ComponentDataDiscriminant};
 pub use components::{Equippable, EquippableAllowedEntities, Tool, ToolRule};
 pub use registry::{
+    ComponentCodecs,
     ComponentEntry,
     ComponentEntryRef,
     ComponentPatchEntry,
+    ComponentPersistence,
+    DataComponentCodecContext,
     DataComponentMap,
     DataComponentPatch,
+    DataComponentPredicateTypeRegistry,
     DataComponentRegistry,
     DataComponentType,
     NbtReader,

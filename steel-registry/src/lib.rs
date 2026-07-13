@@ -44,7 +44,9 @@ use crate::{
     cow_sound_variant::CowSoundVariantRegistry,
     cow_variant::CowVariantRegistry,
     damage_type::DamageTypeRegistry,
-    data_components::{DataComponentRegistry, vanilla_components},
+    data_components::{
+        DataComponentPredicateTypeRegistry, DataComponentRegistry, vanilla_components,
+    },
     decorated_pot_pattern::DecoratedPotPatternRegistry,
     dialog::DialogRegistry,
     dimension_type::DimensionTypeRegistry,
@@ -622,6 +624,7 @@ pub struct Registry {
     pub blocks: BlockRegistry,
     pub items: ItemRegistry,
     pub data_components: DataComponentRegistry,
+    pub data_component_predicate_types: DataComponentPredicateTypeRegistry,
     pub entity_data_serializers: EntityDataSerializerRegistry,
     pub biomes: BiomeRegistry,
     pub chat_types: ChatTypeRegistry,
@@ -690,6 +693,9 @@ impl Registry {
         vanilla_block_tags::BlockTag::register_block_tags(&mut registry.blocks);
 
         vanilla_components::register_vanilla_data_components(&mut registry.data_components);
+        vanilla_components::register_vanilla_data_component_predicate_types(
+            &mut registry.data_component_predicate_types,
+        );
 
         register_vanilla_entity_data_serializers(&mut registry.entity_data_serializers);
 
@@ -792,6 +798,7 @@ impl Registry {
         self.attributes.freeze();
         self.blocks.freeze();
         self.data_components.freeze();
+        self.data_component_predicate_types.freeze();
         self.entity_data_serializers.freeze();
         self.items.freeze();
         self.biomes.freeze();
@@ -991,6 +998,7 @@ impl Registry {
             attributes: AttributeRegistry::new(),
             blocks: BlockRegistry::new(),
             data_components: DataComponentRegistry::new(),
+            data_component_predicate_types: DataComponentPredicateTypeRegistry::new(),
             entity_data_serializers: EntityDataSerializerRegistry::new(),
             items: ItemRegistry::new(),
             biomes: BiomeRegistry::new(),
@@ -1052,7 +1060,16 @@ mod tests {
 
     use crate::biome::{Biome, BiomeEffects, GrassColorModifier, TemperatureModifier};
 
-    use super::{Registry, RegistryExt};
+    use super::{Registry, RegistryExt, vanilla_block_tags::BlockTag, vanilla_item_tags::ItemTag};
+
+    #[test]
+    fn extracted_namespaced_tag_keys_keep_their_namespace() {
+        assert_eq!(
+            BlockTag::MINECRAFT_GROWS_CROPS.to_string(),
+            "minecraft:grows_crops"
+        );
+        assert_eq!(ItemTag::MINECRAFT_AXES.to_string(), "minecraft:axes");
+    }
 
     fn biome_with_refs(carvers: Vec<Identifier>, features: Vec<Vec<Identifier>>) -> &'static Biome {
         Box::leak(Box::new(Biome {
