@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::{BlockStateProperties, ChestType};
-use steel_registry::vanilla_game_events;
+use steel_registry::{vanilla_block_tags::BlockTag, vanilla_game_events};
 use steel_utils::{BlockPos, BlockStateId};
 
 use crate::{
@@ -10,6 +10,11 @@ use crate::{
     player::Player,
     world::{World, game_event_context::GameEventContext},
 };
+
+/// Returns whether a state belongs to Vanilla `CopperChestBlock` family
+pub(super) fn is_copper_chest(state: BlockStateId) -> bool {
+    state.get_block().has_tag(&BlockTag::COPPER_CHESTS)
+}
 
 /// Emits the extra vanilla block-change notification for the other half of a double copper chest.
 pub(super) fn emit_connected_chest_block_change(
@@ -59,7 +64,7 @@ mod tests {
     use steel_registry::vanilla_blocks;
     use steel_utils::BlockPos;
 
-    use crate::behavior::items::copper_chest_events::connected_chest_pos;
+    use crate::behavior::items::copper_chest_events::{connected_chest_pos, is_copper_chest};
 
     #[test]
     fn connected_chest_pos_matches_vanilla_left_and_right_offsets() {
@@ -89,5 +94,24 @@ mod tests {
             .set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Single);
 
         assert_eq!(connected_chest_pos(pos, single), None);
+    }
+
+    #[test]
+    fn copper_chest_guard_excludes_other_double_chest_families() {
+        init_test_registry();
+
+        let copper = vanilla_blocks::COPPER_CHEST
+            .default_state()
+            .set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Left);
+        let chest = vanilla_blocks::CHEST
+            .default_state()
+            .set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Left);
+        let trapped_chest = vanilla_blocks::TRAPPED_CHEST
+            .default_state()
+            .set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Right);
+
+        assert!(is_copper_chest(copper));
+        assert!(!is_copper_chest(chest));
+        assert!(!is_copper_chest(trapped_chest));
     }
 }

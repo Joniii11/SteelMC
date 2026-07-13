@@ -5,12 +5,21 @@ use steel_registry::blocks::properties::{BlockStateProperties, Direction};
 use steel_registry::blocks::{BlockRef, block_state_ext::BlockStateExt as _};
 use steel_registry::fluid::FluidState;
 use steel_registry::vanilla_damage_types;
-use steel_registry::{sound_events, vanilla_blocks, vanilla_fluids, vanilla_game_events};
-use steel_utils::{BlockPos, BlockStateId, types::UpdateFlags};
+use steel_registry::{
+    level_events, sound_events, vanilla_blocks, vanilla_fluids, vanilla_game_events,
+};
+use steel_utils::{
+    BlockPos, BlockStateId, Identifier,
+    types::{InteractionHand, UpdateFlags},
+};
 
 use crate::{
-    behavior::{BlockBehavior, BlockPlaceContext, block::schedule_placed_liquid_tick},
+    behavior::{
+        BlockBehavior, BlockHitResult, BlockPlaceContext, InteractionResult, InventoryAccess,
+        block::schedule_placed_liquid_tick,
+    },
     entity::{Entity, InsideBlockEffectCollector, damage::DamageSource},
+    player::Player,
     world::{LevelAccessor, ScheduledTickAccess, World, game_event_context::GameEventContext},
 };
 
@@ -69,6 +78,39 @@ impl CampfireBlock {
 }
 
 impl BlockBehavior for CampfireBlock {
+    fn use_item_on(
+        &self,
+        state: BlockStateId,
+        world: &Arc<World>,
+        pos: BlockPos,
+        player: &Player,
+        _hand: InteractionHand,
+        _hit_result: &BlockHitResult,
+        inv: &mut InventoryAccess,
+    ) -> InteractionResult {
+        let dowses_campfires = Identifier::vanilla_static("dowses_campfires");
+        let can_dowse = inv.with_item(|item| item.item().has_tag(&dowses_campfires));
+        if !can_dowse || !state.get_value(&BlockStateProperties::LIT) {
+            return InteractionResult::TryEmptyHandInteraction;
+        }
+
+        let extinguished = state.set_value(&BlockStateProperties::LIT, false);
+        world.level_event(
+            level_events::SOUND_EXTINGUISH_FIRE,
+            pos,
+            0,
+            Some(player.id()),
+        );
+        world.set_block(pos, extinguished, UpdateFlags::UPDATE_ALL_IMMEDIATE);
+        world.game_event(
+            &vanilla_game_events::BLOCK_CHANGE,
+            pos,
+            &GameEventContext::new(Some(player), Some(extinguished)),
+        );
+        inv.with_item(|item| item.hurt_and_break(1, player.has_infinite_materials()));
+        InteractionResult::Success
+    }
+
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let waterlogged = context.is_water_source();
         let below_state = context.world.get_block_state(context.place_pos.below());
