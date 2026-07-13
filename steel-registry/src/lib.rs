@@ -7,7 +7,6 @@
     clippy::absolute_paths,
     clippy::allow_attributes_without_reason,
     clippy::fn_params_excessive_bools,
-    clippy::items_after_statements,
     clippy::match_same_arms,
     clippy::missing_fields_in_debug,
     clippy::missing_panics_doc,
