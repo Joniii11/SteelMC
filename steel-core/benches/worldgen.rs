@@ -25,6 +25,7 @@ use steel_core::chunk::proto_chunk::ProtoChunk;
 use steel_core::chunk::section::{ChunkSection, Sections};
 use steel_core::entity::init_entities;
 use steel_core::level_data::WorldGenerationSettings;
+use steel_core::random_sequences::RandomSequences;
 use steel_core::world::{World, WorldConfig, WorldStorageConfig};
 use steel_core::worldgen::{
     ChunkGenerator, ChunkGeneratorType, EndGenerator, GeneratorOutput, NetherGenerator,
@@ -580,6 +581,7 @@ fn build_feature_fixture_at(
             world_key,
             dim,
             seed,
+            Arc::new(RandomSequences::ephemeral(seed)),
             world_config,
             generation_pool,
         ))
@@ -852,6 +854,7 @@ fn build_concurrent_feature_fixture(
             world_key,
             dim,
             seed,
+            Arc::new(RandomSequences::ephemeral(seed)),
             world_config,
             generation_pool.clone(),
         ))
@@ -941,6 +944,7 @@ fn build_concurrent_full_pipeline_fixture(
             world_key,
             dim,
             seed,
+            Arc::new(RandomSequences::ephemeral(seed)),
             world_config,
             generation_pool.clone(),
         ))
@@ -1033,6 +1037,7 @@ fn build_concurrent_light_fixture(
             world_key,
             dim,
             seed,
+            Arc::new(RandomSequences::ephemeral(seed)),
             world_config,
             generation_pool.clone(),
         ))
