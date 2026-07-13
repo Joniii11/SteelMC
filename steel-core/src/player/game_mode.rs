@@ -50,6 +50,8 @@ use crate::player::player_inventory::PlayerInventory;
 use crate::world::{ClipBlockShape, ClipFluid, World};
 use steel_utils::axis::Axis;
 
+use super::adventure_mode;
+
 const CREATIVE_BLOCK_RANGE_MODIFIER_AMOUNT: f64 = 0.5;
 const CREATIVE_ENTITY_RANGE_MODIFIER_AMOUNT: f64 = 2.0;
 const ATTACK_RANGE_BUFFER: f64 = 3.0;
@@ -143,6 +145,12 @@ pub fn use_item_on(
 
     if !is_empty {
         if player.is_item_on_cooldown(&stack_before_use) {
+            return InteractionResult::Pass;
+        }
+
+        if !player.get_abilities().may_build
+            && !adventure_mode::can_place_on(&stack_before_use, world, hit_result.block_pos)
+        {
             return InteractionResult::Pass;
         }
 

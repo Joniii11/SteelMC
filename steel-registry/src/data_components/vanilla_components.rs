@@ -92,10 +92,10 @@ pub const RARITY: DataComponentType<()> =
 pub const ENCHANTMENTS: DataComponentType<ItemEnchantments> =
     DataComponentType::new(Identifier::vanilla_static("enchantments"));
 
-pub const CAN_PLACE_ON: DataComponentType<()> =
+pub const CAN_PLACE_ON: DataComponentType<AdventureModePredicate> =
     DataComponentType::new(Identifier::vanilla_static("can_place_on"));
 
-pub const CAN_BREAK: DataComponentType<()> =
+pub const CAN_BREAK: DataComponentType<AdventureModePredicate> =
     DataComponentType::new(Identifier::vanilla_static("can_break"));
 
 pub const ATTRIBUTE_MODIFIERS: DataComponentType<ItemAttributeModifiers> =

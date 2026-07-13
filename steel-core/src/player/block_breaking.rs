@@ -18,7 +18,7 @@ use steel_utils::{
     types::{GameType, InteractionHand, UpdateFlags},
 };
 
-use super::food_data::food_constants;
+use super::{adventure_mode, food_data::food_constants};
 use crate::behavior::{BLOCK_BEHAVIORS, BlockStateBehaviorExt};
 use crate::entity::{Entity, LivingEntity};
 use crate::fluid::fluid_state_to_block;
@@ -176,8 +176,13 @@ impl BlockBreakingManager {
                     return;
                 }
 
-                // Check if player can break this block (adventure mode restrictions, etc.)
-                // TODO: Implement blockActionRestricted check
+                if adventure_mode::block_action_restricted(player, world, pos) {
+                    player.send_packet(CBlockUpdate {
+                        pos,
+                        block_state: world.get_block_state(pos),
+                    });
+                    return;
+                }
 
                 self.destroy_progress_start = self.game_ticks;
                 let block_state = world.get_block_state(pos);
@@ -275,16 +280,15 @@ impl BlockBreakingManager {
     fn destroy_block(&self, player: &Player, world: &Arc<World>, pos: BlockPos) -> bool {
         let state = world.get_block_state(pos);
 
-        // Check if player's tool can destroy this block
-        // TODO: Implement canDestroyBlock check for adventure mode
-
         // Get block info
         let Some(_block) = REGISTRY.blocks.by_state_id(state) else {
             return false;
         };
 
         // TODO: Check for GameMasterBlock (command blocks, etc.)
-        // TODO: Check blockActionRestricted
+        if adventure_mode::block_action_restricted(player, world, pos) {
+            return false;
+        }
 
         let behavior = BLOCK_BEHAVIORS.get_behavior(state.get_block());
         let adjusted_state = behavior.player_will_destroy(state, world, pos, player);

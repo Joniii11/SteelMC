@@ -1,5 +1,6 @@
 //! This module contains all things player-related.
 mod abilities;
+mod adventure_mode;
 pub mod block_breaking;
 mod chat_state;
 pub mod chunk_sender;

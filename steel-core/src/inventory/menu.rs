@@ -155,7 +155,7 @@ fn validate_component_hashes(hashed: &HashedPatchMap, patch: &DataComponentPatch
     for (key, entry) in patch.iter() {
         if let ComponentPatchEntry::Set(value) = entry {
             let Some(component_entry) = REGISTRY.data_components.by_key(key) else {
-                continue; // Unknown component, skip
+                continue; // Unknown component skip
             };
             if !component_entry.is_persistent() {
                 log::info!(
