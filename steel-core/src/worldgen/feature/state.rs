@@ -96,12 +96,11 @@ impl FeatureDecorationRunner {
             .try_get_property(state, &BlockStateProperties::LEVEL)
             .is_some()
         {
-            state = Self::set_int_property_by_name(
-                registry,
-                state,
-                "level",
-                i32::from(Self::legacy_fluid_block_level(fluid_state)),
-            );
+            state = registry
+                .blocks
+                .set_integer_property_by_name(state, "level", || {
+                    i32::from(Self::legacy_fluid_block_level(fluid_state))
+                });
         }
         state
     }

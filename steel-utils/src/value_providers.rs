@@ -34,6 +34,11 @@ impl VerticalAnchor {
     /// Resolve this anchor to a world Y coordinate.
     ///
     /// Matches vanilla's `VerticalAnchor.resolveY(WorldGenerationContext)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics for [`Self::RelativeToSeaLevel`], which requires the sea-level-aware
+    /// [`Self::resolve_y_with_sea_level`] overload
     #[must_use]
     pub const fn resolve_y(self, min_y: i32, height: i32) -> i32 {
         match self {
@@ -312,7 +317,7 @@ impl<'de> Deserialize<'de> for HeightProvider {
 ///
 /// Mirrors vanilla's `IntProvider` hierarchy used by feature placement and
 /// feature configuration data.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IntProvider {
     /// Always returns the same value.
     Constant(i32),
@@ -374,12 +379,32 @@ pub enum IntProvider {
 }
 
 /// A weighted int-provider entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WeightedIntProvider {
     /// Provider data.
     pub data: IntProvider,
     /// Entry weight.
     pub weight: i32,
+}
+
+fn validate_weighted_int_distribution(
+    distribution: &[WeightedIntProvider],
+) -> Result<(), &'static str> {
+    let mut total_weight = 0_i64;
+    for entry in distribution {
+        if entry.weight < 0 {
+            return Err("weighted int provider entry weight must be non-negative");
+        }
+        total_weight += i64::from(entry.weight);
+        if total_weight > i64::from(i32::MAX) {
+            return Err("weighted int provider total weight must be at most i32::MAX");
+        }
+    }
+
+    if total_weight == 0 {
+        return Err("weighted int provider must contain at least one non-zero-weight entry");
+    }
+    Ok(())
 }
 
 /// Uniform inclusive int provider.
@@ -519,6 +544,12 @@ impl IntProvider {
     ///
     /// Matches vanilla's provider structure. Weighted-list selection is the
     /// standard total-weight draw used by vanilla's `SimpleWeightedRandomList`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a manually constructed weighted list has a negative entry,
+    /// an `i32`-overflowing total weight, or no selectable entry JSON decoding
+    /// rejects those values before constructing a provider
     pub fn sample<R: Random + ?Sized>(&self, random: &mut R) -> i32 {
         match self {
             Self::Constant(v) => *v,
@@ -573,28 +604,38 @@ impl IntProvider {
                 max_inclusive,
             } => source.sample(random).clamp(*min_inclusive, *max_inclusive),
             Self::WeightedList { distribution } => {
-                let total_weight: i32 = distribution.iter().map(|entry| entry.weight).sum();
-                if total_weight <= 0 {
-                    return 0;
+                let mut total_weight = 0_i64;
+                for entry in distribution {
+                    assert!(
+                        entry.weight >= 0,
+                        "weighted int provider entry weight must be non-negative"
+                    );
+                    total_weight += i64::from(entry.weight);
+                    assert!(
+                        total_weight <= i64::from(i32::MAX),
+                        "weighted int provider total weight must be at most {}",
+                        i32::MAX
+                    );
                 }
-                let mut target = random.next_i32_bounded(total_weight);
+                assert!(
+                    total_weight != 0,
+                    "weighted int provider has no selectable entries"
+                );
+
+                let mut target = random.next_i32_bounded(total_weight as i32);
                 for entry in distribution {
                     target -= entry.weight;
                     if target < 0 {
                         return entry.data.sample(random);
                     }
                 }
-                0
+                unreachable!("validated weighted int provider must select an entry");
             }
         }
     }
 }
 
 impl<'de> Deserialize<'de> for IntProvider {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "keeps the vanilla int-provider schema variants in one deserialization table"
-    )]
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         #[serde(tag = "type", deny_unknown_fields)]
@@ -689,7 +730,10 @@ impl<'de> Deserialize<'de> for IntProvider {
                     min_inclusive,
                     max_inclusive,
                 },
-                Tagged::WeightedList { distribution } => Self::WeightedList { distribution },
+                Tagged::WeightedList { distribution } => {
+                    validate_weighted_int_distribution(&distribution).map_err(D::Error::custom)?;
+                    Self::WeightedList { distribution }
+                }
             },
         )
     }
@@ -705,6 +749,11 @@ impl<'de> Deserialize<'de> for WeightedIntProvider {
         }
 
         let raw = Raw::deserialize(d)?;
+        if raw.weight < 0 {
+            return Err(D::Error::custom(
+                "weighted int provider entry weight must be non-negative",
+            ));
+        }
         Ok(Self {
             data: raw.data,
             weight: raw.weight,
@@ -1159,6 +1208,20 @@ mod test {
 
         assert_eq!(sample, expected_sample);
         assert_eq!(actual.next_i32(), expected.next_i32());
+    }
+
+    #[test]
+    #[should_panic(expected = "weighted int provider has no selectable entries")]
+    fn weighted_int_provider_zero_total_fails_like_vanilla() {
+        let provider = IntProvider::WeightedList {
+            distribution: vec![WeightedIntProvider {
+                data: IntProvider::Constant(1),
+                weight: 0,
+            }],
+        };
+        let mut random = LegacyRandom::from_seed(0);
+
+        let _ = provider.sample(&mut random);
     }
 
     /// Matches vanilla's `Mth.randomBetween`: `min + nextFloat()*(max-min)`.

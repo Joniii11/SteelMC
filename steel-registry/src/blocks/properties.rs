@@ -3,7 +3,7 @@
     reason = "property value lookup only unwraps values known to be declared by the property"
 )]
 
-use std::fmt::Debug;
+use std::{cmp::Ordering, fmt::Debug};
 
 pub use steel_utils::{Direction, axis::Axis, codec::VarInt, serial::ReadFrom};
 
@@ -18,6 +18,13 @@ pub trait Property<T>: Sync + Send {
 pub trait DynProperty: Debug + Sync + Send {
     fn get_possible_values(&self) -> Box<[&str]>;
     fn get_name(&self) -> &'static str;
+    fn compare_values(&self, left: &str, right: &str) -> Option<Ordering>;
+
+    /// Returns this property's inclusive integer range when it is an integer
+    /// blockstate property
+    fn integer_bounds(&self) -> Option<(i32, i32)> {
+        None
+    }
 }
 
 pub trait PropertyEnum: PartialEq + Clone + Debug + Sync + Send {
@@ -53,6 +60,13 @@ impl DynProperty for BoolProperty {
 
     fn get_name(&self) -> &'static str {
         self.name
+    }
+
+    fn compare_values(&self, left: &str, right: &str) -> Option<Ordering> {
+        Some(
+            <Self as Property<bool>>::get_value(self, left)?
+                .cmp(&<Self as Property<bool>>::get_value(self, right)?),
+        )
     }
 }
 
@@ -124,6 +138,17 @@ impl DynProperty for IntProperty {
     fn get_name(&self) -> &'static str {
         self.name
     }
+
+    fn compare_values(&self, left: &str, right: &str) -> Option<Ordering> {
+        Some(
+            <Self as Property<u8>>::get_value(self, left)?
+                .cmp(&<Self as Property<u8>>::get_value(self, right)?),
+        )
+    }
+
+    fn integer_bounds(&self) -> Option<(i32, i32)> {
+        Some((i32::from(self.min), i32::from(self.max)))
+    }
 }
 
 impl Property<u8> for IntProperty {
@@ -182,6 +207,18 @@ impl<T: PropertyEnum + 'static> DynProperty for EnumProperty<T> {
 
     fn get_name(&self) -> &'static str {
         self.name
+    }
+
+    fn compare_values(&self, left: &str, right: &str) -> Option<Ordering> {
+        let left_index = self
+            .possible_values
+            .iter()
+            .position(|value| value.as_str() == left)?;
+        let right_index = self
+            .possible_values
+            .iter()
+            .position(|value| value.as_str() == right)?;
+        Some(left_index.cmp(&right_index))
     }
 }
 

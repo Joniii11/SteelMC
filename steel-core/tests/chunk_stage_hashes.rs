@@ -31,6 +31,7 @@ use steel_core::chunk::light::{
 use steel_core::chunk::proto_chunk::ProtoChunk;
 use steel_core::chunk::section::{ChunkSection, Sections};
 use steel_core::level_data::WorldGenerationSettings;
+use steel_core::random_sequences::RandomSequences;
 use steel_core::world::{World, WorldConfig, WorldStorageConfig};
 use steel_core::worldgen::{ChunkGenerator, ChunkGeneratorType, WorldGenContext};
 use steel_registry::blocks::block_state_ext::BlockStateExt;
@@ -264,6 +265,7 @@ fn create_test_world(
             Identifier::new(Identifier::VANILLA_NAMESPACE, dim_short.to_owned()),
             dim_type,
             seed,
+            Arc::new(RandomSequences::ephemeral(seed)),
             WorldConfig {
                 storage: WorldStorageConfig::RamOnly,
                 level_data_path: None,

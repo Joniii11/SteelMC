@@ -264,7 +264,11 @@ impl BlockPos {
     /// Returns a new `BlockPos` offset by the given amounts.
     #[must_use]
     pub const fn offset(&self, dx: i32, dy: i32, dz: i32) -> Self {
-        Self(IVec3::new(self.0.x + dx, self.0.y + dy, self.0.z + dz))
+        Self(IVec3::new(
+            self.0.x.wrapping_add(dx),
+            self.0.y.wrapping_add(dy),
+            self.0.z.wrapping_add(dz),
+        ))
     }
 
     /// Returns the x coordinate.
@@ -1421,22 +1425,23 @@ impl FromStr for Identifier {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() != 2 {
-            return Err("Invalid resource location");
-        }
+        let (namespace, path) = match s.split_once(':') {
+            Some(("", path)) => (Self::VANILLA_NAMESPACE, path),
+            Some((namespace, path)) => (namespace, path),
+            None => (Self::VANILLA_NAMESPACE, s),
+        };
 
-        if !Identifier::validate_namespace(parts[0]) {
+        if namespace == ".." || !Self::validate_namespace(namespace) {
             return Err("Invalid namespace");
         }
 
-        if !Identifier::validate_path(parts[1]) {
+        if !Self::validate_path(path) {
             return Err("Invalid path");
         }
 
-        Ok(Identifier {
-            namespace: Cow::Owned(parts[0].to_string()),
-            path: Cow::Owned(parts[1].to_string()),
+        Ok(Self {
+            namespace: Cow::Owned(namespace.to_string()),
+            path: Cow::Owned(path.to_string()),
         })
     }
 }
@@ -1518,6 +1523,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn identifier_parser_uses_vanillas_default_namespace_rules() {
+        let expected = Identifier::vanilla_static("oak_log");
+
+        assert_eq!(Identifier::from_str("oak_log"), Ok(expected.clone()));
+        assert_eq!(Identifier::from_str(":oak_log"), Ok(expected));
+        assert!(Identifier::from_str("..:oak_log").is_err());
+        assert!(Identifier::from_str("minecraft:oak:log").is_err());
+    }
+
+    #[test]
     fn test_block_pos_roundtrip() {
         let positions = vec![
             BlockPos(IVec3::new(0, -61, -2)),
@@ -1545,6 +1560,14 @@ mod tests {
         let encoded = PackedBlockPos::from(pos);
         let decoded = encoded.to_block_pos();
         assert_eq!(pos, decoded, "Position 0, -61, -2 failed roundtrip");
+    }
+
+    #[test]
+    fn block_pos_offset_wraps_like_java_int_arithmetic() {
+        assert_eq!(
+            BlockPos::new(i32::MAX, i32::MIN, i32::MAX).offset(1, -1, 1),
+            BlockPos::new(i32::MIN, i32::MAX, i32::MIN)
+        );
     }
 
     #[test]
