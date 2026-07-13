@@ -33,7 +33,7 @@ struct CaveJson {
     floor_level: FloatProvider,
 }
 
-fn one_float() -> FloatProvider {
+const fn one_float() -> FloatProvider {
     FloatProvider::Constant(1.0)
 }
 

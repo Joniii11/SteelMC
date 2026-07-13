@@ -16,6 +16,10 @@ pub struct CarvingMask {
 
 impl CarvingMask {
     /// Creates an empty mask for the inclusive Y range `[min_y, max_y]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `min_y` exceeds `max_y`.
     #[must_use]
     pub fn new(min_y: i32, max_y: i32) -> Self {
         assert!(min_y <= max_y, "carving mask must have a non-empty Y range");

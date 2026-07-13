@@ -262,10 +262,6 @@ where
         clippy::similar_names,
         reason = "min_x_idx / min_z_idx / max_x_idx / max_z_idx mirror vanilla"
     )]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "x/y/z/horizontal_radius/vertical_radius + skip_checker mirrors vanilla"
-    )]
     pub fn carve_ellipsoid<S: CarveSkipChecker>(
         &mut self,
         x: f64,

@@ -136,10 +136,6 @@ where
 
     /// Vanilla `CaveWorldCarver.createRoom`. Single ellipsoid at the tunnel
     /// origin, offset by +1 on X.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "mirrors vanilla CaveWorldCarver.createRoom"
-    )]
     fn create_room<S: CarveSkipChecker>(
         &mut self,
         x: f64,
@@ -297,7 +293,7 @@ mod tests {
         assert_eq!(expected.next_i32_bounded(10), 0);
         let expected_thickness = 2.0 * (expected.next_f32() * expected.next_f32() * 3.0 + 1.0);
 
-        assert_eq!(thickness, expected_thickness);
+        assert_eq!(thickness.to_bits(), expected_thickness.to_bits());
         assert_eq!(actual.next_i32(), expected.next_i32());
     }
 
@@ -305,8 +301,8 @@ mod tests {
     fn ordinary_thickness_does_not_consume_bias_draws() {
         let mut actual = LegacyRandom::from_seed(0);
         assert_eq!(
-            sample_tunnel_thickness(&cave_config(false), &mut actual),
-            2.0
+            sample_tunnel_thickness(&cave_config(false), &mut actual).to_bits(),
+            2.0_f32.to_bits()
         );
 
         let mut expected = LegacyRandom::from_seed(0);
