@@ -15,7 +15,6 @@
     clippy::nonminimal_bool,
     clippy::redundant_else,
     clippy::ref_option,
-    clippy::similar_names,
     clippy::too_many_lines,
     clippy::trivially_copy_pass_by_ref,
     clippy::unnecessary_debug_formatting,
