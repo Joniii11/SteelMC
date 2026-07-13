@@ -56,16 +56,10 @@ pub(crate) fn build() -> TokenStream {
         static_array.extend(quote! {
             static #tag_ident_array: &[&str] = &[#(#item_strs),*];
         });
-        let tag_key = tag_name.clone();
-        if let Some(key) = tag_key.strip_prefix("c:") {
-            const_identifier.extend(
-                quote! { pub const #tag_ident: Identifier = Identifier::new_static("c", #key); },
-            );
-        } else {
-            const_identifier.extend(
-                quote! {pub const #tag_ident: Identifier = Identifier::vanilla_static(#tag_key);},
-            );
-        }
+        let tag_key = tag_utils::tag_identifier(tag_name);
+        const_identifier.extend(quote! {
+            pub const #tag_ident: Identifier = #tag_key;
+        });
 
         register_stream.extend(quote! {
             registry.register_tag(
