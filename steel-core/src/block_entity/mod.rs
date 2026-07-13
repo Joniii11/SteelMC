@@ -135,6 +135,24 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// Called when saving the block entity to disk.
     fn save_additional(&self, nbt: &mut NbtCompound);
 
+    /// Saves this block entity using Vanilla full metadata shape
+    #[must_use]
+    fn save_with_full_metadata(&self) -> NbtCompound {
+        let mut nbt = NbtCompound::new();
+        self.save_additional(&mut nbt);
+
+        for key in ["id", "x", "y", "z"] {
+            while nbt.remove(key).is_some() {}
+        }
+        nbt.insert("id", self.get_type().key.to_string());
+
+        let pos = self.get_block_pos();
+        nbt.insert("x", pos.x());
+        nbt.insert("y", pos.y());
+        nbt.insert("z", pos.z());
+        nbt
+    }
+
     /// Returns the NBT data to send to clients for initial sync.
     ///
     /// This is included in the chunk data packet when the chunk is first sent.
