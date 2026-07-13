@@ -1,0 +1,400 @@
+{
+  "block_transformer": {
+    "minecraft:wooden_shovel": -1157379330,
+    "minecraft:wooden_axe": 1113366564,
+    "minecraft:wooden_hoe": -1862064177,
+    "minecraft:copper_shovel": -1157379330,
+    "minecraft:copper_axe": 1113366564,
+    "minecraft:copper_hoe": -1862064177,
+    "minecraft:stone_shovel": -1157379330,
+    "minecraft:stone_axe": 1113366564,
+    "minecraft:stone_hoe": -1862064177,
+    "minecraft:golden_shovel": -1157379330,
+    "minecraft:golden_axe": 1113366564,
+    "minecraft:golden_hoe": -1862064177,
+    "minecraft:iron_shovel": -1157379330,
+    "minecraft:iron_axe": 1113366564,
+    "minecraft:iron_hoe": -1862064177,
+    "minecraft:diamond_shovel": -1157379330,
+    "minecraft:diamond_axe": 1113366564,
+    "minecraft:diamond_hoe": -1862064177,
+    "minecraft:netherite_shovel": -1157379330,
+    "minecraft:netherite_axe": 1113366564,
+    "minecraft:netherite_hoe": -1862064177
+  },
+  "provides_pottery_pattern": {
+    "minecraft:angler_pottery_sherd": 920506421,
+    "minecraft:archer_pottery_sherd": 1295461818,
+    "minecraft:arms_up_pottery_sherd": -1619909389,
+    "minecraft:blade_pottery_sherd": -1238178324,
+    "minecraft:brewer_pottery_sherd": -1954284219,
+    "minecraft:burn_pottery_sherd": 1372017712,
+    "minecraft:danger_pottery_sherd": -1602774422,
+    "minecraft:explorer_pottery_sherd": -877258695,
+    "minecraft:flow_pottery_sherd": 936670907,
+    "minecraft:friend_pottery_sherd": -191958621,
+    "minecraft:guster_pottery_sherd": 132205665,
+    "minecraft:heart_pottery_sherd": 1776892957,
+    "minecraft:heartbreak_pottery_sherd": 713227718,
+    "minecraft:howl_pottery_sherd": 2065730019,
+    "minecraft:miner_pottery_sherd": -1659893505,
+    "minecraft:mourner_pottery_sherd": -467253482,
+    "minecraft:plenty_pottery_sherd": 1508079492,
+    "minecraft:prize_pottery_sherd": 1720459184,
+    "minecraft:scrape_pottery_sherd": 952755543,
+    "minecraft:sheaf_pottery_sherd": -239481187,
+    "minecraft:shelter_pottery_sherd": -178423849,
+    "minecraft:skull_pottery_sherd": 8614449,
+    "minecraft:snort_pottery_sherd": 1787885321
+  },
+  "adventure_mode_predicate": {
+    "complex": 706724743,
+    "boolean_component": 1605993859
+  },
+  "block_transformer_all_variants": {
+    "hash": 317682198,
+    "codec": [
+      {
+        "block_state_provider": {
+          "fallback": {
+            "state": {
+              "Properties": {
+                "axis": "y"
+              },
+              "Name": "minecraft:oak_log"
+            },
+            "type": "minecraft:rotated_block_provider"
+          },
+          "rules": [
+            {
+              "if_true": {
+                "offset": [
+                  1,
+                  0,
+                  -1
+                ],
+                "blocks": [
+                  "minecraft:stone",
+                  "minecraft:dirt"
+                ],
+                "type": "minecraft:matching_blocks"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:dirt"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "offset": [
+                  1,
+                  0,
+                  0
+                ],
+                "tag": "minecraft:logs",
+                "type": "minecraft:matching_block_tag"
+              },
+              "then": {
+                "entries": [
+                  {
+                    "data": {
+                      "Name": "minecraft:stone"
+                    },
+                    "weight": 1
+                  },
+                  {
+                    "data": {
+                      "Name": "minecraft:dirt"
+                    },
+                    "weight": 2
+                  }
+                ],
+                "type": "minecraft:weighted_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "offset": [
+                  0,
+                  1,
+                  0
+                ],
+                "fluids": [
+                  "minecraft:water",
+                  "minecraft:lava"
+                ],
+                "type": "minecraft:matching_fluids"
+              },
+              "then": {
+                "seed": 12,
+                "noise": {
+                  "firstOctave": 0,
+                  "amplitudes": [
+                    1.0
+                  ]
+                },
+                "scale": 1.0,
+                "threshold": 0.0,
+                "high_chance": 0.5,
+                "default_state": {
+                  "Name": "minecraft:stone"
+                },
+                "low_states": [
+                  {
+                    "Name": "minecraft:dirt"
+                  }
+                ],
+                "high_states": [
+                  {
+                    "Name": "minecraft:granite"
+                  }
+                ],
+                "type": "minecraft:noise_threshold_provider"
+              }
+            },
+            {
+              "if_true": {
+                "biomes": [
+                  "minecraft:plains",
+                  "minecraft:desert"
+                ],
+                "type": "minecraft:matching_biomes"
+              },
+              "then": {
+                "seed": 13,
+                "noise": {
+                  "firstOctave": 0,
+                  "amplitudes": [
+                    1.0
+                  ]
+                },
+                "scale": 1.0,
+                "states": [
+                  {
+                    "Name": "minecraft:stone"
+                  },
+                  {
+                    "Name": "minecraft:dirt"
+                  }
+                ],
+                "type": "minecraft:noise_provider"
+              }
+            },
+            {
+              "if_true": {
+                "offset": [
+                  0,
+                  -1,
+                  0
+                ],
+                "direction": "up",
+                "type": "minecraft:has_sturdy_face"
+              },
+              "then": {
+                "variety": [
+                  1,
+                  2
+                ],
+                "slow_noise": {
+                  "firstOctave": -1,
+                  "amplitudes": [
+                    1.0
+                  ]
+                },
+                "slow_scale": 1.0,
+                "seed": 14,
+                "noise": {
+                  "firstOctave": 0,
+                  "amplitudes": [
+                    1.0
+                  ]
+                },
+                "scale": 1.0,
+                "states": [
+                  {
+                    "Name": "minecraft:stone"
+                  },
+                  {
+                    "Name": "minecraft:dirt"
+                  }
+                ],
+                "type": "minecraft:dual_noise_provider"
+              }
+            },
+            {
+              "if_true": {
+                "type": "minecraft:solid"
+              },
+              "then": {
+                "source": {
+                  "state": {
+                    "Properties": {
+                      "age": "0"
+                    },
+                    "Name": "minecraft:wheat"
+                  },
+                  "type": "minecraft:simple_state_provider"
+                },
+                "property": "age",
+                "values": 0,
+                "type": "minecraft:randomized_int_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "type": "minecraft:replaceable"
+              },
+              "then": {
+                "source_block_state_provider": {
+                  "state": {
+                    "Properties": {
+                      "axis": "y"
+                    },
+                    "Name": "minecraft:oak_log"
+                  },
+                  "type": "minecraft:simple_state_provider"
+                },
+                "type": "minecraft:copy_properties_provider"
+              }
+            },
+            {
+              "if_true": {
+                "offset": [
+                  0,
+                  1,
+                  0
+                ],
+                "state": {
+                  "Name": "minecraft:torch"
+                },
+                "type": "minecraft:would_survive"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:torch"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "type": "minecraft:inside_world_bounds"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "predicates": [
+                  {
+                    "type": "minecraft:true"
+                  },
+                  {
+                    "blocks": "minecraft:dirt",
+                    "type": "minecraft:matching_blocks"
+                  }
+                ],
+                "type": "minecraft:any_of"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "predicates": [
+                  {
+                    "type": "minecraft:true"
+                  },
+                  {
+                    "blocks": "minecraft:dirt",
+                    "type": "minecraft:matching_blocks"
+                  }
+                ],
+                "type": "minecraft:all_of"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "predicate": {
+                  "blocks": "minecraft:bedrock",
+                  "type": "minecraft:matching_blocks"
+                },
+                "type": "minecraft:not"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "type": "minecraft:true"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "offset": [
+                  100,
+                  0,
+                  0
+                ],
+                "type": "minecraft:unobstructed"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            },
+            {
+              "if_true": {
+                "min_inclusive": {
+                  "absolute": 0
+                },
+                "max_inclusive": {
+                  "above_bottom": 32
+                },
+                "type": "minecraft:height_range"
+              },
+              "then": {
+                "state": {
+                  "Name": "minecraft:stone"
+                },
+                "type": "minecraft:simple_state_provider"
+              }
+            }
+          ],
+          "type": "minecraft:rule_based_state_provider"
+        },
+        "consume_on_use": false,
+        "item_damage_per_use": 2
+      }
+    ],
+    "snbt": "[{block_state_provider:{fallback:{state:{Name:\"minecraft:oak_log\",Properties:{axis:\"y\"}},type:\"minecraft:rotated_block_provider\"},rules:[{if_true:{blocks:[\"minecraft:stone\",\"minecraft:dirt\"],offset:[I;1,0,-1],type:\"minecraft:matching_blocks\"},then:{state:{Name:\"minecraft:dirt\"},type:\"minecraft:simple_state_provider\"}},{if_true:{offset:[I;1,0,0],tag:\"minecraft:logs\",type:\"minecraft:matching_block_tag\"},then:{entries:[{data:{Name:\"minecraft:stone\"},weight:1},{data:{Name:\"minecraft:dirt\"},weight:2}],type:\"minecraft:weighted_state_provider\"}},{if_true:{fluids:[\"minecraft:water\",\"minecraft:lava\"],offset:[I;0,1,0],type:\"minecraft:matching_fluids\"},then:{default_state:{Name:\"minecraft:stone\"},high_chance:0.5f,high_states:[{Name:\"minecraft:granite\"}],low_states:[{Name:\"minecraft:dirt\"}],noise:{amplitudes:[1.0d],firstOctave:0},scale:1.0f,seed:12L,threshold:0.0f,type:\"minecraft:noise_threshold_provider\"}},{if_true:{biomes:[\"minecraft:plains\",\"minecraft:desert\"],type:\"minecraft:matching_biomes\"},then:{noise:{amplitudes:[1.0d],firstOctave:0},scale:1.0f,seed:13L,states:[{Name:\"minecraft:stone\"},{Name:\"minecraft:dirt\"}],type:\"minecraft:noise_provider\"}},{if_true:{direction:\"up\",offset:[I;0,-1,0],type:\"minecraft:has_sturdy_face\"},then:{noise:{amplitudes:[1.0d],firstOctave:0},scale:1.0f,seed:14L,slow_noise:{amplitudes:[1.0d],firstOctave:-1},slow_scale:1.0f,states:[{Name:\"minecraft:stone\"},{Name:\"minecraft:dirt\"}],type:\"minecraft:dual_noise_provider\",variety:[1,2]}},{if_true:{type:\"minecraft:solid\"},then:{property:\"age\",source:{state:{Name:\"minecraft:wheat\",Properties:{age:\"0\"}},type:\"minecraft:simple_state_provider\"},type:\"minecraft:randomized_int_state_provider\",values:0}},{if_true:{type:\"minecraft:replaceable\"},then:{source_block_state_provider:{state:{Name:\"minecraft:oak_log\",Properties:{axis:\"y\"}},type:\"minecraft:simple_state_provider\"},type:\"minecraft:copy_properties_provider\"}},{if_true:{offset:[I;0,1,0],state:{Name:\"minecraft:torch\"},type:\"minecraft:would_survive\"},then:{state:{Name:\"minecraft:torch\"},type:\"minecraft:simple_state_provider\"}},{if_true:{type:\"minecraft:inside_world_bounds\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}},{if_true:{predicates:[{type:\"minecraft:true\"},{blocks:\"minecraft:dirt\",type:\"minecraft:matching_blocks\"}],type:\"minecraft:any_of\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}},{if_true:{predicates:[{type:\"minecraft:true\"},{blocks:\"minecraft:dirt\",type:\"minecraft:matching_blocks\"}],type:\"minecraft:all_of\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}},{if_true:{predicate:{blocks:\"minecraft:bedrock\",type:\"minecraft:matching_blocks\"},type:\"minecraft:not\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}},{if_true:{type:\"minecraft:true\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}},{if_true:{offset:[I;100,0,0],type:\"minecraft:unobstructed\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}},{if_true:{max_inclusive:{above_bottom:32},min_inclusive:{absolute:0},type:\"minecraft:height_range\"},then:{state:{Name:\"minecraft:stone\"},type:\"minecraft:simple_state_provider\"}}],type:\"minecraft:rule_based_state_provider\"},consume_on_use:0b,item_damage_per_use:2}]"
+  }
+}
