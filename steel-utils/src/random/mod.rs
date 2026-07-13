@@ -1,5 +1,12 @@
 //! This module contains utilities for random number generation.
 use enum_dispatch::enum_dispatch;
+use std::{
+    sync::{
+        LazyLock,
+        atomic::{AtomicI64, Ordering},
+    },
+    time::Instant,
+};
 
 use crate::random::{
     legacy_random::{LegacyRandom, LegacyRandomSplitter},
@@ -17,6 +24,33 @@ pub mod name_hash;
 pub mod worldgen_random;
 /// This module contains the xoroshiro random number generator.
 pub mod xoroshiro;
+
+const SEED_UNIQUIFIER_MULTIPLIER: i64 = 1_181_783_497_276_652_981;
+const INITIAL_SEED_UNIQUIFIER: i64 = 8_682_522_807_148_012;
+
+static SEED_UNIQUIFIER: AtomicI64 = AtomicI64::new(INITIAL_SEED_UNIQUIFIER);
+static MONOTONIC_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+/// Mirrors `RandomSupport.generateUniqueSeed`
+#[must_use]
+pub fn generate_unique_seed() -> i64 {
+    advance_seed_uniquifier(&SEED_UNIQUIFIER) ^ monotonic_nanos()
+}
+
+fn advance_seed_uniquifier(uniquifier: &AtomicI64) -> i64 {
+    let mut current = uniquifier.load(Ordering::SeqCst);
+    loop {
+        let next = current.wrapping_mul(SEED_UNIQUIFIER_MULTIPLIER);
+        match uniquifier.compare_exchange_weak(current, next, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => return next,
+            Err(actual) => current = actual,
+        }
+    }
+}
+
+fn monotonic_nanos() -> i64 {
+    (MONOTONIC_EPOCH.elapsed().as_nanos() as u64) as i64
+}
 
 /// A trait for random number generators.
 #[enum_dispatch]
@@ -105,4 +139,21 @@ pub fn get_seed(x: i32, y: i32, z: i32) -> i64 {
         .wrapping_mul(42_317_861_i64)
         .wrapping_add(l.wrapping_mul(11));
     l >> 16
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::AtomicI64;
+
+    use super::{INITIAL_SEED_UNIQUIFIER, SEED_UNIQUIFIER_MULTIPLIER, advance_seed_uniquifier};
+
+    #[test]
+    fn unique_seed_uniquifier_advances_before_the_clock_is_applied() {
+        let uniquifier = AtomicI64::new(INITIAL_SEED_UNIQUIFIER);
+        let first = INITIAL_SEED_UNIQUIFIER.wrapping_mul(SEED_UNIQUIFIER_MULTIPLIER);
+        let second = first.wrapping_mul(SEED_UNIQUIFIER_MULTIPLIER);
+
+        assert_eq!(advance_seed_uniquifier(&uniquifier), first);
+        assert_eq!(advance_seed_uniquifier(&uniquifier), second);
+    }
 }

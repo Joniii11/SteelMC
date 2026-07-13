@@ -17,6 +17,7 @@ use crate::chunk::light::{
 };
 use crate::poi::OccupationStatus;
 use crate::portal::WorldChangeRequest;
+use crate::random_sequences::{RandomSequence, RandomSequences};
 use crate::saved_data::{SavedDataManager, names as saved_data_names};
 use crate::world::game_event_context::GameEventContext;
 use crate::world::game_event_listener::{GameEventListenerStorage, SharedGameEventListener};
@@ -66,7 +67,7 @@ use steel_utils::block_util::FoundRectangle;
 use steel_utils::{
     Downcast as _,
     locks::{SyncMutex, SyncRwLock},
-    random::{Random as _, RandomSource, legacy_random::LegacyRandom},
+    random::{Random, RandomSource, generate_unique_seed, legacy_random::LegacyRandom},
 };
 use steel_worldgen::{biomes::obfuscate_biome_seed, noise::PerlinSimplexNoise};
 
@@ -351,6 +352,30 @@ struct NavigatingMobTracker {
     ids: SyncMutex<FxHashSet<i32>>,
 }
 
+/// The synchronized runtime source behind Vanilla's `Level.getRandom()`
+struct WorldRandom {
+    source: SyncMutex<LegacyRandom>,
+}
+
+impl WorldRandom {
+    fn new() -> Self {
+        Self {
+            source: SyncMutex::new(LegacyRandom::from_seed(generate_unique_seed() as u64)),
+        }
+    }
+
+    fn with_random<T>(&self, callback: impl FnOnce(&mut LegacyRandom) -> T) -> T {
+        callback(&mut self.source.lock())
+    }
+
+    #[cfg(test)]
+    const fn from_seed(seed: u64) -> Self {
+        Self {
+            source: SyncMutex::new(LegacyRandom::from_seed(seed)),
+        }
+    }
+}
+
 impl NavigatingMobTracker {
     fn new() -> Self {
         Self {
@@ -393,6 +418,10 @@ pub struct World {
     pub level_data: SyncRwLock<LevelDataManager>,
     /// Per-world saved data storage.
     saved_data: SavedDataManager,
+    /// Server random sequences
+    random_sequences: Arc<RandomSequences>,
+    /// Vanilla per level runtime random source
+    random: WorldRandom,
     /// Runtime world border state.
     world_border: SyncMutex<WorldBorder>,
     /// Server view distance (maximum chunk radius).
@@ -441,12 +470,14 @@ impl World {
     /// * `chunk_runtime` - The Tokio runtime for chunk operations
     /// * `dimension_type` - Vanilla dimension type (overworld, nether, end)
     /// * `seed` - The world seed
+    /// * `random_sequences` server random sources
     /// * `config` - World configuration including storage options
     pub async fn new_with_config(
         chunk_runtime: Arc<Runtime>,
         key: Identifier,
         dimension_type: DimensionTypeRef,
         seed: i64,
+        random_sequences: Arc<RandomSequences>,
         config: WorldConfig,
         generation_pool: Arc<rayon::ThreadPool>,
     ) -> io::Result<Arc<Self>> {
@@ -521,6 +552,8 @@ impl World {
                 dimension_type,
                 level_data: SyncRwLock::new(level_data),
                 saved_data,
+                random_sequences,
+                random: WorldRandom::new(),
                 world_border: SyncMutex::new(world_border),
                 view_distance,
                 simulation_distance,
@@ -539,6 +572,23 @@ impl World {
                 pending_world_changes: SyncMutex::new(Vec::new()),
             }
         }))
+    }
+
+    /// Uses a named random sequence
+    pub fn with_random_sequence<T>(
+        &self,
+        key: &Identifier,
+        callback: impl FnOnce(&mut RandomSequence<'_>) -> T,
+    ) -> T {
+        self.random_sequences.with_sequence(key, callback)
+    }
+
+    /// Runs a callback against Vanilla synchronized `Level.getRandom()` source
+    ///
+    /// The source lock is held only for the callback. Callers must not re-enter
+    /// this method while it is held
+    pub fn with_random<T>(&self, callback: impl FnOnce(&mut LegacyRandom) -> T) -> T {
+        self.random.with_random(callback)
     }
 
     /// Cleans up the world by saving all chunks.
@@ -4425,12 +4475,9 @@ impl World {
         // Vanilla uses EntityType.ITEM dimensions for offset calculation
         let half_height = f64::from(vanilla_entities::ITEM.dimensions.height) / 2.0;
 
-        // Random offset within block (vanilla: nextDouble(-0.25, 0.25))
-        let x = f64::from(pos.x()) + 0.5 + (rand::random::<f64>() - 0.5) * 0.5;
-        let y = f64::from(pos.y()) + 0.5 + (rand::random::<f64>() - 0.5) * 0.5 - half_height;
-        let z = f64::from(pos.z()) + 0.5 + (rand::random::<f64>() - 0.5) * 0.5;
+        let spawn_pos = self.with_random(|random| pop_resource_position(random, pos, half_height));
 
-        let entity = self.spawn_item(DVec3::new(x, y, z), item)?;
+        let entity = self.spawn_item(spawn_pos, item)?;
         entity.set_default_pickup_delay();
         Some(entity)
     }
@@ -4451,57 +4498,18 @@ impl World {
             return None;
         }
 
+        if !self.get_game_rule(&BLOCK_DROPS).as_bool().unwrap_or(true) {
+            return None;
+        }
+
         let half_width = f64::from(vanilla_entities::ITEM.dimensions.width) / 2.0;
         let half_height = f64::from(vanilla_entities::ITEM.dimensions.height) / 2.0;
 
-        let (step_x, step_y, step_z) = face.offset();
+        let (spawn_pos, velocity) = self.with_random(|random| {
+            pop_resource_from_face_kinematics(random, pos, face, half_width, half_height)
+        });
 
-        // Position calculation (vanilla logic)
-        let x = f64::from(pos.x())
-            + 0.5
-            + if step_x == 0 {
-                (rand::random::<f64>() - 0.5) * 0.5
-            } else {
-                f64::from(step_x) * (0.5 + half_width)
-            };
-        let y = f64::from(pos.y())
-            + 0.5
-            + if step_y == 0 {
-                (rand::random::<f64>() - 0.5) * 0.5
-            } else {
-                f64::from(step_y) * (0.5 + half_height)
-            }
-            - half_height;
-        let z = f64::from(pos.z())
-            + 0.5
-            + if step_z == 0 {
-                (rand::random::<f64>() - 0.5) * 0.5
-            } else {
-                f64::from(step_z) * (0.5 + half_width)
-            };
-
-        // Velocity in direction of face
-        let delta_x = if step_x == 0 {
-            (rand::random::<f64>() - 0.5) * 0.2
-        } else {
-            f64::from(step_x) * 0.1
-        };
-        let delta_y = if step_y == 0 {
-            rand::random::<f64>() * 0.1
-        } else {
-            f64::from(step_y) * 0.1 + 0.1
-        };
-        let delta_z = if step_z == 0 {
-            (rand::random::<f64>() - 0.5) * 0.2
-        } else {
-            f64::from(step_z) * 0.1
-        };
-
-        let entity = self.spawn_item_with_velocity(
-            DVec3::new(x, y, z),
-            item,
-            DVec3::new(delta_x, delta_y, delta_z),
-        )?;
+        let entity = self.spawn_item_with_velocity(spawn_pos, item, velocity)?;
         entity.set_default_pickup_delay();
         Some(entity)
     }
@@ -4856,6 +4864,57 @@ mod tests {
     fn global_sound_events_gamerule_controls_global_level_event_packet_mode() {
         assert!(global_sound_events_enabled(GameRuleValue::Bool(true)));
         assert!(!global_sound_events_enabled(GameRuleValue::Bool(false)));
+    }
+
+    #[test]
+    fn world_random_preserves_legacy_draw_order_across_scopes() {
+        let random = WorldRandom::from_seed(0x5EED);
+        let mut expected = LegacyRandom::from_seed(0x5EED);
+
+        assert_eq!(random.with_random(Random::next_i32), expected.next_i32());
+        assert_eq!(
+            random.with_random(|source| source.next_i32_bounded(17)),
+            expected.next_i32_bounded(17)
+        );
+    }
+
+    #[test]
+    fn pop_resource_position_uses_only_level_random_offsets() {
+        let pos = BlockPos::new(17, 63, -9);
+        let mut actual = LegacyRandom::from_seed(0x5EED);
+        let actual_pos = pop_resource_position(&mut actual, pos, 0.125);
+        let mut expected = LegacyRandom::from_seed(0x5EED);
+        let expected_pos = DVec3::new(
+            f64::from(pos.x()) + 0.5 + expected.next_f64() * 0.5 - 0.25,
+            f64::from(pos.y()) + 0.5 + expected.next_f64() * 0.5 - 0.25 - 0.125,
+            f64::from(pos.z()) + 0.5 + expected.next_f64() * 0.5 - 0.25,
+        );
+
+        assert_vec3_bits_eq(actual_pos, expected_pos);
+        assert_eq!(actual.next_i64(), expected.next_i64());
+    }
+
+    #[test]
+    fn pop_resource_from_face_uses_level_random_in_vanilla_draw_order() {
+        let pos = BlockPos::new(17, 63, -9);
+        let mut actual = LegacyRandom::from_seed(0x5EED);
+        let (actual_pos, actual_velocity) =
+            pop_resource_from_face_kinematics(&mut actual, pos, Direction::East, 0.125, 0.125);
+        let mut expected = LegacyRandom::from_seed(0x5EED);
+        let expected_pos = DVec3::new(
+            f64::from(pos.x()) + 0.5 + 0.625,
+            f64::from(pos.y()) + 0.5 + expected.next_f64() * 0.5 - 0.25 - 0.125,
+            f64::from(pos.z()) + 0.5 + expected.next_f64() * 0.5 - 0.25,
+        );
+        let expected_velocity = DVec3::new(
+            0.1,
+            expected.next_f64() * 0.1,
+            expected.next_f64() * 0.2 - 0.1,
+        );
+
+        assert_vec3_bits_eq(actual_pos, expected_pos);
+        assert_vec3_bits_eq(actual_velocity, expected_velocity);
+        assert_eq!(actual.next_i64(), expected.next_i64());
     }
 
     #[test]

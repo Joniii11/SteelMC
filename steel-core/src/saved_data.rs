@@ -18,6 +18,8 @@ pub mod names {
 
     /// Vanilla `TicketStorage.TYPE`, persisted as `data/chunk_tickets.toml`.
     pub const CHUNK_TICKETS: SavedDataName = SavedDataName::trusted("chunk_tickets");
+    /// Vanilla `RandomSequences.TYPE`
+    pub const RANDOM_SEQUENCES: SavedDataName = SavedDataName::trusted("random_sequences");
 }
 
 /// Name of a per-world saved data entry.

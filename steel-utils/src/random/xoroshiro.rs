@@ -40,6 +40,28 @@ impl Xoroshiro {
         Self::new(lo, hi)
     }
 
+    /// Restores vanilla raw `Xoroshiro128++` state words
+    #[must_use]
+    pub const fn from_state(seed_lo: u64, seed_hi: u64) -> Self {
+        Self::new(seed_lo, seed_hi)
+    }
+
+    /// Creates the vanilla `RandomSequence` source from its base seed
+    #[must_use]
+    pub const fn from_seed_and_hash(seed: u64, hash_lo: u64, hash_hi: u64) -> Self {
+        let (seed_lo, seed_hi) = Self::upgrade_seed_to_128_bit(seed);
+        Self::new(
+            mix_stafford_13(seed_lo ^ hash_lo),
+            mix_stafford_13(seed_hi ^ hash_hi),
+        )
+    }
+
+    /// Returns the raw state persisted by vanilla
+    #[must_use]
+    pub const fn state(&self) -> [u64; 2] {
+        [self.seed_lo, self.seed_hi]
+    }
+
     const fn new(lo: u64, hi: u64) -> Self {
         let (lo, hi) = if (lo | hi) == 0 {
             (GOLDEN_RATIO_64, SILVER_RATIO_64)

@@ -35,6 +35,8 @@ use crate::portal::{
     PortalKind, TeleportPostTransition, TeleportTransition, WorldChangeRequest, end_gateway,
     end_portal, nether_portal,
 };
+use crate::random_sequences::RandomSequences;
+use crate::saved_data::SavedDataManager;
 use crate::server::jobs::{JobPoll, ServerJob, ServerJobContext, ServerJobQueue};
 use crate::server::registry_cache::RegistryCache;
 use crate::server::worlds::WorldMap;
@@ -46,7 +48,7 @@ use glam::DVec3;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use rustc_hash::FxHashMap;
 use std::{
-    mem,
+    io, mem,
     num::NonZero,
     path::Path,
     sync::{Arc, mpsc},
@@ -1244,6 +1246,8 @@ pub struct Server {
     pub registry_cache: RegistryCache,
     /// A list of all the worlds on the server.
     pub worlds: WorldMap,
+    /// Server random sequences
+    random_sequences: Arc<RandomSequences>,
     /// Players currently connected to the server, independent of world membership.
     online_players: PlayerMap,
     /// UUIDs reserved by a join or disconnect/save lifecycle transition.
@@ -1331,30 +1335,92 @@ impl Server {
             &resolved_worlds.worlds,
         );
 
-        for world_entry in &resolved_worlds.worlds {
-            let default_world_path = resolved_worlds
-                .save_path
-                .join(&world_entry.domain)
-                .join("worlds")
-                .join(&world_entry.name);
-            let storage_output = storage_registry
-                .create(
-                    &world_entry.storage,
-                    &resolved_worlds.save_path,
-                    Path::new(&default_world_path),
-                )
-                .map_err(|e| format!("failed to create storage for {}: {e}", world_entry.key))?;
-            let world_seed = LevelDataManager::load_seed_or_default(
-                storage_output.level_data_path.as_deref(),
-                world_entry.seed,
+        let server_default_world_key = resolved_worlds
+            .domains
+            .iter()
+            .find(|domain| domain.name == resolved_worlds.default_domain)
+            .map(|domain| domain.default_world.clone())
+            .ok_or_else(|| "server default domain has no default world".to_owned())?;
+        let server_default_world = resolved_worlds
+            .worlds
+            .iter()
+            .find(|world| world.key == server_default_world_key)
+            .ok_or_else(|| "server default world is not present in resolved worlds".to_owned())?;
+        let default_world_path = resolved_worlds
+            .save_path
+            .join(&server_default_world.domain)
+            .join("worlds")
+            .join(&server_default_world.name);
+        let default_storage_output = storage_registry
+            .create(
+                &server_default_world.storage,
+                &resolved_worlds.save_path,
+                Path::new(&default_world_path),
             )
-            .await
-            .map_err(|e| {
+            .map_err(|error| {
                 format!(
-                    "failed to load level data seed for {}: {e}",
-                    world_entry.key
+                    "failed to create storage for server default world {}: {error}",
+                    server_default_world.key
                 )
             })?;
+        let random_sequence_seed = LevelDataManager::load_seed_or_default(
+            default_storage_output.level_data_path.as_deref(),
+            server_default_world.seed,
+        )
+        .await
+        .map_err(|error| {
+            format!(
+                "failed to load level data seed for server default world {}: {error}",
+                server_default_world.key
+            )
+        })?;
+        let random_sequences = Arc::new(
+            RandomSequences::load(
+                SavedDataManager::new(default_storage_output.level_data_path.as_deref()),
+                random_sequence_seed,
+            )
+            .await
+            .map_err(|error| format!("failed to load server random sequences: {error}"))?,
+        );
+        let mut default_storage_output = Some(default_storage_output);
+
+        for world_entry in &resolved_worlds.worlds {
+            let (storage_output, world_seed) = if world_entry.key == server_default_world_key {
+                let Some(storage_output) = default_storage_output.take() else {
+                    return Err("server default world storage was consumed twice".to_owned());
+                };
+                (storage_output, random_sequence_seed)
+            } else {
+                let default_world_path = resolved_worlds
+                    .save_path
+                    .join(&world_entry.domain)
+                    .join("worlds")
+                    .join(&world_entry.name);
+
+                let storage_output = storage_registry
+                    .create(
+                        &world_entry.storage,
+                        &resolved_worlds.save_path,
+                        Path::new(&default_world_path),
+                    )
+                    .map_err(|e| {
+                        format!("failed to create storage for {}: {e}", world_entry.key)
+                    })?;
+
+                let world_seed = LevelDataManager::load_seed_or_default(
+                    storage_output.level_data_path.as_deref(),
+                    world_entry.seed,
+                )
+                .await
+                .map_err(|e| {
+                    format!(
+                        "failed to load level data seed for {}: {e}",
+                        world_entry.key
+                    )
+                })?;
+                (storage_output, world_seed)
+            };
+
             let generator_output = generator_registry
                 .create(&world_entry.generator_config, world_seed)
                 .map_err(|e| format!("failed to create generator for {}: {e}", world_entry.key))?;
@@ -1364,6 +1430,7 @@ impl Server {
                 world_entry.key.clone(),
                 generator_output.dimension_type,
                 world_seed,
+                Arc::clone(&random_sequences),
                 WorldConfig {
                     storage: storage_output.storage,
                     level_data_path: storage_output
@@ -1395,6 +1462,7 @@ impl Server {
             cancel_token,
             key_store: KeyStore::create(),
             worlds,
+            random_sequences,
             online_players: PlayerMap::new(),
             player_admissions: SyncMutex::new(FxHashMap::default()),
             registry_cache,
@@ -1406,6 +1474,11 @@ impl Server {
             pending_world_changes: SyncMutex::new(vec![]),
             pending_domain_switches: SyncMutex::new(vec![]),
         })
+    }
+
+    /// Saves random sequences
+    pub async fn save_random_sequences(&self) -> io::Result<()> {
+        self.random_sequences.save().await
     }
 
     /// Queues initial player join work.

@@ -34,6 +34,32 @@ impl NameHash {
             java_hash: java_hash_code(name),
         }
     }
+
+    /// Computes a hash for a runtime name of any valid UTF8 length
+    ///
+    /// Unlike [`Self::new`], this is not limited to MD5's single-block input
+    /// size. `RandomSequences` keys are runtime identifiers and therefore need
+    /// the full vanilla `RandomSupport.seedFromHashOf` behavior
+    #[must_use]
+    pub fn from_name(name: &str) -> Self {
+        let digest = md5::compute(name.as_bytes()).0;
+        let lo = u64::from_be_bytes([
+            digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+        ]);
+        let hi = u64::from_be_bytes([
+            digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14],
+            digest[15],
+        ]);
+
+        let java_hash = name.encode_utf16().fold(0_i32, |hash, code_unit| {
+            hash.wrapping_mul(31).wrapping_add(i32::from(code_unit))
+        });
+
+        Self {
+            md5: [lo, hi],
+            java_hash,
+        }
+    }
 }
 
 /// Java `String.hashCode()` for ASCII strings.
@@ -209,5 +235,39 @@ mod tests {
         // Verify it compiles as a const
         const HASH: NameHash = NameHash::new("minecraft:offset");
         let _ = HASH;
+    }
+
+    #[test]
+    fn runtime_hash_supports_multi_block_utf8_names() {
+        let name = format!("minecraft:{}", "sequence_".repeat(16));
+        let expected = md5::compute(name.as_bytes());
+        let hash = NameHash::from_name(&name);
+
+        assert_eq!(
+            hash.md5[0],
+            u64::from_be_bytes([
+                expected.0[0],
+                expected.0[1],
+                expected.0[2],
+                expected.0[3],
+                expected.0[4],
+                expected.0[5],
+                expected.0[6],
+                expected.0[7],
+            ])
+        );
+        assert_eq!(
+            hash.md5[1],
+            u64::from_be_bytes([
+                expected.0[8],
+                expected.0[9],
+                expected.0[10],
+                expected.0[11],
+                expected.0[12],
+                expected.0[13],
+                expected.0[14],
+                expected.0[15],
+            ])
+        );
     }
 }
