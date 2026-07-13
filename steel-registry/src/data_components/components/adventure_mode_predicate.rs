@@ -237,7 +237,7 @@ pub struct StatePropertiesPredicate {
     pub properties: Vec<StatePropertyMatcher>,
 }
 
-/// One named blockstate property matche
+/// Blockstate property match
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatePropertyMatcher {
     pub name: String,

@@ -164,8 +164,6 @@ mod tests {
     /// block matchers neither under- nor over-match vanilla.
     #[test]
     fn matchers_reproduce_extracted_vanilla_states() {
-        init_test_registry();
-
         #[derive(serde::Deserialize)]
         struct PoiFile {
             poi_types: Vec<PoiJson>,
@@ -179,6 +177,8 @@ mod tests {
         struct StateJson {
             state_id: u16,
         }
+
+        init_test_registry();
 
         let json = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
