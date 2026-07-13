@@ -1,6 +1,6 @@
 //! Default item behavior implementation.
 
-use crate::behavior::{InteractionResult, ItemBehavior, UseItemContext};
+use crate::behavior::{InteractionResult, ItemBehavior, UseItemContext, UseOnContext};
 use crate::entity::Entity;
 use crate::player::player_inventory::EquipmentSwapResult;
 
@@ -8,6 +8,10 @@ use crate::player::player_inventory::EquipmentSwapResult;
 pub struct DefaultItemBehavior;
 
 impl ItemBehavior for DefaultItemBehavior {
+    fn use_on(&self, context: &mut UseOnContext) -> InteractionResult {
+        super::block_transformer::use_on(context)
+    }
+
     fn use_item(&self, context: &mut UseItemContext) -> InteractionResult {
         let Some(equippable) = context.inv.with_item(|item| item.get_equippable().cloned()) else {
             return InteractionResult::Pass;
