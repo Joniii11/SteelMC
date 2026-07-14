@@ -109,6 +109,8 @@ impl Default for ProjectileBase {
 
 /// Vanilla-shaped behavior shared by entities that extend `Projectile`.
 pub trait Projectile: Entity {
+    // TODO: Implement Snapshot 26.3.2 `can_break` propagation and `may_break`
+    // after generic projectile block-hit dispatch plus arrow/trident entities exist.
     /// Returns shared projectile runtime state.
     fn projectile_base(&self) -> &ProjectileBase;
 
