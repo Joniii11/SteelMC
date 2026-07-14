@@ -896,6 +896,10 @@ impl std::fmt::Display for ItemStack {
 
 impl WriteTo for ItemStack {
     fn write(&self, writer: &mut impl Write) -> Result<()> {
+        if self.is_empty() {
+            return VarInt(0).write(writer);
+        }
+
         self.write_with_context(
             &crate::data_components::DataComponentCodecContext::new(&REGISTRY),
             writer,
