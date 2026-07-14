@@ -1,6 +1,7 @@
 use steel_macros::item_behavior;
 use steel_registry::{
-    REGISTRY, blocks::block_state_ext::BlockStateExt, level_events, vanilla_game_events,
+    REGISTRY, blocks::block_state_ext::BlockStateExt, level_events, sound_events,
+    vanilla_game_events,
 };
 use steel_utils::Downcast as _;
 use steel_utils::types::UpdateFlags;
@@ -46,12 +47,20 @@ impl ItemBehavior for HoneycombItem {
                 0,
                 Some(context.player.id()),
             );
+            context.world.play_block_sound(
+                &sound_events::ITEM_HONEYCOMB_WAX_ON,
+                pos,
+                1.0,
+                1.0,
+                Some(context.player.id()),
+            );
             emit_connected_chest_block_change(
                 context.world,
                 pos,
                 old_block_state,
                 context.player,
                 Some(level_events::PARTICLES_WAX_ON),
+                Some(&sound_events::ITEM_HONEYCOMB_WAX_ON),
             );
             return InteractionResult::Success;
         }
@@ -77,6 +86,13 @@ impl ItemBehavior for HoneycombItem {
             level_events::PARTICLES_WAX_ON,
             pos,
             0,
+            Some(context.player.id()),
+        );
+        context.world.play_block_sound(
+            &sound_events::ITEM_HONEYCOMB_WAX_ON,
+            pos,
+            1.0,
+            1.0,
             Some(context.player.id()),
         );
         InteractionResult::Success

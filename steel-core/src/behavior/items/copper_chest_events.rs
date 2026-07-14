@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::{BlockStateProperties, ChestType};
-use steel_registry::{vanilla_block_tags::BlockTag, vanilla_game_events};
+use steel_registry::{
+    sound_event::SoundEventRef, vanilla_block_tags::BlockTag, vanilla_game_events,
+};
 use steel_utils::{BlockPos, BlockStateId};
 
 use crate::{
@@ -23,6 +25,7 @@ pub(super) fn emit_connected_chest_block_change(
     old_state: BlockStateId,
     player: &Player,
     level_event: Option<i32>,
+    sound: Option<SoundEventRef>,
 ) {
     let Some(neighbor_pos) = connected_chest_pos(pos, old_state) else {
         return;
@@ -37,6 +40,10 @@ pub(super) fn emit_connected_chest_block_change(
 
     if let Some(event) = level_event {
         world.level_event(event, neighbor_pos, 0, Some(player.id()));
+    }
+
+    if let Some(sound) = sound {
+        world.play_block_sound(sound, pos, 1.0, 1.0, Some(player.id()));
     }
 }
 

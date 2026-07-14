@@ -108,6 +108,7 @@ pub(super) fn use_on(context: &mut UseOnContext) -> InteractionResult {
                 old_state,
                 context.player,
                 particle_event,
+                None,
             );
         }
 
