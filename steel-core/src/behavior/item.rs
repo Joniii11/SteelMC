@@ -1,15 +1,27 @@
 //! Item behavior trait and registry.
 
+use std::sync::Arc;
+
+use std::borrow::Cow;
+use steel_registry::data_components::vanilla_components::{
+    BLOCKS_ATTACKS, CONSUMABLE, KINETIC_WEAPON,
+};
+
+use steel_registry::data_components::vanilla_components::ITEM_NAME;
 use steel_registry::item_stack::ItemStack;
 use steel_registry::items::ItemRef;
 use steel_registry::{REGISTRY, RegistryEntry, RegistryExt};
 use steel_utils::types::InteractionHand;
+use text_components::TextComponent;
 
 use crate::behavior::items::DefaultItemBehavior;
 use crate::behavior::{InteractionResult, UseItemContext, UseOnContext};
 use crate::entity::damage::DamageSource;
 use crate::entity::{Entity, LivingEntity};
-use crate::player::Player;
+use crate::player::{Player, player_inventory::EquipmentSwapResult};
+use crate::world::World;
+
+pub use steel_registry::data_components::vanilla_components::ItemUseAnimation;
 
 /// Trait defining the behavior of an item.
 ///
@@ -26,14 +38,105 @@ pub trait ItemBehavior: Send + Sync {
         std::any::type_name::<Self>()
     }
 
+    /// Returns vanilla `Item.getName(stack)`.
+    fn get_name<'a>(&self, stack: &'a ItemStack) -> Cow<'a, TextComponent> {
+        stack
+            .get(ITEM_NAME)
+            .map_or_else(|| Cow::Owned(TextComponent::new()), Cow::Borrowed)
+    }
+
     /// Called when this item is used on a block.
     fn use_on(&self, _context: &mut UseOnContext) -> InteractionResult {
         InteractionResult::Pass
     }
 
     /// Called when this item is used (e.g. right click in air).
-    fn use_item(&self, _context: &mut UseItemContext) -> InteractionResult {
-        InteractionResult::Pass
+    fn use_item(&self, context: &mut UseItemContext) -> InteractionResult {
+        // TODO: Mirror Item.use/finishUsingItem for CONSUMABLE, BLOCKS_ATTACKS, and
+        // KINETIC_WEAPON so specialized behaviors inherit the complete Vanilla base path.
+        let Some(equippable) = context.inv.with_item(|item| item.get_equippable().cloned()) else {
+            return InteractionResult::Pass;
+        };
+
+        if !equippable.swappable || !equippable.can_be_equipped_by(context.player.entity_type()) {
+            return InteractionResult::Pass;
+        }
+
+        let slot = equippable.slot;
+        let result = context.inv.with_inventory(|inventory| {
+            inventory.try_swap_with_equipment_slot(
+                context.hand,
+                slot,
+                context.player.has_infinite_materials(),
+            )
+        });
+
+        match result {
+            EquipmentSwapResult::Success(overflow) => {
+                if !overflow.is_empty() {
+                    let _ = context.player.drop_item(overflow, false, false);
+                }
+                InteractionResult::Success
+            }
+            EquipmentSwapResult::Fail => InteractionResult::Fail,
+        }
+    }
+
+    /// Returns vanilla `Item.getUseAnimation`.
+    fn get_use_animation(&self, stack: &ItemStack) -> ItemUseAnimation {
+        if let Some(consumable) = stack.get(CONSUMABLE) {
+            consumable.animation()
+        } else if stack.has(BLOCKS_ATTACKS) {
+            ItemUseAnimation::Block
+        } else if stack.has(KINETIC_WEAPON) {
+            ItemUseAnimation::Spear
+        } else {
+            ItemUseAnimation::None
+        }
+    }
+
+    /// Returns vanilla `Item.getUseDuration`.
+    fn get_use_duration(&self, stack: &ItemStack, _user: &dyn LivingEntity) -> i32 {
+        if let Some(consumable) = stack.get(CONSUMABLE) {
+            consumable.consume_ticks()
+        } else if stack.has(BLOCKS_ATTACKS) || stack.has(KINETIC_WEAPON) {
+            72000
+        } else {
+            0
+        }
+    }
+
+    /// Called every tick while a living entity is actively using this item.
+    fn on_use_tick(
+        &self,
+        _world: &Arc<World>,
+        _user: &dyn LivingEntity,
+        _stack: &mut ItemStack,
+        _ticks_remaining: i32,
+    ) {
+    }
+
+    /// Called when active use is released before completion.
+    ///
+    /// Returns whether vanilla should update active use once more before stopping it.
+    fn release_using(
+        &self,
+        _stack: &mut ItemStack,
+        _world: &Arc<World>,
+        _user: &dyn LivingEntity,
+        _time_left: i32,
+    ) -> bool {
+        false
+    }
+
+    /// Called when active use reaches its full duration.
+    fn finish_using(
+        &self,
+        stack: &mut ItemStack,
+        _world: &Arc<World>,
+        _user: &dyn LivingEntity,
+    ) -> ItemStack {
+        stack.copy_with_count(stack.count())
     }
 
     /// Called by vanilla `ItemStack.interactLivingEntity`.
@@ -124,10 +227,13 @@ impl ItemBehaviorRegistry {
         self.behaviors[id].as_ref()
     }
 
-    /// Gets the behavior for an item by its ID.
+    /// Returns vanilla `ItemStack.getHoverName`, including item-specific
+    /// `Item.getName(stack)` overrides when no custom name is present.
     #[must_use]
-    pub fn get_behavior_by_id(&self, id: usize) -> Option<&dyn ItemBehavior> {
-        self.behaviors.get(id).map(AsRef::as_ref)
+    pub fn hover_name<'a>(&self, stack: &'a ItemStack) -> Cow<'a, TextComponent> {
+        stack
+            .custom_name()
+            .unwrap_or_else(|| self.get_behavior(stack.item()).get_name(stack))
     }
 
     /// Get all behaviors.

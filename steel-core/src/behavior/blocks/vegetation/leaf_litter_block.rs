@@ -1,13 +1,17 @@
+use super::BlockRef;
+use crate::behavior::BlockBehavior;
+use crate::behavior::BlockPlaceContext;
+use crate::behavior::blocks::vegetation::segmentable_block::{
+    segmentable_can_be_replaced, segmentable_get_state_for_placement,
+};
+use crate::world::{LevelReader, ScheduledTickAccess};
 use steel_macros::block_behavior;
-use steel_registry::blocks::block_state_ext::BlockStateExt;
+use steel_registry::blocks::properties::{BlockStateProperties, IntProperty};
 use steel_utils::{BlockPos, BlockStateId, Direction};
 
-use crate::behavior::block::BlockBehavior;
-use crate::behavior::blocks::vegetation::vegetation_block::survival_update_shape;
-use crate::behavior::context::BlockPlaceContext;
-use crate::world::{LevelReader, ScheduledTickAccess};
+use super::vegetation_block::survival_update_shape;
 
-use super::{BlockRef, default_surviving_state};
+const SEGMENT_PROPERTY: &IntProperty = &BlockStateProperties::SEGMENT_AMOUNT;
 
 /// Vanilla `LeafLitterBlock` uses sturdy top-face support, not the vegetation tag.
 #[block_behavior]
@@ -24,6 +28,23 @@ impl LeafLitterBlock {
 }
 
 impl BlockBehavior for LeafLitterBlock {
+    fn can_survive(&self, _state: BlockStateId, world: &dyn LevelReader, pos: BlockPos) -> bool {
+        let below_pos = pos.below();
+        world.is_face_sturdy(world.get_block_state(below_pos), below_pos, Direction::Up)
+    }
+
+    fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
+        Some(segmentable_get_state_for_placement(
+            self.block,
+            SEGMENT_PROPERTY,
+            context,
+        ))
+    }
+
+    fn can_be_replaced(&self, state: BlockStateId, context: &BlockPlaceContext<'_>) -> bool {
+        segmentable_can_be_replaced(SEGMENT_PROPERTY, state, context)
+    }
+
     fn update_shape(
         &self,
         state: BlockStateId,
@@ -34,16 +55,5 @@ impl BlockBehavior for LeafLitterBlock {
         _neighbor_state: BlockStateId,
     ) -> BlockStateId {
         survival_update_shape(self, state, world, pos)
-    }
-
-    fn can_survive(&self, _state: BlockStateId, world: &dyn LevelReader, pos: BlockPos) -> bool {
-        let below_pos = pos.below();
-        world
-            .get_block_state(below_pos)
-            .is_face_sturdy_at(below_pos, Direction::Up)
-    }
-
-    fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        default_surviving_state(self.block, self, context)
     }
 }

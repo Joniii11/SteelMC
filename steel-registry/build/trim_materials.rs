@@ -3,84 +3,71 @@
     reason = "build script must fail immediately on invalid extracted trim material data"
 )]
 
-use std::fs;
-
-use crate::generator_functions::{generate_identifier, generate_option};
+use crate::generator_functions::{generate_identifier, generate_text_component, read_json_asset};
+use crate::shared_structs::TextComponentJson;
 use heck::ToShoutySnakeCase;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Deserialize;
 use steel_utils::Identifier;
 
-#[derive(Deserialize, Debug)]
-pub struct TrimMaterialJson {
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TrimMaterialJson {
     palette_id: Identifier,
-    description: StyledTextComponent,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct StyledTextComponent {
-    translate: String,
-    #[serde(default)]
-    color: Option<String>,
+    description: TextComponentJson,
 }
 
 pub(crate) fn build() -> TokenStream {
-    let trim_material_dir = "../steel-utils/build_assets/builtin_datapacks/minecraft/trim_material";
-    println!("cargo:rerun-if-changed={trim_material_dir}");
-    let mut trim_materials = Vec::new();
-
-    // Read all trim material JSON files
-    for entry in fs::read_dir(trim_material_dir).unwrap() {
-        let entry = entry.unwrap();
-        let path = entry.path();
-
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let trim_material_name = path.file_stem().unwrap().to_str().unwrap().to_string();
-            let content = fs::read_to_string(&path).unwrap();
-            let trim_material: TrimMaterialJson = serde_json::from_str(&content)
-                .unwrap_or_else(|e| panic!("Failed to parse {trim_material_name}: {e}"));
-
-            trim_materials.push((trim_material_name, trim_material));
-        }
-    }
+    // `TrimMaterials.bootstrap` defines the network holder IDs.
+    const VANILLA_ORDER: &[&str] = &[
+        "quartz",
+        "iron",
+        "netherite",
+        "redstone",
+        "copper",
+        "gold",
+        "emerald",
+        "diamond",
+        "lapis",
+        "amethyst",
+        "resin",
+    ];
+    let trim_materials = VANILLA_ORDER.iter().map(|name| {
+        let path = format!(
+            "../steel-utils/build_assets/builtin_datapacks/minecraft/trim_material/{name}.json"
+        );
+        (*name, read_json_asset::<TrimMaterialJson>(&path))
+    });
 
     let mut stream = TokenStream::new();
 
     stream.extend(quote! {
         use crate::trim_material::{
-            TrimMaterial, TrimMaterialRegistry, StyledTextComponent,
+            TrimMaterial, TrimMaterialRegistry, TrimMaterialValue,
         };
         use steel_utils::Identifier;
         use std::borrow::Cow;
         use std::sync::LazyLock;
+        use text_components::{TextComponent, translation::TranslatedMessage};
     });
 
     // Generate static trim material definitions
     let mut register_stream = TokenStream::new();
-    for (trim_material_name, trim_material) in &trim_materials {
+    for (trim_material_name, trim_material) in trim_materials {
         let trim_material_ident = Ident::new(
             &trim_material_name.to_shouty_snake_case(),
             Span::call_site(),
         );
-        let trim_material_name_str = trim_material_name.clone();
+        let trim_material_name_str = trim_material_name;
 
         let key = quote! { Identifier::vanilla_static(#trim_material_name_str) };
         let palette_id = generate_identifier(&trim_material.palette_id);
-        let translate = &trim_material.description.translate;
-        let color = generate_option(&trim_material.description.color, |s| {
-            let val = s.as_str();
-            quote! { #val.to_string() }
-        });
+        let description = generate_text_component(&trim_material.description);
 
         stream.extend(quote! {
-            pub static #trim_material_ident: LazyLock<TrimMaterial> = LazyLock::new(|| TrimMaterial {
-                key: #key,
-                palette_id: #palette_id,
-                description: StyledTextComponent {
-                    translate: #translate.to_string(),
-                    color: #color,
-                },
+            pub static #trim_material_ident: LazyLock<TrimMaterial> = LazyLock::new(|| {
+                TrimMaterial::new(#key, TrimMaterialValue::new(#palette_id, #description))
             });
         });
 

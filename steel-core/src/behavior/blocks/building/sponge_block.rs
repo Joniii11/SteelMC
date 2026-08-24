@@ -5,17 +5,17 @@ use steel_protocol::packets::game::SoundSource;
 use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::Direction;
-use steel_registry::{sound_events, vanilla_blocks, vanilla_fluid_tags};
+use steel_registry::vanilla_fluid_tags::FluidTag;
+use steel_registry::{sound_events, vanilla_blocks};
 use steel_utils::{
     BlockPos, BlockStateId,
     types::{TraversalNodeStatus, UpdateFlags},
 };
 
 use crate::behavior::{
-    BLOCK_BEHAVIORS, BlockBehavior, BlockPlaceContext, BlockStateBehaviorExt,
-    pickup_waterlogged_block,
+    BLOCK_BEHAVIORS, BlockBehavior, BlockPlaceContext, pickup_waterlogged_block,
 };
-use crate::world::World;
+use crate::world::{ConditionalBlockSetResult, World};
 
 const MAX_DEPTH: i32 = 6;
 const MAX_COUNT: i32 = 64;
@@ -76,10 +76,7 @@ impl SpongeBlock {
     fn remove_water_at(world: &Arc<World>, pos: BlockPos) -> bool {
         let state = world.get_block_state(pos);
         let fluid_state = state.get_fluid_state();
-        if !fluid_state
-            .fluid_id
-            .has_tag(&vanilla_fluid_tags::FluidTag::WATER)
-        {
+        if !fluid_state.fluid_id.has_tag(&FluidTag::WATER) {
             return false;
         }
 
@@ -93,11 +90,12 @@ impl SpongeBlock {
         }
 
         if state.get_block() == &vanilla_blocks::WATER {
-            return world.set_block(
+            return world.set_block_if_unchanged(
                 pos,
+                state,
                 vanilla_blocks::AIR.default_state(),
                 UpdateFlags::UPDATE_ALL,
-            );
+            ) == ConditionalBlockSetResult::Changed;
         }
 
         if !Self::is_absorbable_water_plant(state) {

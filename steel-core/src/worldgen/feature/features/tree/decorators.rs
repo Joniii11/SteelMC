@@ -531,8 +531,7 @@ impl FeatureDecorationRunner {
         let Some(block_entity) = region.block_entity(hive_pos) else {
             return;
         };
-        let mut block_entity = block_entity.lock();
-        let Some(beehive) = block_entity.downcast_mut::<BeehiveBlockEntity>() else {
+        let Some(beehive) = block_entity.downcast_ref::<BeehiveBlockEntity>() else {
             return;
         };
 
@@ -632,7 +631,8 @@ impl FeatureDecorationRunner {
 
         if random.next_f32() < ground_probability {
             let pale_moss_patch_key = Identifier::vanilla_static("pale_moss_patch");
-            let Some(pale_moss_patch) = registry.features.by_key(&pale_moss_patch_key) else {
+            let Some(pale_moss_patch) = registry.configured_features.by_key(&pale_moss_patch_key)
+            else {
                 panic!("pale moss tree decorator references unknown feature {pale_moss_patch_key}");
             };
             Self::place_feature_kind(

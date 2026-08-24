@@ -177,7 +177,7 @@ mod tests {
     use std::sync::Weak;
 
     use steel_registry::item_stack::ItemStack;
-    use steel_registry::{test_support::init_test_registry, vanilla_entities, vanilla_items};
+    use steel_registry::{init_vanilla_registry, vanilla_entities, vanilla_items};
 
     use super::*;
     use crate::entity::entities::PigEntity;
@@ -193,10 +193,10 @@ mod tests {
 
     #[test]
     fn tempt_goal_should_follow_checks_both_hands() {
-        init_test_registry();
+        init_vanilla_registry();
         let goal = TemptGoal::new(
             1.2,
-            |item_stack| item_stack.is(&vanilla_items::ITEMS.carrot),
+            |item_stack| item_stack.is(&vanilla_items::CARROT),
             false,
         );
         let pig = PigEntity::new(&vanilla_entities::PIG, 1, DVec3::ZERO, Weak::new());
@@ -204,7 +204,7 @@ mod tests {
         assert!(!goal.should_follow(&pig));
 
         pig.with_equipment_slot_mut(EquipmentSlot::OffHand, &mut |item_stack| {
-            *item_stack = ItemStack::new(&vanilla_items::ITEMS.carrot);
+            *item_stack = ItemStack::new(&vanilla_items::CARROT);
         });
 
         assert!(goal.should_follow(&pig));

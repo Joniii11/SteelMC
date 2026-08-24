@@ -8,8 +8,7 @@ use steel_utils::{BlockPos, BlockStateId};
 
 use crate::behavior::block::BlockBehavior;
 use crate::behavior::blocks::vegetation::bonemealable::Bonemealable;
-use crate::behavior::context::{BlockPlaceContext, InventoryAccess};
-use crate::player::Player;
+use crate::behavior::context::{BlockPlaceContext, PlacementSource};
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::{BlockRef, DoublePlantBlock};
@@ -17,7 +16,6 @@ use super::{BlockRef, DoublePlantBlock};
 /// Behavior for two-block-tall flowers.
 #[block_behavior]
 pub struct TallFlowerBlock {
-    block: BlockRef,
     base: DoublePlantBlock,
 }
 
@@ -26,7 +24,6 @@ impl TallFlowerBlock {
     #[must_use]
     pub const fn new(block: BlockRef) -> Self {
         Self {
-            block,
             base: DoublePlantBlock::new(block),
         }
     }
@@ -55,10 +52,9 @@ impl BlockBehavior for TallFlowerBlock {
         state: BlockStateId,
         world: &Arc<World>,
         pos: BlockPos,
-        player: Option<&Player>,
-        inv: &InventoryAccess,
+        source: &PlacementSource<'_>,
     ) {
-        self.base.set_placed_by(state, world, pos, player, inv);
+        self.base.set_placed_by(state, world, pos, source);
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
@@ -87,7 +83,7 @@ impl Bonemealable for TallFlowerBlock {
         _rng: &mut dyn rand::Rng,
         pos: BlockPos,
     ) {
-        if let Some(item) = REGISTRY.items.by_key(&self.block.key) {
+        if let Some(item) = REGISTRY.items.by_key(&self.base.block.key) {
             world.pop_resource(pos, ItemStack::new(item));
         }
     }

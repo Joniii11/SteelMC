@@ -14,6 +14,7 @@
 use rustc_hash::FxHashMap;
 use steel_utils::{BlockStateId, Identifier};
 
+use crate::RegistryTags;
 use crate::blocks::{BlockRef, BlockRegistry};
 
 /// A block whose states belong to a POI type, with optional property constraints.
@@ -48,7 +49,7 @@ pub struct PoiTypeRegistry {
     types_by_key: FxHashMap<Identifier, usize>,
     /// O(1) block state -> POI type ID lookup.
     state_to_type: FxHashMap<BlockStateId, usize>,
-    tags: FxHashMap<Identifier, Vec<Identifier>>,
+    tags: RegistryTags,
     allows_registering: bool,
 }
 
@@ -65,7 +66,7 @@ impl PoiTypeRegistry {
             types_by_id: Vec::new(),
             types_by_key: FxHashMap::default(),
             state_to_type: FxHashMap::default(),
-            tags: FxHashMap::default(),
+            tags: RegistryTags::default(),
             allows_registering: true,
         }
     }
@@ -137,12 +138,12 @@ mod tests {
 
     use steel_utils::BlockStateId;
 
-    use crate::test_support::init_test_registry;
+    use crate::init_vanilla_registry;
     use crate::{REGISTRY, vanilla_blocks};
 
     #[test]
     fn matching_states_respects_property_filter() {
-        init_test_registry();
+        init_vanilla_registry();
         let blocks = &REGISTRY.blocks;
 
         let furnace = blocks.matching_states(&vanilla_blocks::BLAST_FURNACE, &[]);
@@ -164,6 +165,8 @@ mod tests {
     /// block matchers neither under- nor over-match vanilla.
     #[test]
     fn matchers_reproduce_extracted_vanilla_states() {
+        init_vanilla_registry();
+
         #[derive(serde::Deserialize)]
         struct PoiFile {
             poi_types: Vec<PoiJson>,
@@ -177,8 +180,6 @@ mod tests {
         struct StateJson {
             state_id: u16,
         }
-
-        init_test_registry();
 
         let json = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

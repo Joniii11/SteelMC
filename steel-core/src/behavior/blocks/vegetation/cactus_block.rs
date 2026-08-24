@@ -8,14 +8,13 @@ use std::sync::Arc;
 use steel_macros::block_behavior;
 use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::blocks::properties::{BlockStateProperties, Direction};
+use steel_registry::blocks::properties::{BlockStateProperties, Direction, IntProperty};
 use steel_registry::vanilla_block_tags::BlockTag;
 use steel_registry::vanilla_blocks;
 use steel_registry::vanilla_damage_types;
-use steel_registry::vanilla_fluid_tags;
+use steel_registry::vanilla_fluid_tags::FluidTag;
 use steel_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 
-use crate::behavior::BlockStateBehaviorExt;
 use crate::behavior::block::BlockBehavior;
 use crate::behavior::context::BlockPlaceContext;
 use crate::entity::ai::path::PathComputationType;
@@ -46,6 +45,8 @@ const FLOWER_CHANCE_TALL: f64 = 0.25;
 pub struct CactusBlock {
     block: BlockRef,
 }
+
+const AGE: &IntProperty = &BlockStateProperties::AGE_15;
 
 impl CactusBlock {
     /// Creates a new cactus block behavior.
@@ -78,7 +79,7 @@ impl BlockBehavior for CactusBlock {
             }
 
             let fluid = neighbor.get_fluid_state();
-            if fluid.fluid_id.has_tag(&vanilla_fluid_tags::FluidTag::LAVA) {
+            if fluid.fluid_id.has_tag(&FluidTag::LAVA) {
                 return false;
             }
         }
@@ -107,7 +108,7 @@ impl BlockBehavior for CactusBlock {
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let default_state = self.block.default_state();
-        if self.can_survive(default_state, context.world, context.place_pos) {
+        if self.can_survive(default_state, context.world, context.place_pos()) {
             Some(default_state)
         } else {
             None
@@ -120,10 +121,6 @@ impl BlockBehavior for CactusBlock {
         }
     }
 
-    fn is_randomly_ticking(&self, _state: BlockStateId) -> bool {
-        true
-    }
-
     fn random_tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
         let above_pos = pos.above();
 
@@ -133,7 +130,7 @@ impl BlockBehavior for CactusBlock {
 
         // Count cactus blocks below
         let mut height = 1u32;
-        let age = state.get_value(&BlockStateProperties::AGE_15);
+        let age = state.get_value(AGE);
 
         while world
             .get_block_state(pos.offset(0, -(height as i32), 0))
@@ -141,7 +138,7 @@ impl BlockBehavior for CactusBlock {
             == &vanilla_blocks::CACTUS
         {
             height += 1;
-            if height == MAX_CACTUS_HEIGHT && age == 15 {
+            if height == MAX_CACTUS_HEIGHT && age == AGE.max {
                 return;
             }
         }
@@ -162,19 +159,19 @@ impl BlockBehavior for CactusBlock {
                     UpdateFlags::UPDATE_ALL,
                 );
             }
-        } else if age == 15 && height < MAX_CACTUS_HEIGHT {
+        } else if age == AGE.max && height < MAX_CACTUS_HEIGHT {
             world.set_block(
                 above_pos,
                 vanilla_blocks::CACTUS.default_state(),
                 UpdateFlags::UPDATE_ALL,
             );
-            let new_state = state.set_value(&BlockStateProperties::AGE_15, 0);
+            let new_state = state.set_value(AGE, 0);
             world.set_block(pos, new_state, UpdateFlags::UPDATE_NONE);
-            world.neighbor_changed(above_pos, &vanilla_blocks::CACTUS, false);
+            world.neighbor_changed(above_pos, &vanilla_blocks::CACTUS);
         }
 
-        if age < 15 {
-            let new_state = state.set_value(&BlockStateProperties::AGE_15, age + 1);
+        if age < AGE.max {
+            let new_state = state.set_value(AGE, age + 1);
             world.set_block(pos, new_state, UpdateFlags::UPDATE_NONE);
         }
     }
@@ -198,13 +195,14 @@ impl BlockBehavior for CactusBlock {
     fn entity_inside(
         &self,
         _state: BlockStateId,
-        _world: &Arc<World>,
+        world: &Arc<World>,
         _pos: BlockPos,
         entity: &dyn Entity,
         _effect_collector: &mut InsideBlockEffectCollector,
         _is_precise: bool,
     ) {
         entity.hurt(
+            world,
             &DamageSource::environment(&vanilla_damage_types::CACTUS),
             1.0,
         );

@@ -1,48 +1,100 @@
 //! Individual component type definitions.
 
-mod adventure_mode_predicate;
+mod armor_trim;
 mod attribute_modifiers;
-mod block_transformer;
+mod banner_patterns;
+mod bees;
+mod block_state;
+pub(crate) mod block_transformer;
+mod blocks_attacks;
+mod books;
 mod combat;
+mod consumable;
+mod container_loot;
+mod custom_data;
+mod custom_model_data;
+mod debug_stick_state;
+mod enchantable;
 mod enchantments;
 mod equippable;
+mod fireworks;
+mod food;
+mod instrument;
+mod item_colors;
+mod item_lore;
+mod jukebox_playable;
+mod kinetic_weapon;
+mod lodestone_tracker;
+mod map_decorations;
 mod map_post_processing;
-mod provides_pottery_pattern;
+mod ominous_bottle_amplifier;
+mod painting_variant;
+mod pot_decorations;
+mod potion_contents;
+pub(crate) mod provides_pottery_pattern;
+mod provides_trim_material;
+mod rarity;
+mod recipes;
+mod recursive_items;
+mod registry_holder_sets;
+mod rgb_color;
+mod suspicious_stew;
+mod swing_animation;
 mod tool;
+mod tooltip_display;
+mod typed_entity_data;
 mod use_cooldown;
+mod use_effects;
 
-pub use adventure_mode_predicate::{
-    AdventureModePredicate, BlockHolderSet, BlockPredicate, DataComponentExactPredicate,
-    DataComponentMatchers, DataComponentPredicate, ExactDataComponentPredicate, NbtPredicate,
-    StatePropertiesPredicate, StatePropertyMatcher, StatePropertyValueMatcher,
-    nbt_reader as adventure_mode_predicate_nbt_reader,
-    nbt_writer as adventure_mode_predicate_nbt_writer,
-    network_reader as adventure_mode_predicate_network_reader,
-    network_writer as adventure_mode_predicate_network_writer,
-};
+pub use armor_trim::ArmorTrim;
 pub use attribute_modifiers::{
     ItemAttributeModifierDisplay, ItemAttributeModifierEntry, ItemAttributeModifiers,
 };
+pub use banner_patterns::{BannerPatternLayer, BannerPatternLayers};
+pub use bees::{BeehiveOccupant, Bees};
+pub use block_state::BlockItemStateProperties;
 pub use block_transformer::{
     BlockTransformData, BlockTransformer, DropStrategy, TransformBlockState, TransformHolderSet,
     TransformNoiseParameters, TransformParticle, TransformPredicate, TransformStateProvider,
     TransformStateProviderRule, TransformType, WeightedTransformBlockState,
-    nbt_reader as block_transformer_nbt_reader, nbt_writer as block_transformer_nbt_writer,
-    network_reader as block_transformer_network_reader,
-    network_writer as block_transformer_network_writer,
 };
+pub use blocks_attacks::{BlocksAttacks, DamageReduction, ItemDamageFunction};
+pub use books::{Filterable, WritableBookContent, WrittenBookContent};
 pub use combat::{AttackRange, DamageTypeComponent, PiercingWeapon, Weapon};
+pub use consumable::{Consumable, DeathProtection, ItemUseAnimation};
+pub use container_loot::SeededContainerLoot;
+pub use custom_data::CustomData;
+pub use custom_model_data::CustomModelData;
+pub use debug_stick_state::{DebugStickProperty, DebugStickState};
+pub use enchantable::{Enchantable, InvalidEnchantableValue};
 pub use enchantments::ItemEnchantments;
 pub use equippable::{Equippable, EquippableAllowedEntities};
-pub use map_post_processing::{
-    MapPostProcessing, network_reader as map_post_processing_network_reader,
-    network_writer as map_post_processing_network_writer,
+pub use fireworks::{FireworkExplosion, FireworkExplosionShape, Fireworks};
+pub use food::FoodProperties;
+pub use instrument::InstrumentComponent;
+pub use item_colors::{DyedItemColor, MapId, MapItemColor};
+pub use item_lore::{ItemLore, ItemLoreTooLong};
+pub use jukebox_playable::JukeboxPlayable;
+pub use kinetic_weapon::{KineticWeapon, KineticWeaponCondition};
+pub use lodestone_tracker::{GlobalPos, LodestoneTracker};
+pub use map_decorations::{MapDecorationEntry, MapDecorations};
+pub use map_post_processing::MapPostProcessing;
+pub use ominous_bottle_amplifier::OminousBottleAmplifier;
+pub use painting_variant::PaintingVariantComponent;
+pub use pot_decorations::PotDecorations;
+pub use potion_contents::PotionContents;
+pub use provides_pottery_pattern::ProvidesPotteryPattern;
+pub use provides_trim_material::ProvidesTrimMaterial;
+pub use rarity::Rarity;
+pub use recipes::Recipes;
+pub use recursive_items::{
+    BundleContents, ChargedProjectiles, ItemContainerContents, SulfurCubeContent, UseRemainder,
 };
-pub use provides_pottery_pattern::{
-    ProvidesPotteryPattern, nbt_reader as provides_pottery_pattern_nbt_reader,
-    nbt_writer as provides_pottery_pattern_nbt_writer,
-    network_reader as provides_pottery_pattern_network_reader,
-    network_writer as provides_pottery_pattern_network_writer,
-};
-pub use tool::{Tool, ToolRule};
+pub use registry_holder_sets::{DamageResistant, ProvidesBannerPatterns, Repairable};
+pub use suspicious_stew::{SuspiciousStewEffect, SuspiciousStewEffects};
+pub use swing_animation::{SwingAnimation, SwingAnimationType};
+pub use tool::{Tool, ToolRule, ToolRuleBlocks};
+pub use tooltip_display::TooltipDisplay;
+pub use typed_entity_data::{BlockEntityData, EntityData};
 pub use use_cooldown::UseCooldown;
+pub use use_effects::UseEffects;

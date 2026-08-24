@@ -349,7 +349,7 @@ pub trait Animal: AgeableMob {
         partner.reset_love();
         self.broadcast_entity_event(EntityStatus::InLoveHearts);
 
-        if world.get_game_rule(&MOB_DROPS).as_bool() == Some(true) {
+        if world.get_game_rule(&MOB_DROPS) {
             let xp = rand::random_range(0..7) + 1;
             ExperienceOrbEntity::award(world, self.position(), xp);
         }
@@ -363,7 +363,7 @@ pub trait Animal: AgeableMob {
         }
 
         self.animal_base().tick_in_love_time();
-        // TODO: Spawn in-love heart particles every 10 ticks once particle spawning exists.
+        // VANILLA CLIENT-LOCAL: `Animal.aiStep` creates the periodic heart particles.
     }
 
     /// Runs vanilla `Animal.customServerAiStep`.
@@ -402,7 +402,7 @@ pub trait Animal: AgeableMob {
 
 #[cfg(test)]
 mod tests {
-    use steel_registry::{REGISTRY, test_support::init_test_registry, vanilla_blocks};
+    use steel_registry::{REGISTRY, init_vanilla_registry, vanilla_blocks};
     use steel_utils::BlockStateId;
 
     use super::*;
@@ -434,6 +434,10 @@ mod tests {
         fn height(&self) -> i32 {
             384
         }
+
+        fn sea_level(&self) -> i32 {
+            63
+        }
     }
 
     fn spawn_rule_level(block_below: BlockStateId, raw_brightness: u8) -> SpawnRuleLevel {
@@ -446,7 +450,7 @@ mod tests {
 
     #[test]
     fn animal_spawn_rules_require_spawnable_block_tag() {
-        init_test_registry();
+        init_vanilla_registry();
         let level = spawn_rule_level(vanilla_blocks::STONE.default_state(), 15);
 
         assert!(!<PigEntity as Animal>::check_animal_spawn_rules(
@@ -458,7 +462,7 @@ mod tests {
 
     #[test]
     fn animal_spawn_rules_require_raw_brightness_above_eight() {
-        init_test_registry();
+        init_vanilla_registry();
         let level = spawn_rule_level(vanilla_blocks::GRASS_BLOCK.default_state(), 8);
 
         assert!(!<PigEntity as Animal>::check_animal_spawn_rules(
@@ -478,7 +482,7 @@ mod tests {
 
     #[test]
     fn animal_spawn_rules_trial_spawner_ignores_light() {
-        init_test_registry();
+        init_vanilla_registry();
         let level = spawn_rule_level(vanilla_blocks::GRASS_BLOCK.default_state(), 0);
 
         assert!(<PigEntity as Animal>::check_animal_spawn_rules(

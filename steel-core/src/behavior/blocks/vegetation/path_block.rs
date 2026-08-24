@@ -6,7 +6,7 @@ use steel_registry::{
     vanilla_block_tags::BlockTag,
     vanilla_game_events,
 };
-use steel_utils::{BlockPos, BlockStateId, Direction};
+use steel_utils::{BlockPos, BlockStateId, Direction, types::UpdateFlags};
 
 use crate::{
     behavior::{
@@ -15,7 +15,7 @@ use crate::{
     },
     entity::Entity,
     entity::ai::path::PathComputationType,
-    world::{LevelReader, ScheduledTickAccess, World, game_event_context::GameEventContext},
+    world::{LevelReader, ScheduledTickAccess, World, game_event::GameEventContext},
 };
 
 /// Vanilla `PathBlock`
@@ -41,13 +41,12 @@ impl PathBlock {
         pos: BlockPos,
     ) {
         let new_state = push_entities_up(state, self.base_block.default_state(), world, pos);
-        if world.set_block_and_update(pos, new_state) {
-            world.game_event(
-                &vanilla_game_events::BLOCK_CHANGE,
-                pos,
-                &GameEventContext::new(source_entity, Some(new_state)),
-            );
-        }
+        let _ = world.set_block(pos, new_state, UpdateFlags::UPDATE_ALL);
+        world.game_event(
+            &vanilla_game_events::BLOCK_CHANGE,
+            pos,
+            &GameEventContext::new(source_entity, Some(new_state)),
+        );
     }
 }
 
@@ -58,7 +57,7 @@ impl BlockBehavior for PathBlock {
                 self.block.default_state(),
                 self.base_block.default_state(),
                 context.world,
-                context.place_pos,
+                context.place_pos(),
             ))
         })
     }

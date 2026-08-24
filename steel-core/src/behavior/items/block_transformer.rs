@@ -28,10 +28,10 @@ use steel_utils::{
 use steel_worldgen::noise::NormalNoise;
 
 use crate::{
-    behavior::{BLOCK_BEHAVIORS, BlockStateBehaviorExt, InteractionResult, UseOnContext},
-    block_entity::BlockEntity,
+    behavior::{BLOCK_BEHAVIORS, InteractionResult, UseOnContext},
     entity::{Entity, LivingEntity},
-    world::game_event_context::GameEventContext,
+    inventory::lock::ContainerLockGuard,
+    world::game_event::GameEventContext,
 };
 
 use super::copper_chest_events::{emit_connected_chest_block_change, is_copper_chest};
@@ -81,7 +81,7 @@ pub(super) fn use_on(context: &mut UseOnContext) -> InteractionResult {
         );
 
         context.world.play_block_sound_holder(
-            &transform.sound,
+            transform.sound.clone(),
             context.hit_result.block_pos,
             1.0,
             1.0,
@@ -271,11 +271,11 @@ fn transform_provider_state<R: Random>(
             values,
         } => {
             let state = transform_provider_state(source, context, pos, random)?;
-            Some(
-                REGISTRY
-                    .blocks
-                    .set_integer_property_by_name(state, property, || values.sample(random)),
-            )
+            Some(set_transform_integer_property(
+                state,
+                property,
+                values.sample(random),
+            ))
         }
         TransformStateProvider::RuleBased { .. } => {
             transform_provider_optional(provider, context, pos, random)
@@ -283,13 +283,35 @@ fn transform_provider_state<R: Random>(
         }
         TransformStateProvider::CopyProperties { source } => {
             let state = transform_provider_state(source, context, pos, random)?;
-            Some(
-                REGISTRY
-                    .blocks
-                    .with_properties_of(state, context.world.get_block_state(pos)),
-            )
+            Some(state.with_properties_of(context.world.get_block_state(pos)))
         }
     }
+}
+
+fn set_transform_integer_property(state: BlockStateId, property: &str, value: i32) -> BlockStateId {
+    let block = state.get_block();
+    let value = value.to_string();
+    let properties = REGISTRY
+        .blocks
+        .get_properties(state)
+        .into_iter()
+        .map(|(name, current)| {
+            if name == property {
+                (name, value.as_str())
+            } else {
+                (name, current)
+            }
+        })
+        .collect::<Vec<_>>();
+    REGISTRY
+        .blocks
+        .state_id_from_block_properties(block, &properties)
+        .unwrap_or_else(|| {
+            panic!(
+                "block transformer generated invalid value {value} for property {property} on {}",
+                block.key
+            )
+        })
 }
 
 /// `DualNoiseProvider.getState`
@@ -570,6 +592,8 @@ fn interaction_loot_drops<R: LootRandom>(
         flags: data.interacting_entity_flags,
         equipment: None,
         custom_name: None,
+        sheep_color: None,
+        sheep_sheared: None,
     };
 
     let mut loot_context = LootContext::new(rng)
@@ -601,10 +625,7 @@ impl InteractionLootContextData {
         let block_entity = context
             .world
             .get_block_entity(context.hit_result.block_pos)
-            .map(|block_entity| {
-                let block_entity = block_entity.lock();
-                LootBlockEntityData::from_block_entity(&*block_entity)
-            });
+            .map(LootBlockEntityData::from_block_entity);
         Self {
             old_state,
             tool,
@@ -634,8 +655,12 @@ struct LootBlockEntityData {
 }
 
 impl LootBlockEntityData {
-    fn from_block_entity(block_entity: &(dyn BlockEntity + 'static)) -> Self {
-        let inventory = block_entity.as_container().map(|container| {
+    fn from_block_entity(block_entity: crate::block_entity::SharedBlockEntity) -> Self {
+        let inventory = block_entity.container_ref().map(|container_ref| {
+            let guard = ContainerLockGuard::lock_all(&[&container_ref]);
+            let container = guard
+                .get(container_ref.container_id())
+                .expect("locked block-entity container must be present");
             (0..container.get_container_size())
                 .map(|slot| container.get_item(slot).clone())
                 .collect()
@@ -666,7 +691,7 @@ const fn particle_event(particle: TransformParticle) -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Weak;
+    use std::sync::{Arc, Weak};
 
     use steel_registry::{
         data_components::{
@@ -678,16 +703,18 @@ mod tests {
             },
             vanilla_components::BLOCK_TRANSFORMER,
         },
+        init_vanilla_registry,
         item_stack::ItemStack,
-        test_support::init_test_registry,
-        vanilla_block_entity_types, vanilla_blocks,
-        vanilla_items::ITEMS,
+        vanilla_block_entity_types, vanilla_blocks, vanilla_items,
     };
     use steel_utils::{BlockPos, Direction, Identifier, random::legacy_random::LegacyRandom};
 
     use crate::{
-        block_entity::entities::{BARREL_SLOTS, BarrelBlockEntity},
-        inventory::container::Container,
+        block_entity::{
+            SharedBlockEntity,
+            entities::{BARREL_SLOTS, BarrelBlockEntity},
+        },
+        inventory::lock::ContainerLockGuard,
         world::World,
     };
 
@@ -739,10 +766,9 @@ mod tests {
 
     #[test]
     fn generated_shovel_transformer_requires_clear_space_and_blocks_downward_use() {
-        init_test_registry();
+        init_vanilla_registry();
 
-        let transformer = ITEMS
-            .wooden_shovel
+        let transformer = vanilla_items::WOODEN_SHOVEL
             .components
             .get_ref(BLOCK_TRANSFORMER)
             .expect("wooden shovel must have a block transformer");
@@ -783,10 +809,9 @@ mod tests {
 
     #[test]
     fn generated_hoe_transformer_keeps_rooted_dirt_loot_and_face_drop() {
-        init_test_registry();
+        init_vanilla_registry();
 
-        let transformer = ITEMS
-            .wooden_hoe
+        let transformer = vanilla_items::WOODEN_HOE
             .components
             .get_ref(BLOCK_TRANSFORMER)
             .expect("wooden hoe must have a block transformer");
@@ -813,10 +838,9 @@ mod tests {
 
     #[test]
     fn generated_axe_transformer_preserves_stripping_and_copper_chest_rules() {
-        init_test_registry();
+        init_vanilla_registry();
 
-        let transformer = ITEMS
-            .wooden_axe
+        let transformer = vanilla_items::WOODEN_AXE
             .components
             .get_ref(BLOCK_TRANSFORMER)
             .expect("wooden axe must have a block transformer");
@@ -858,10 +882,9 @@ mod tests {
 
     #[test]
     fn unmatched_rule_based_transformer_is_a_noop() {
-        init_test_registry();
+        init_vanilla_registry();
 
-        let transformer = ITEMS
-            .wooden_shovel
+        let transformer = vanilla_items::WOODEN_SHOVEL
             .components
             .get_ref(BLOCK_TRANSFORMER)
             .expect("wooden shovel must have a block transformer");
@@ -988,9 +1011,9 @@ mod tests {
 
     #[test]
     fn transform_item_cost_matches_stack_consumption_and_durability() {
-        init_test_registry();
+        init_vanilla_registry();
 
-        let mut stackable = ItemStack::with_count(&ITEMS.stick, 3);
+        let mut stackable = ItemStack::with_count(&vanilla_items::STICK, 3);
         consume_transform_item(&mut stackable, true, 0, false);
         assert_eq!(stackable.count(), 2);
 
@@ -1000,15 +1023,14 @@ mod tests {
         consume_transform_item(&mut stackable, true, 0, true);
         assert_eq!(stackable.count(), 2);
 
-        let axe_transform = ITEMS
-            .wooden_axe
+        let axe_transform = vanilla_items::WOODEN_AXE
             .components
             .get_ref(BLOCK_TRANSFORMER)
             .expect("wooden axe must have a block transformer")
             .transforms
             .first()
             .expect("wooden axe must have a transform");
-        let mut axe = ItemStack::new(&ITEMS.wooden_axe);
+        let mut axe = ItemStack::new(&vanilla_items::WOODEN_AXE);
         consume_transform_item(
             &mut axe,
             axe_transform.consume_on_use,
@@ -1028,16 +1050,25 @@ mod tests {
 
     #[test]
     fn loot_context_snapshots_block_entity_type_and_container_contents() {
-        init_test_registry();
+        init_vanilla_registry();
 
-        let mut barrel = BarrelBlockEntity::new(
+        let barrel: SharedBlockEntity = Arc::new(BarrelBlockEntity::new(
             Weak::<World>::new(),
             BlockPos::ZERO,
             vanilla_blocks::BARREL.default_state(),
-        );
-        barrel.set_item(0, ItemStack::new(&ITEMS.stick));
+        ));
+        let container_ref = barrel
+            .container_ref()
+            .expect("barrel must expose its container capability");
+        let mut guard = ContainerLockGuard::lock_all(&[&container_ref]);
+        assert!(guard.set_item(
+            container_ref.container_id(),
+            0,
+            ItemStack::new(&vanilla_items::STICK),
+        ));
+        drop(guard);
 
-        let data = LootBlockEntityData::from_block_entity(&barrel);
+        let data = LootBlockEntityData::from_block_entity(barrel);
         let block_entity = data.as_loot_context_ref();
         assert_eq!(
             block_entity.block_entity_type,
@@ -1047,6 +1078,6 @@ mod tests {
             .inventory
             .expect("barrel contents must be available to loot evaluation");
         assert_eq!(inventory.len(), BARREL_SLOTS);
-        assert_eq!(inventory[0].item(), &ITEMS.stick);
+        assert_eq!(inventory[0].item(), &*vanilla_items::STICK);
     }
 }

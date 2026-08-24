@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use steel_macros::block_behavior;
 use steel_registry::{
-    blocks::{BlockRef, block_state_ext::BlockStateExt, properties::BlockStateProperties},
+    blocks::{
+        BlockRef,
+        block_state_ext::BlockStateExt,
+        properties::{BlockStateProperties, BoolProperty},
+    },
     item_stack::ItemStack,
     items::item::BlockHitResult,
     sound_events, vanilla_blocks, vanilla_items,
@@ -14,22 +18,24 @@ use steel_utils::{
 
 use crate::{
     behavior::{
-        BlockBehavior, BlockPlaceContext, InteractionResult, InventoryAccess, blocks::CakeBlock,
+        BlockBehavior, BlockPlaceContext, InteractionResult, InventoryAccess,
+        blocks::{CakeBlock, CandleBlock},
     },
-    entity::Entity,
+    entity::{Entity, projectile::Projectile},
     player::Player,
-    world::{LevelReader, ScheduledTickAccess, World},
+    world::{ClipHitResult, LevelReader, ScheduledTickAccess, World},
 };
 
 /// Behavior for Candle Cakes
 /// TODO:
 /// - [ ] animation ticks
-/// - [ ] onProjectile
 /// - [ ] onExplosion
 #[block_behavior]
 pub struct CandleCakeBlock {
     block: BlockRef,
 }
+
+const LIT: &BoolProperty = &BlockStateProperties::LIT;
 
 impl CandleCakeBlock {
     /// Creates a new Candle Cake Block Behavior
@@ -43,7 +49,7 @@ impl BlockBehavior for CandleCakeBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         if context
             .world
-            .get_block_state(context.place_pos.below())
+            .get_block_state(context.place_pos().below())
             .is_solid()
         {
             Some(self.block.default_state())
@@ -64,8 +70,8 @@ impl BlockBehavior for CandleCakeBlock {
     ) -> InteractionResult {
         let (is_fire_charge, is_flint_and_steel, is_empty) = inv.with_item(|item_stack| {
             (
-                item_stack.is(&vanilla_items::ITEMS.fire_charge),
-                item_stack.is(&vanilla_items::ITEMS.flint_and_steel),
+                item_stack.is(&vanilla_items::FIRE_CHARGE),
+                item_stack.is(&vanilla_items::FLINT_AND_STEEL),
                 item_stack.is_empty(),
             )
         });
@@ -73,13 +79,9 @@ impl BlockBehavior for CandleCakeBlock {
             return InteractionResult::Pass; // lighting of candles and candle cakes is handled by the flint and steel/fire charge implementation
         } else if (hit_result.location.y - f64::from(hit_result.block_pos.y())) > 0.5
             && is_empty
-            && state.get_value(&BlockStateProperties::LIT)
+            && state.get_value(LIT)
         {
-            world.set_block(
-                pos,
-                state.set_value(&BlockStateProperties::LIT, false),
-                UpdateFlags::UPDATE_ALL,
-            );
+            world.set_block(pos, state.set_value(LIT, false), UpdateFlags::UPDATE_ALL);
             // TODO: particles!
             world.play_block_sound(
                 &sound_events::BLOCK_CANDLE_EXTINGUISH,
@@ -129,20 +131,35 @@ impl BlockBehavior for CandleCakeBlock {
         }
     }
 
+    fn on_projectile_hit(
+        &self,
+        state: BlockStateId,
+        world: &Arc<World>,
+        hit: &ClipHitResult,
+        projectile: &dyn Projectile,
+    ) {
+        let Some(lit_state) = CandleBlock::projectile_lit_state(state, projectile.is_on_fire())
+        else {
+            return;
+        };
+        world.set_block(hit.block_pos, lit_state, UpdateFlags::UPDATE_ALL_IMMEDIATE);
+    }
+
     fn get_clone_item_stack(
         &self,
         _block: BlockRef,
         _state: BlockStateId,
         _include_data: bool,
     ) -> Option<ItemStack> {
-        Some(ItemStack::new(&vanilla_items::ITEMS.cake))
+        Some(ItemStack::new(&vanilla_items::CAKE))
     }
 
     fn get_analog_output_signal(
         &self,
         _state: BlockStateId,
-        _world: &Arc<World>,
+        _world: &dyn LevelReader,
         _pos: BlockPos,
+        _direction: Direction,
     ) -> i32 {
         CakeBlock::analog_output_signal(0)
     }

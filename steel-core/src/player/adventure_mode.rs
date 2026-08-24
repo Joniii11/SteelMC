@@ -148,7 +148,7 @@ mod tests {
             StatePropertyMatcher, StatePropertyValueMatcher,
         },
         data_components::{ComponentData, vanilla_components::MAX_DAMAGE},
-        test_support::init_test_registry,
+        init_vanilla_registry,
         vanilla_blocks,
     };
 
@@ -175,6 +175,10 @@ mod tests {
 
         fn height(&self) -> i32 {
             384
+        }
+
+        fn sea_level(&self) -> i32 {
+            63
         }
     }
 
@@ -212,7 +216,7 @@ mod tests {
 
     #[test]
     fn state_property_ranges_use_the_property_value_order() {
-        init_test_registry();
+        init_vanilla_registry();
         let Some(state) = REGISTRY
             .blocks
             .state_id_from_block_defaulted_properties(&vanilla_blocks::WATER, [("level", "10")])
@@ -245,7 +249,7 @@ mod tests {
 
     #[test]
     fn block_in_world_adventure_predicates_ignore_component_matchers() {
-        init_test_registry();
+        init_vanilla_registry();
         let Some(oak_log_state) = REGISTRY
             .blocks
             .state_id_from_block_defaulted_properties(&vanilla_blocks::OAK_LOG, [("axis", "y")])

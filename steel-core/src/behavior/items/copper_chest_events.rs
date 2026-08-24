@@ -10,7 +10,7 @@ use steel_utils::{BlockPos, BlockStateId};
 use crate::{
     entity::Entity,
     player::Player,
-    world::{World, game_event_context::GameEventContext},
+    world::{World, game_event::GameEventContext},
 };
 
 /// Returns whether a state belongs to Vanilla `CopperChestBlock` family
@@ -67,7 +67,7 @@ fn connected_chest_pos(pos: BlockPos, state: BlockStateId) -> Option<BlockPos> {
 mod tests {
     use steel_registry::blocks::block_state_ext::BlockStateExt;
     use steel_registry::blocks::properties::{BlockStateProperties, ChestType, Direction};
-    use steel_registry::test_support::init_test_registry;
+    use steel_registry::init_vanilla_registry;
     use steel_registry::vanilla_blocks;
     use steel_utils::BlockPos;
 
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn connected_chest_pos_matches_vanilla_left_and_right_offsets() {
-        init_test_registry();
+        init_vanilla_registry();
 
         let pos = BlockPos::new(10, 64, 10);
         let north_left = vanilla_blocks::COPPER_CHEST
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn connected_chest_pos_ignores_single_chests() {
-        init_test_registry();
+        init_vanilla_registry();
 
         let pos = BlockPos::new(10, 64, 10);
         let single = vanilla_blocks::COPPER_CHEST
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn copper_chest_guard_excludes_other_double_chest_families() {
-        init_test_registry();
+        init_vanilla_registry();
 
         let copper = vanilla_blocks::COPPER_CHEST
             .default_state()

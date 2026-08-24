@@ -1,17 +1,16 @@
 //! Trapdoor block behavior implementation.
 //!
-//! Redstone signal queries are isolated in `has_neighbor_signal`
-//! until Steel has a redstone power graph.
+//! Trapdoors react to neighboring redstone signal sources and conductors.
 
 use crate::{
     behavior::{
         BlockBehavior, BlockHitResult, BlockPlaceContext, InteractionResult, InventoryAccess,
+        block::schedule_water_tick_if_waterlogged,
         blocks::{WeatherState, WeatheringCopper},
     },
-    entity::Entity,
-    entity::ai::path::PathComputationType,
+    entity::{Entity, ai::path::PathComputationType},
     player::Player,
-    world::{LevelReader, ScheduledTickAccess, World, game_event_context::GameEventContext},
+    world::{ScheduledTickAccess, SignalGetter as _, World, game_event::GameEventContext},
 };
 use std::sync::Arc;
 use steel_macros::block_behavior;
@@ -37,6 +36,13 @@ pub struct TrapDoorBlock {
     #[json_arg(sound_events, json = "type_trapdoor_close")]
     sound_close: SoundEventRef,
 }
+
+const FACING: &EnumProperty<Direction> = &BlockStateProperties::FACING;
+const HALF: &EnumProperty<Half> = &BlockStateProperties::HALF;
+const OPEN: &BoolProperty = &BlockStateProperties::OPEN;
+const POWERED: &BoolProperty = &BlockStateProperties::POWERED;
+const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
+
 /// Behavior for vanilla copper trapdoor blocks.
 #[block_behavior]
 pub struct WeatheringCopperTrapDoorBlock {
@@ -51,12 +57,6 @@ pub struct WeatheringCopperTrapDoorBlock {
     #[json_arg(sound_events, json = "type_trapdoor_close")]
     sound_close: SoundEventRef,
 }
-
-const OPEN: &BoolProperty = &BlockStateProperties::OPEN;
-const HALF: &EnumProperty<Half> = &BlockStateProperties::HALF;
-const POWERED: &BoolProperty = &BlockStateProperties::POWERED;
-const FACING: &EnumProperty<Direction> = &BlockStateProperties::FACING;
-const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
 impl TrapDoorBlock {
     /// Creates a new trapdoor block behavior.
@@ -73,11 +73,6 @@ impl TrapDoorBlock {
             sound_open,
             sound_close,
         }
-    }
-
-    const fn has_neighbor_signal<L: LevelReader + ?Sized>(_world: &L, _pos: BlockPos) -> bool {
-        // TODO: Query redstone neighbor signal once Steel has redstone power propagation.
-        false
     }
 
     fn play_sound(&self, player: Option<&Player>, world: &Arc<World>, pos: BlockPos, open: bool) {
@@ -109,22 +104,24 @@ impl TrapDoorBlock {
     fn toggle(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos, player: &Player) {
         let block_state = state.set_value(OPEN, !state.get_value(OPEN));
         world.set_block(pos, block_state, UpdateFlags::UPDATE_CLIENTS);
-        if block_state.get_value(WATERLOGGED) {
-            let delay = world.fluid_tick_delay(&vanilla_fluids::WATER);
-            let _ = world.schedule_fluid_tick_default(pos, &vanilla_fluids::WATER, delay);
-        }
+        schedule_water_tick_if_waterlogged(state, world, pos);
+
         self.play_sound(Some(player), world, pos, block_state.get_value(OPEN));
     }
 }
 
 impl BlockBehavior for TrapDoorBlock {
+    fn is_trapdoor(&self) -> bool {
+        true
+    }
+
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let mut state = self.block.default_state();
-        let face = context.clicked_face;
-        if !context.replaces_clicked_block && face.is_horizontal() {
+        let face = context.clicked_face();
+        if !context.replaces_clicked_block() && face.is_horizontal() {
             state = state.set_value(FACING, face).set_value(
                 HALF,
-                if context.click_location.y - f64::from(context.place_pos.y()) > 0.5 {
+                if context.click_location().y - f64::from(context.place_pos().y()) > 0.5 {
                     Half::Top
                 } else {
                     Half::Bottom
@@ -132,7 +129,7 @@ impl BlockBehavior for TrapDoorBlock {
             );
         } else {
             state = state
-                .set_value(FACING, context.horizontal_direction.opposite())
+                .set_value(FACING, context.horizontal_direction().opposite())
                 .set_value(
                     HALF,
                     if face == Direction::Up {
@@ -143,7 +140,7 @@ impl BlockBehavior for TrapDoorBlock {
                 );
         }
 
-        if Self::has_neighbor_signal(context.world, context.place_pos) {
+        if context.world.has_neighbor_signal(context.place_pos()) {
             state = state.set_value(OPEN, true).set_value(POWERED, true);
         }
 
@@ -159,10 +156,7 @@ impl BlockBehavior for TrapDoorBlock {
         _neighbor_pos: BlockPos,
         _neighbor_state: BlockStateId,
     ) -> BlockStateId {
-        if state.get_value(WATERLOGGED) {
-            let delay = world.fluid_tick_delay(&vanilla_fluids::WATER);
-            let _ = world.schedule_fluid_tick_default(pos, &vanilla_fluids::WATER, delay);
-        }
+        schedule_water_tick_if_waterlogged(state, world, pos);
         state
     }
 
@@ -191,9 +185,13 @@ impl BlockBehavior for TrapDoorBlock {
         _source_block: BlockRef,
         _moved_by_piston: bool,
     ) {
-        let signal = Self::has_neighbor_signal(world, pos);
+        let signal = world.has_neighbor_signal(pos);
+        if signal == state.get_value(POWERED) {
+            return;
+        }
+
         let mut block_state = state;
-        if signal != state.get_value(POWERED) && signal != state.get_value(OPEN) {
+        if signal != state.get_value(OPEN) {
             block_state = block_state.set_value(OPEN, signal);
             self.play_sound(None, world, pos, signal);
         }
@@ -202,7 +200,7 @@ impl BlockBehavior for TrapDoorBlock {
             block_state.set_value(POWERED, signal),
             UpdateFlags::UPDATE_CLIENTS,
         );
-        if state.get_value(WATERLOGGED) {
+        if block_state.get_value(WATERLOGGED) {
             let delay = world.fluid_tick_delay(&vanilla_fluids::WATER);
             let _ = world.schedule_fluid_tick_default(pos, &vanilla_fluids::WATER, delay);
         }
@@ -246,6 +244,10 @@ impl WeatheringCopperTrapDoorBlock {
 }
 
 impl BlockBehavior for WeatheringCopperTrapDoorBlock {
+    fn is_trapdoor(&self) -> bool {
+        true
+    }
+
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         self.trapdoor().get_state_for_placement(context)
     }
@@ -292,10 +294,6 @@ impl BlockBehavior for WeatheringCopperTrapDoorBlock {
         self.trapdoor().is_pathfindable(state, computation_type)
     }
 
-    fn is_randomly_ticking(&self, _state: BlockStateId) -> bool {
-        self.weathering.is_randomly_ticking()
-    }
-
     fn random_tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
         self.weathering.change_over_time(state, world, pos);
     }
@@ -304,14 +302,17 @@ impl BlockBehavior for WeatheringCopperTrapDoorBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use steel_registry::{
-        blocks::properties::BlockStateProperties, sound_events, test_support::init_test_registry,
-        vanilla_blocks,
+    use steel_registry::{init_vanilla_registry, sound_events, vanilla_blocks};
+    use steel_utils::ChunkPos;
+
+    use crate::{
+        behavior::{BLOCK_BEHAVIORS, init_behaviors},
+        test_support::{fresh_test_world, insert_ready_full_chunk},
     };
 
     #[test]
     fn closed_trapdoor_is_not_land_or_air_pathfindable() {
-        init_test_registry();
+        init_vanilla_registry();
         let behavior = TrapDoorBlock::new(
             &vanilla_blocks::OAK_TRAPDOOR,
             true,
@@ -320,8 +321,8 @@ mod tests {
         );
         let state = vanilla_blocks::OAK_TRAPDOOR
             .default_state()
-            .set_value(&BlockStateProperties::OPEN, false)
-            .set_value(&BlockStateProperties::WATERLOGGED, false);
+            .set_value(OPEN, false)
+            .set_value(WATERLOGGED, false);
 
         assert!(!behavior.is_pathfindable(state, PathComputationType::Land));
         assert!(!behavior.is_pathfindable(state, PathComputationType::Air));
@@ -330,7 +331,7 @@ mod tests {
 
     #[test]
     fn open_waterlogged_trapdoor_matches_vanilla_pathfinding() {
-        init_test_registry();
+        init_vanilla_registry();
         let behavior = TrapDoorBlock::new(
             &vanilla_blocks::OAK_TRAPDOOR,
             true,
@@ -339,11 +340,46 @@ mod tests {
         );
         let state = vanilla_blocks::OAK_TRAPDOOR
             .default_state()
-            .set_value(&BlockStateProperties::OPEN, true)
-            .set_value(&BlockStateProperties::WATERLOGGED, true);
+            .set_value(OPEN, true)
+            .set_value(WATERLOGGED, true);
 
         assert!(behavior.is_pathfindable(state, PathComputationType::Land));
         assert!(behavior.is_pathfindable(state, PathComputationType::Air));
         assert!(behavior.is_pathfindable(state, PathComputationType::Water));
+    }
+
+    #[test]
+    fn redundant_redstone_notification_does_not_schedule_water_tick() {
+        init_vanilla_registry();
+        init_behaviors();
+        let world = fresh_test_world("trapdoor_redundant_redstone");
+        let pos = BlockPos::new(8, 64, 8);
+        let power_pos = pos.west();
+        insert_ready_full_chunk(&world, ChunkPos::from_block_pos(pos));
+        let state = vanilla_blocks::OAK_TRAPDOOR
+            .default_state()
+            .set_value(WATERLOGGED, true);
+        assert!(world.set_block(pos, state, UpdateFlags::UPDATE_NONE));
+        let behavior = BLOCK_BEHAVIORS.get_behavior(&vanilla_blocks::OAK_TRAPDOOR);
+
+        behavior.handle_neighbor_changed(state, &world, pos, &vanilla_blocks::STONE, false);
+        assert!(!world.has_scheduled_fluid_tick(pos, &vanilla_fluids::WATER));
+
+        assert!(world.set_block(
+            power_pos,
+            vanilla_blocks::REDSTONE_BLOCK.default_state(),
+            UpdateFlags::UPDATE_NONE,
+        ));
+        behavior.handle_neighbor_changed(
+            state,
+            &world,
+            pos,
+            &vanilla_blocks::REDSTONE_BLOCK,
+            false,
+        );
+        let powered = world.get_block_state(pos);
+        assert!(powered.get_value(POWERED));
+        assert!(powered.get_value(OPEN));
+        assert!(world.has_scheduled_fluid_tick(pos, &vanilla_fluids::WATER));
     }
 }

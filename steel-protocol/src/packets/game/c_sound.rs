@@ -176,19 +176,9 @@ mod tests {
 
     use super::CSound;
 
-    static INIT_REGISTRY: Once = Once::new();
-
-    fn init_registry() {
-        INIT_REGISTRY.call_once(|| {
-            let mut registry = Registry::new_vanilla();
-            registry.freeze();
-            let _ = REGISTRY.init(registry);
-        });
-    }
-
     #[test]
     fn registered_sound_packet_uses_holder_id() {
-        init_registry();
+        init_vanilla_registry();
 
         let packet = CSound::block_sound(
             &sound_events::BLOCK_WOODEN_BUTTON_CLICK_ON,
@@ -211,7 +201,7 @@ mod tests {
 
     #[test]
     fn direct_sound_packet_writes_a_direct_holder() {
-        init_registry();
+        init_vanilla_registry();
 
         let packet = CSound::block_sound_holder(
             SoundEventHolder::Direct {

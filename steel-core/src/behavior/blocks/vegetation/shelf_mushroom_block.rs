@@ -57,7 +57,7 @@ impl BlockBehavior for ShelfMushroomBlock {
                     direction.opposite(),
                 )
                 .set_value(&BlockStateProperties::AGE_1, 0u8);
-            if self.can_survive(state, context.world, context.place_pos) {
+            if self.can_survive(state, context.world, context.place_pos()) {
                 return Some(state);
             }
         }

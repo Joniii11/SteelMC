@@ -1,10 +1,10 @@
 use steel_macros::block_behavior;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::blocks::properties::BlockStateProperties;
-use steel_registry::{vanilla_blocks, vanilla_fluids};
+use steel_registry::blocks::properties::{BlockStateProperties, BoolProperty};
+use steel_registry::vanilla_blocks;
 use steel_utils::{BlockPos, BlockStateId, Direction};
 
-use crate::behavior::block::BlockBehavior;
+use crate::behavior::block::{BlockBehavior, schedule_water_tick_if_waterlogged};
 use crate::behavior::context::BlockPlaceContext;
 use crate::world::{LevelReader, ScheduledTickAccess};
 
@@ -15,6 +15,8 @@ use super::BlockRef;
 pub struct HangingRootsBlock {
     block: BlockRef,
 }
+
+const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
 impl HangingRootsBlock {
     /// Creates a new hanging roots block behavior.
@@ -38,10 +40,7 @@ impl BlockBehavior for HangingRootsBlock {
             return vanilla_blocks::AIR.default_state();
         }
 
-        if state.get_value(&BlockStateProperties::WATERLOGGED) {
-            let delay = world.fluid_tick_delay(&vanilla_fluids::WATER);
-            let _ = world.schedule_fluid_tick_default(pos, &vanilla_fluids::WATER, delay);
-        }
+        schedule_water_tick_if_waterlogged(state, world, pos);
 
         state
     }
@@ -50,17 +49,14 @@ impl BlockBehavior for HangingRootsBlock {
         // Vanilla: the block above must be face-sturdy on its DOWN face.
         let above_pos = pos.above();
         let above = world.get_block_state(above_pos);
-        above.is_face_sturdy_at(above_pos, Direction::Down)
+        world.is_face_sturdy(above, above_pos, Direction::Down)
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let state = self.block.default_state();
-        if !self.can_survive(state, context.world, context.place_pos) {
+        if !self.can_survive(state, context.world, context.place_pos()) {
             return None;
         }
-        Some(state.set_value(
-            &BlockStateProperties::WATERLOGGED,
-            context.is_water_source(),
-        ))
+        Some(state.set_value(WATERLOGGED, context.is_water_source()))
     }
 }

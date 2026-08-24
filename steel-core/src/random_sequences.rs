@@ -9,9 +9,8 @@ use steel_utils::{
     Identifier,
     locks::SyncMutex,
     random::{Random, name_hash::NameHash, xoroshiro::Xoroshiro},
+    saved_data::{SavedDataManager, names as saved_data_names},
 };
-
-use crate::saved_data::{SavedDataManager, names as saved_data_names};
 
 /// Persistent named random sources
 pub struct RandomSequences {
@@ -58,8 +57,9 @@ impl VanillaLootRandomSource for RandomSequence<'_> {
 
 impl RandomSequences {
     /// Ephemeral sequences
+    #[cfg(test)]
     #[must_use]
-    pub fn ephemeral(world_seed: i64) -> Self {
+    fn ephemeral(world_seed: i64) -> Self {
         Self {
             saved_data: SavedDataManager::new(None),
             world_seed,
@@ -238,8 +238,7 @@ mod tests {
     };
 
     use super::{RandomSequences, create_sequence};
-    use crate::saved_data::SavedDataManager;
-    use steel_utils::{Identifier, random::Random};
+    use steel_utils::{Identifier, random::Random, saved_data::SavedDataManager};
 
     fn temp_world_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()

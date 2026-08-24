@@ -8,19 +8,22 @@ use std::sync::{Arc, Weak};
 
 use steel_macros::block_behavior;
 use steel_registry::REGISTRY;
+use steel_registry::block_entity_type::BlockEntityTypeRef;
 use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::blocks::properties::{BlockStateProperties, Direction};
+use steel_registry::blocks::properties::{
+    BlockStateProperties, BoolProperty, Direction, EnumProperty, IntProperty,
+};
 use steel_registry::blocks::shapes::SupportType;
-use steel_registry::vanilla_blocks;
-use steel_utils::locks::SyncMutex;
+use steel_registry::{vanilla_block_entity_types, vanilla_blocks};
 use steel_utils::{BlockPos, BlockStateId, Downcast as _};
 
 use crate::behavior::InventoryAccess;
-use crate::behavior::block::BlockBehavior;
+use crate::behavior::block::{
+    BlockBehavior, BlockEntityCreation, schedule_water_tick_if_waterlogged,
+};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
-use crate::block_entity::SharedBlockEntity;
-use crate::block_entity::entities::SignBlockEntity;
+use crate::block_entity::{BlockEntityTicker, entities::SignBlockEntity};
 use crate::entity::Entity;
 use crate::player::Player;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
@@ -86,7 +89,7 @@ fn get_nearest_looking_directions(rotation: f32, clicked_face: Direction) -> Vec
 ///
 /// Uses the sign's rotation (from block state) and the player's position
 /// relative to the sign to determine which side they're looking at.
-fn is_facing_front_text(state: BlockStateId, pos: BlockPos, player: &Player) -> bool {
+pub fn is_facing_front_text(state: BlockStateId, pos: BlockPos, player: &Player) -> bool {
     // Get the sign's Y rotation in degrees from the block state
     let sign_y_rot = get_sign_rotation_degrees(state);
 
@@ -106,12 +109,12 @@ fn is_facing_front_text(state: BlockStateId, pos: BlockPos, player: &Player) -> 
 /// Gets the Y rotation of a sign in degrees from its block state.
 fn get_sign_rotation_degrees(state: BlockStateId) -> f32 {
     // Standing signs use "rotation" property (0-15, each step is 22.5 degrees)
-    if let Some(rotation) = state.try_get_value(&BlockStateProperties::ROTATION_16) {
+    if let Some(rotation) = state.try_get_value(ROTATION_16) {
         return f32::from(rotation) * 22.5;
     }
 
     // Wall signs use "facing" property
-    if let Some(facing) = state.try_get_value(&BlockStateProperties::HORIZONTAL_FACING) {
+    if let Some(facing) = state.try_get_value(HORIZONTAL_FACING) {
         return facing.to_yaw();
     }
 
@@ -143,7 +146,7 @@ fn can_wall_sign_survive(world: &dyn LevelReader, pos: BlockPos, facing: Directi
 fn can_ceiling_hanging_sign_survive(world: &dyn LevelReader, pos: BlockPos) -> bool {
     let above_pos = BlockPos::new(pos.x(), pos.y() + 1, pos.z());
     let above_state = world.get_block_state(above_pos);
-    above_state.is_face_sturdy_for_at(above_pos, Direction::Down, SupportType::Center)
+    world.is_face_sturdy_for(above_state, above_pos, Direction::Down, SupportType::Center)
 }
 
 /// Checks if a wall hanging sign can attach to a neighboring block.
@@ -165,15 +168,13 @@ fn can_attach_to(
         && block.key.path.contains("wall_hanging_sign")
     {
         // Wall hanging signs can chain if they're on the same axis
-        if let Some(neighbor_facing) =
-            attach_state.try_get_value(&BlockStateProperties::HORIZONTAL_FACING)
-        {
+        if let Some(neighbor_facing) = attach_state.try_get_value(HORIZONTAL_FACING) {
             return neighbor_facing.axis() == sign_facing.axis();
         }
     }
 
     // Otherwise, check for sturdy face with FULL support
-    attach_state.is_face_sturdy_for_at(attach_pos, attach_face, SupportType::Full)
+    world.is_face_sturdy_for(attach_state, attach_pos, attach_face, SupportType::Full)
 }
 
 /// Checks if a wall hanging sign can survive at the given position.
@@ -243,13 +244,12 @@ fn try_open_sign_editor(
         return InteractionResult::Pass;
     };
 
-    let mut guard = block_entity.lock();
-    let Some(sign) = guard.downcast_mut::<SignBlockEntity>() else {
+    let Some(sign) = block_entity.downcast_ref::<SignBlockEntity>() else {
         return InteractionResult::Pass;
     };
 
     // Check 1: Is the sign waxed?
-    if sign.is_waxed {
+    if sign.is_waxed() {
         // TODO: Play waxed sign interaction fail sound
         return InteractionResult::Success; // Vanilla returns SUCCESS even when waxed
     }
@@ -271,9 +271,6 @@ fn try_open_sign_editor(
     // Set the editing player lock
     sign.set_player_who_may_edit(Some(player.gameprofile.id));
 
-    // Release lock before calling player method
-    drop(guard);
-
     // Open the editor
     player.open_sign_editor(pos, is_front_text);
     InteractionResult::Success
@@ -285,6 +282,10 @@ pub struct StandingSignBlock {
     block: BlockRef,
 }
 
+const ATTACHED: &BoolProperty = &BlockStateProperties::ATTACHED;
+const HORIZONTAL_FACING: &EnumProperty<Direction> = &BlockStateProperties::HORIZONTAL_FACING;
+const ROTATION_16: &IntProperty = &BlockStateProperties::ROTATION_16;
+
 impl StandingSignBlock {
     /// Creates a new standing sign block behavior.
     #[must_use]
@@ -294,6 +295,10 @@ impl StandingSignBlock {
 }
 
 impl BlockBehavior for StandingSignBlock {
+    fn is_possible_to_respawn_in_this(&self, _state: BlockStateId) -> bool {
+        true
+    }
+
     fn update_shape(
         &self,
         state: BlockStateId,
@@ -307,28 +312,21 @@ impl BlockBehavior for StandingSignBlock {
         if direction == Direction::Down && !can_support_standing_sign(world, pos) {
             return REGISTRY.blocks.get_default_state_id(&vanilla_blocks::AIR);
         }
+        schedule_water_tick_if_waterlogged(state, world, pos);
         state
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         // Check if we can place on the block below
-        if !can_support_standing_sign(context.world, context.place_pos) {
+        if !can_support_standing_sign(context.world, context.place_pos()) {
             return None;
         }
 
         // Calculate rotation from player's yaw
         // Vanilla: RotationSegment.convertToSegment(context.getRotation() + 180.0F)
-        let rotation = convert_to_rotation_segment(context.rotation + 180.0);
+        let rotation = convert_to_rotation_segment(context.rotation() + 180.0);
 
-        Some(
-            self.block
-                .default_state()
-                .set_value(&BlockStateProperties::ROTATION_16, rotation),
-        )
-    }
-
-    fn has_block_entity(&self) -> bool {
-        true
+        Some(self.block.default_state().set_value(ROTATION_16, rotation))
     }
 
     fn new_block_entity(
@@ -336,15 +334,20 @@ impl BlockBehavior for StandingSignBlock {
         level: Weak<World>,
         pos: BlockPos,
         state: BlockStateId,
-    ) -> Option<SharedBlockEntity> {
-        Some(Arc::new(SyncMutex::new(SignBlockEntity::new(
-            level, pos, state,
-        ))))
+    ) -> BlockEntityCreation {
+        BlockEntityCreation::Created(Arc::new(SignBlockEntity::new(level, pos, state)))
     }
 
-    fn should_keep_block_entity(&self, _old_state: BlockStateId, _new_state: BlockStateId) -> bool {
-        // Signs don't keep their block entity when changing to a different block
-        false
+    fn get_block_entity_ticker(
+        &self,
+        _world: &Arc<World>,
+        _state: BlockStateId,
+        block_entity_type: BlockEntityTypeRef,
+    ) -> Option<BlockEntityTicker> {
+        BlockEntityTicker::for_matching_entity_tick(
+            block_entity_type,
+            &vanilla_block_entity_types::SIGN,
+        )
     }
 
     fn use_without_item(
@@ -375,6 +378,10 @@ impl WallSignBlock {
 }
 
 impl BlockBehavior for WallSignBlock {
+    fn is_possible_to_respawn_in_this(&self, _state: BlockStateId) -> bool {
+        true
+    }
+
     fn update_shape(
         &self,
         state: BlockStateId,
@@ -386,29 +393,30 @@ impl BlockBehavior for WallSignBlock {
     ) -> BlockStateId {
         // Wall signs break when the block they're attached to is removed
         // The sign is attached to the block opposite of its facing direction
-        if let Some(facing) = state.try_get_value(&BlockStateProperties::HORIZONTAL_FACING)
+        if let Some(facing) = state.try_get_value(HORIZONTAL_FACING)
             && direction.opposite() == facing
             && !can_wall_sign_survive(world, pos, facing)
         {
             return REGISTRY.blocks.get_default_state_id(&vanilla_blocks::AIR);
         }
+        schedule_water_tick_if_waterlogged(state, world, pos);
         state
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         // Try each horizontal direction based on player's look direction
-        let directions = get_nearest_looking_directions(context.rotation, context.clicked_face);
+        let directions = get_nearest_looking_directions(context.rotation(), context.clicked_face());
 
         for direction in directions {
             // The sign faces the opposite direction of where it's attached
             let facing = direction.opposite();
 
             // Check if sign can survive with this facing
-            if can_wall_sign_survive(context.world, context.place_pos, facing) {
+            if can_wall_sign_survive(context.world, context.place_pos(), facing) {
                 return Some(
                     self.block
                         .default_state()
-                        .set_value(&BlockStateProperties::HORIZONTAL_FACING, facing),
+                        .set_value(HORIZONTAL_FACING, facing),
                 );
             }
         }
@@ -417,23 +425,25 @@ impl BlockBehavior for WallSignBlock {
         None
     }
 
-    fn has_block_entity(&self) -> bool {
-        true
-    }
-
     fn new_block_entity(
         &self,
         level: Weak<World>,
         pos: BlockPos,
         state: BlockStateId,
-    ) -> Option<SharedBlockEntity> {
-        Some(Arc::new(SyncMutex::new(SignBlockEntity::new(
-            level, pos, state,
-        ))))
+    ) -> BlockEntityCreation {
+        BlockEntityCreation::Created(Arc::new(SignBlockEntity::new(level, pos, state)))
     }
 
-    fn should_keep_block_entity(&self, _old_state: BlockStateId, _new_state: BlockStateId) -> bool {
-        false
+    fn get_block_entity_ticker(
+        &self,
+        _world: &Arc<World>,
+        _state: BlockStateId,
+        block_entity_type: BlockEntityTypeRef,
+    ) -> Option<BlockEntityTicker> {
+        BlockEntityTicker::for_matching_entity_tick(
+            block_entity_type,
+            &vanilla_block_entity_types::SIGN,
+        )
     }
 
     fn use_without_item(
@@ -464,6 +474,10 @@ impl CeilingHangingSignBlock {
 }
 
 impl BlockBehavior for CeilingHangingSignBlock {
+    fn is_possible_to_respawn_in_this(&self, _state: BlockStateId) -> bool {
+        true
+    }
+
     fn update_shape(
         &self,
         state: BlockStateId,
@@ -477,26 +491,31 @@ impl BlockBehavior for CeilingHangingSignBlock {
         if direction == Direction::Up && !can_ceiling_hanging_sign_survive(world, pos) {
             return REGISTRY.blocks.get_default_state_id(&vanilla_blocks::AIR);
         }
+        schedule_water_tick_if_waterlogged(state, world, pos);
         state
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         // Check if we can hang from the block above
-        if !can_ceiling_hanging_sign_survive(context.world, context.place_pos) {
+        if !can_ceiling_hanging_sign_survive(context.world, context.place_pos()) {
             return None;
         }
 
         let above_pos = BlockPos::new(
-            context.place_pos.x(),
-            context.place_pos.y() + 1,
-            context.place_pos.z(),
+            context.place_pos().x(),
+            context.place_pos().y() + 1,
+            context.place_pos().z(),
         );
         let above_state = context.world.get_block_state(above_pos);
 
         // Determine if we should attach to the middle or not based on block above
-        let direction = Direction::from_yaw(context.rotation);
-        let is_above_full =
-            above_state.is_face_sturdy_for_at(above_pos, Direction::Down, SupportType::Full);
+        let direction = Direction::from_yaw(context.rotation());
+        let is_above_full = context.world.is_face_sturdy_for(
+            above_state,
+            above_pos,
+            Direction::Down,
+            SupportType::Full,
+        );
 
         // Check if block above is also a hanging sign
         let above_block = REGISTRY.blocks.by_state_id(above_state);
@@ -506,14 +525,10 @@ impl BlockBehavior for CeilingHangingSignBlock {
         // Determine if attached to middle based on vanilla logic
         let attached_to_middle = if is_below_hanging_sign {
             // When below another hanging sign, check if we can chain
-            if let Some(above_facing) =
-                above_state.try_get_value(&BlockStateProperties::HORIZONTAL_FACING)
-            {
+            if let Some(above_facing) = above_state.try_get_value(HORIZONTAL_FACING) {
                 // Wall hanging sign above - check axis alignment
                 above_facing.axis() != direction.axis()
-            } else if let Some(above_rotation) =
-                above_state.try_get_value(&BlockStateProperties::ROTATION_16)
-            {
+            } else if let Some(above_rotation) = above_state.try_get_value(ROTATION_16) {
                 // Ceiling hanging sign above - check if we can align
                 let above_direction = rotation_to_direction(above_rotation);
                 above_direction.is_none_or(|d| d.axis() != direction.axis())
@@ -527,7 +542,7 @@ impl BlockBehavior for CeilingHangingSignBlock {
         // Calculate rotation
         let rotation = if attached_to_middle {
             // Attached to middle - use player rotation
-            convert_to_rotation_segment(context.rotation + 180.0)
+            convert_to_rotation_segment(context.rotation() + 180.0)
         } else {
             // Attached to chains - align with direction
             convert_to_rotation_segment(direction.opposite().to_yaw())
@@ -536,13 +551,9 @@ impl BlockBehavior for CeilingHangingSignBlock {
         Some(
             self.block
                 .default_state()
-                .set_value(&BlockStateProperties::ROTATION_16, rotation)
-                .set_value(&BlockStateProperties::ATTACHED, attached_to_middle),
+                .set_value(ROTATION_16, rotation)
+                .set_value(ATTACHED, attached_to_middle),
         )
-    }
-
-    fn has_block_entity(&self) -> bool {
-        true
     }
 
     fn new_block_entity(
@@ -550,14 +561,20 @@ impl BlockBehavior for CeilingHangingSignBlock {
         level: Weak<World>,
         pos: BlockPos,
         state: BlockStateId,
-    ) -> Option<SharedBlockEntity> {
-        Some(Arc::new(SyncMutex::new(SignBlockEntity::new_hanging(
-            level, pos, state,
-        ))))
+    ) -> BlockEntityCreation {
+        BlockEntityCreation::Created(Arc::new(SignBlockEntity::new_hanging(level, pos, state)))
     }
 
-    fn should_keep_block_entity(&self, _old_state: BlockStateId, _new_state: BlockStateId) -> bool {
-        false
+    fn get_block_entity_ticker(
+        &self,
+        _world: &Arc<World>,
+        _state: BlockStateId,
+        block_entity_type: BlockEntityTypeRef,
+    ) -> Option<BlockEntityTicker> {
+        BlockEntityTicker::for_matching_entity_tick(
+            block_entity_type,
+            &vanilla_block_entity_types::HANGING_SIGN,
+        )
     }
 
     fn use_without_item(
@@ -599,6 +616,10 @@ impl WallHangingSignBlock {
 }
 
 impl BlockBehavior for WallHangingSignBlock {
+    fn is_possible_to_respawn_in_this(&self, _state: BlockStateId) -> bool {
+        true
+    }
+
     fn update_shape(
         &self,
         state: BlockStateId,
@@ -610,7 +631,7 @@ impl BlockBehavior for WallHangingSignBlock {
     ) -> BlockStateId {
         // Wall hanging signs break when blocks on the perpendicular axis are removed
         // and they can no longer survive
-        if let Some(facing) = state.try_get_value(&BlockStateProperties::HORIZONTAL_FACING) {
+        if let Some(facing) = state.try_get_value(HORIZONTAL_FACING) {
             // Check if the change is on the perpendicular axis (clockwise/counterclockwise)
             if direction.axis() == facing.rotate_y_clockwise().axis()
                 && !can_wall_hanging_sign_survive(world, pos, facing)
@@ -618,28 +639,29 @@ impl BlockBehavior for WallHangingSignBlock {
                 return REGISTRY.blocks.get_default_state_id(&vanilla_blocks::AIR);
             }
         }
+        schedule_water_tick_if_waterlogged(state, world, pos);
         state
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         // Try each horizontal direction based on player's look direction
-        let directions = get_nearest_looking_directions(context.rotation, context.clicked_face);
+        let directions = get_nearest_looking_directions(context.rotation(), context.clicked_face());
 
         for direction in directions {
             // Wall hanging signs face perpendicular to the wall they're attached to
             // Skip if the clicked face is on the same axis
-            if direction.axis() == context.clicked_face.axis() {
+            if direction.axis() == context.clicked_face().axis() {
                 continue;
             }
 
             let facing = direction.opposite();
 
             // Check if sign can survive with this facing
-            if can_wall_hanging_sign_survive(context.world, context.place_pos, facing) {
+            if can_wall_hanging_sign_survive(context.world, context.place_pos(), facing) {
                 return Some(
                     self.block
                         .default_state()
-                        .set_value(&BlockStateProperties::HORIZONTAL_FACING, facing),
+                        .set_value(HORIZONTAL_FACING, facing),
                 );
             }
         }
@@ -648,23 +670,25 @@ impl BlockBehavior for WallHangingSignBlock {
         None
     }
 
-    fn has_block_entity(&self) -> bool {
-        true
-    }
-
     fn new_block_entity(
         &self,
         level: Weak<World>,
         pos: BlockPos,
         state: BlockStateId,
-    ) -> Option<SharedBlockEntity> {
-        Some(Arc::new(SyncMutex::new(SignBlockEntity::new_hanging(
-            level, pos, state,
-        ))))
+    ) -> BlockEntityCreation {
+        BlockEntityCreation::Created(Arc::new(SignBlockEntity::new_hanging(level, pos, state)))
     }
 
-    fn should_keep_block_entity(&self, _old_state: BlockStateId, _new_state: BlockStateId) -> bool {
-        false
+    fn get_block_entity_ticker(
+        &self,
+        _world: &Arc<World>,
+        _state: BlockStateId,
+        block_entity_type: BlockEntityTypeRef,
+    ) -> Option<BlockEntityTicker> {
+        BlockEntityTicker::for_matching_entity_tick(
+            block_entity_type,
+            &vanilla_block_entity_types::HANGING_SIGN,
+        )
     }
 
     fn use_without_item(
@@ -677,5 +701,112 @@ impl BlockBehavior for WallHangingSignBlock {
         _inv: &mut InventoryAccess,
     ) -> InteractionResult {
         try_open_sign_editor(state, world, pos, player)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use steel_registry::init_vanilla_registry;
+
+    use super::*;
+    use crate::test_support::{TestLevel, fresh_test_world};
+
+    const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
+
+    #[test]
+    fn standing_sign_only_schedules_water_when_support_survives() {
+        init_vanilla_registry();
+        let pos = BlockPos::new(0, 64, 0);
+        let sign = StandingSignBlock::new(&vanilla_blocks::OAK_SIGN);
+        let state = vanilla_blocks::OAK_SIGN
+            .default_state()
+            .set_value(WATERLOGGED, true);
+        let supported =
+            TestLevel::default().with_block(pos.below(), vanilla_blocks::STONE.default_state());
+
+        assert_eq!(
+            sign.update_shape(
+                state,
+                &supported,
+                pos,
+                Direction::North,
+                pos.north(),
+                vanilla_blocks::AIR.default_state(),
+            ),
+            state
+        );
+        assert!(supported.scheduled_water_tick());
+
+        let unsupported = TestLevel::default();
+        assert!(
+            sign.update_shape(
+                state,
+                &unsupported,
+                pos,
+                Direction::Down,
+                pos.below(),
+                vanilla_blocks::AIR.default_state(),
+            )
+            .is_air()
+        );
+        assert!(!unsupported.scheduled_water_tick());
+    }
+
+    #[test]
+    fn sign_variants_select_their_matching_vanilla_tickers() {
+        init_vanilla_registry();
+        let world = fresh_test_world("sign_ticker_selection");
+
+        let standing = StandingSignBlock::new(&vanilla_blocks::OAK_SIGN);
+        assert!(
+            standing
+                .get_block_entity_ticker(
+                    &world,
+                    vanilla_blocks::OAK_SIGN.default_state(),
+                    &vanilla_block_entity_types::SIGN,
+                )
+                .is_some()
+        );
+
+        let wall = WallSignBlock::new(&vanilla_blocks::OAK_WALL_SIGN);
+        assert!(
+            wall.get_block_entity_ticker(
+                &world,
+                vanilla_blocks::OAK_WALL_SIGN.default_state(),
+                &vanilla_block_entity_types::SIGN,
+            )
+            .is_some()
+        );
+
+        let ceiling_hanging = CeilingHangingSignBlock::new(&vanilla_blocks::OAK_HANGING_SIGN);
+        assert!(
+            ceiling_hanging
+                .get_block_entity_ticker(
+                    &world,
+                    vanilla_blocks::OAK_HANGING_SIGN.default_state(),
+                    &vanilla_block_entity_types::HANGING_SIGN,
+                )
+                .is_some()
+        );
+
+        let wall_hanging = WallHangingSignBlock::new(&vanilla_blocks::OAK_WALL_HANGING_SIGN);
+        assert!(
+            wall_hanging
+                .get_block_entity_ticker(
+                    &world,
+                    vanilla_blocks::OAK_WALL_HANGING_SIGN.default_state(),
+                    &vanilla_block_entity_types::HANGING_SIGN,
+                )
+                .is_some()
+        );
+        assert!(
+            wall_hanging
+                .get_block_entity_ticker(
+                    &world,
+                    vanilla_blocks::OAK_WALL_HANGING_SIGN.default_state(),
+                    &vanilla_block_entity_types::SIGN,
+                )
+                .is_none()
+        );
     }
 }

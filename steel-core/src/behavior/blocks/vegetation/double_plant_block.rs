@@ -2,17 +2,18 @@ use std::sync::Arc;
 
 use steel_macros::block_behavior;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::blocks::properties::{BlockStateProperties, Direction, DoubleBlockHalf};
+use steel_registry::blocks::properties::{
+    BlockStateProperties, BoolProperty, Direction, DoubleBlockHalf, EnumProperty,
+};
 use steel_registry::vanilla_blocks;
 use steel_utils::{BlockPos, BlockStateId, axis::Axis, types::UpdateFlags};
 
+use crate::behavior::BlockStateBehaviorExt;
 use crate::behavior::block::BlockBehavior;
 use crate::behavior::blocks::vegetation::Vegetation;
-use crate::behavior::blocks::vegetation::default_surviving_state;
-use crate::behavior::blocks::vegetation::vegetation_block::double_plant_can_survive;
-use crate::behavior::context::{BlockPlaceContext, InventoryAccess};
+use crate::behavior::blocks::vegetation::vegetation_block::vegetation_can_survive;
+use crate::behavior::context::{BlockPlaceContext, PlacementSource};
 use crate::fluid::{FluidStateExt as _, get_fluid_state};
-use crate::player::Player;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::BlockRef;
@@ -20,8 +21,11 @@ use super::BlockRef;
 /// Behavior for vanilla two-block-tall plants.
 #[block_behavior]
 pub struct DoublePlantBlock {
-    block: BlockRef,
+    pub(super) block: BlockRef,
 }
+
+const HALF: &EnumProperty<DoubleBlockHalf> = &BlockStateProperties::DOUBLE_BLOCK_HALF;
+const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
 impl DoublePlantBlock {
     /// Creates a new double plant block behavior.
@@ -35,17 +39,69 @@ impl DoublePlantBlock {
         pos: BlockPos,
         state: BlockStateId,
     ) -> BlockStateId {
-        if state
-            .try_get_value(&BlockStateProperties::WATERLOGGED)
-            .is_some()
-        {
-            state.set_value(
-                &BlockStateProperties::WATERLOGGED,
-                get_fluid_state(world, pos).is_water(),
-            )
+        if state.try_get_value(WATERLOGGED).is_some() {
+            state.set_value(WATERLOGGED, get_fluid_state(world, pos).is_water())
         } else {
             state
         }
+    }
+
+    /// Runs Vanilla `DoublePlantBlock.updateShape` while preserving virtual
+    /// `canSurvive` dispatch for subclasses such as small dripleaf.
+    pub(super) fn update_shape_with_survival(
+        &self,
+        survival_behavior: &dyn BlockBehavior,
+        state: BlockStateId,
+        world: &dyn ScheduledTickAccess,
+        pos: BlockPos,
+        direction: Direction,
+        neighbor_state: BlockStateId,
+    ) -> BlockStateId {
+        let half = state.get_value(HALF);
+        let neighbor_is_matching_other_half =
+            neighbor_state.get_block() == self.block && neighbor_state.get_value(HALF) != half;
+
+        if direction.get_axis() == Axis::Y
+            && (half == DoubleBlockHalf::Lower) == (direction == Direction::Up)
+            && !neighbor_is_matching_other_half
+        {
+            return vanilla_blocks::AIR.default_state();
+        }
+
+        if half == DoubleBlockHalf::Lower
+            && direction == Direction::Down
+            && !survival_behavior.can_survive(state, world, pos)
+        {
+            return vanilla_blocks::AIR.default_state();
+        }
+
+        state
+    }
+    pub(super) fn place_at(
+        world: &Arc<World>,
+        state: BlockStateId,
+        lower_pos: BlockPos,
+        update_type: UpdateFlags,
+    ) {
+        let upper_pos = lower_pos.above();
+        world.set_block(
+            lower_pos,
+            Self::copy_waterlogged_from(
+                world,
+                lower_pos,
+                state.set_value(HALF, DoubleBlockHalf::Lower),
+            ),
+            update_type,
+        );
+        world.set_block(
+            upper_pos,
+            Self::copy_waterlogged_from(
+                world,
+                upper_pos,
+                state.set_value(HALF, DoubleBlockHalf::Upper),
+            ),
+            update_type,
+        );
     }
 }
 
@@ -61,29 +117,17 @@ impl BlockBehavior for DoublePlantBlock {
         _neighbor_pos: BlockPos,
         neighbor_state: BlockStateId,
     ) -> BlockStateId {
-        let half = state.get_value(&BlockStateProperties::DOUBLE_BLOCK_HALF);
-        let neighbor_is_matching_other_half = neighbor_state.get_block() == self.block
-            && neighbor_state.get_value(&BlockStateProperties::DOUBLE_BLOCK_HALF) != half;
-
-        if direction.get_axis() == Axis::Y
-            && (half == DoubleBlockHalf::Lower) == (direction == Direction::Up)
-            && !neighbor_is_matching_other_half
-        {
-            return vanilla_blocks::AIR.default_state();
-        }
-
-        if half == DoubleBlockHalf::Lower
-            && direction == Direction::Down
-            && !self.can_survive(state, world, pos)
-        {
-            return vanilla_blocks::AIR.default_state();
-        }
-
-        state
+        self.update_shape_with_survival(self, state, world, pos, direction, neighbor_state)
     }
 
     fn can_survive(&self, state: BlockStateId, world: &dyn LevelReader, pos: BlockPos) -> bool {
-        double_plant_can_survive(self, state, world, pos)
+        if state.get_value(HALF) == DoubleBlockHalf::Upper {
+            let state_below = world.get_block_state(pos.below());
+            state_below.get_block() == state.get_block()
+                && state_below.get_value(HALF) == DoubleBlockHalf::Lower
+        } else {
+            vegetation_can_survive(self, state, world, pos)
+        }
     }
 
     fn set_placed_by(
@@ -91,32 +135,30 @@ impl BlockBehavior for DoublePlantBlock {
         _state: BlockStateId,
         world: &Arc<World>,
         pos: BlockPos,
-        _player: Option<&Player>,
-        _inv: &InventoryAccess,
+        _source: &PlacementSource<'_>,
     ) {
         let upper_pos = pos.above();
         let upper_state = Self::copy_waterlogged_from(
             world,
             upper_pos,
-            self.block.default_state().set_value(
-                &BlockStateProperties::DOUBLE_BLOCK_HALF,
-                DoubleBlockHalf::Upper,
-            ),
+            self.block
+                .default_state()
+                .set_value(HALF, DoubleBlockHalf::Upper),
         );
         world.set_block(upper_pos, upper_state, UpdateFlags::UPDATE_ALL);
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        if context.place_pos.y() >= context.world.max_y_exclusive() - 1 {
+        if context.place_pos().y() >= context.world.max_y_exclusive() - 1 {
             return None;
         }
         if !context
             .world
-            .get_block_state(context.place_pos.above())
-            .is_replaceable()
+            .get_block_state(context.place_pos().above())
+            .can_be_replaced(context)
         {
             return None;
         }
-        default_surviving_state(self.block, self, context)
+        Some(self.block.default_state())
     }
 }

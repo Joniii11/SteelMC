@@ -13,8 +13,8 @@ use std::{
 
 use crossbeam::atomic::AtomicCell;
 use steel_core::player::{
-    ClientInformation, GameProfile, PlayerConnection,
-    networking::{JavaNetworkWriter, OutboundPacket},
+    ClientInformation, PlayerConnection,
+    connection::{JavaNetworkWriter, OutboundPacket},
 };
 use steel_core::server::Server;
 use steel_protocol::{
@@ -52,6 +52,8 @@ use tokio::{
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use uuid::Uuid;
+
+use crate::pre_play_state::{PacketSequenceError, PrePlayPacket, PrePlayState};
 
 /// Represents updates to the connection state.
 #[derive(Clone)]
@@ -130,8 +132,6 @@ impl ConnectionAction {
 pub struct JavaTcpClient {
     /// The unique ID of the client.
     pub id: u64,
-    /// The client's game profile information.
-    pub gameprofile: AsyncMutex<Option<GameProfile>>,
     /// The client's settings (view distance, language, etc.) received during config.
     pub client_information: AsyncMutex<ClientInformation>,
     /// The current connection state of the client (e.g., Handshaking, Status, Play).
@@ -160,6 +160,7 @@ pub struct JavaTcpClient {
     /// Notification for when connection updates are processed.
     pub connection_updated: Arc<Notify>,
 
+    pub(crate) pre_play_state: SyncMutex<PrePlayState>,
     task_tracker: TaskTracker,
 }
 
@@ -185,7 +186,6 @@ impl JavaTcpClient {
 
         let client = Self {
             id,
-            gameprofile: AsyncMutex::new(None),
             client_information: AsyncMutex::new(ClientInformation::default()),
             address,
             protocol: Arc::new(AtomicCell::new(ConnectionProtocol::Handshake)),
@@ -201,6 +201,7 @@ impl JavaTcpClient {
             challenge: AtomicCell::new([0; 4]),
             connection_updates,
             connection_updated: Arc::new(Notify::new()),
+            pre_play_state: SyncMutex::new(PrePlayState::new()),
             task_tracker,
         };
 
@@ -253,22 +254,6 @@ impl JavaTcpClient {
 
     async fn release_network_writer(network_writer: &JavaNetworkWriter) {
         network_writer.lock().await.take();
-    }
-
-    /// Encodes and queues a packet to be sent.
-    pub fn send_bare_packet<P: ClientPacket>(&self, packet: P) -> Result<(), PacketError> {
-        let compression = self.compression.load();
-        let protocol = self.protocol.load();
-        let packet = EncodedPacket::from_bare(packet, compression, protocol)?;
-        self.outgoing_queue
-            .send(OutboundPacket::Packet(packet))
-            .map_err(|e| {
-                PacketError::SendError(format!(
-                    "Failed to send packet to client {}: {}",
-                    self.id, e
-                ))
-            })?;
-        Ok(())
     }
 
     /// Queues an already encoded packet to be sent.
@@ -507,7 +492,7 @@ impl JavaTcpClient {
 
     /// Handles a handshake packet.
     pub async fn handle_handshake(&self, packet: RawPacket) -> Result<(), PacketError> {
-        let data = &mut Cursor::new(packet.payload.as_slice());
+        let data = &mut Cursor::new(packet.payload());
 
         match packet.id {
             handshake::S_INTENTION => {
@@ -516,6 +501,15 @@ impl JavaTcpClient {
                     ClientIntent::Status => ConnectionProtocol::Status,
                     ClientIntent::Login | ClientIntent::Transfer => ConnectionProtocol::Login,
                 };
+                let sequence_result = self.pre_play_state.lock().select_protocol(intent);
+                if let Err(error) = sequence_result {
+                    log::warn!("Client {} {error}", self.id);
+                    self.kick(TextComponent::translated(
+                        translations::MULTIPLAYER_DISCONNECT_INVALID_PACKET.msg(),
+                    ))
+                    .await;
+                    return Ok(());
+                }
                 self.protocol.store(intent);
 
                 if intent != ConnectionProtocol::Status {
@@ -543,7 +537,7 @@ impl JavaTcpClient {
 
     /// Handles a status packet.
     pub async fn handle_status(&self, packet: RawPacket) -> Result<(), PacketError> {
-        let data = &mut Cursor::new(packet.payload.as_slice());
+        let data = &mut Cursor::new(packet.payload());
 
         match packet.id {
             status::S_STATUS_REQUEST => {
@@ -563,14 +557,26 @@ impl JavaTcpClient {
         &self,
         packet: RawPacket,
     ) -> Result<ConnectionAction, PacketError> {
-        let data = &mut Cursor::new(packet.payload.as_slice());
+        let data = &mut Cursor::new(packet.payload());
 
         match packet.id {
-            login_packets::S_HELLO => Ok(self.handle_hello(SHello::read_packet(data)?).await),
-            login_packets::S_KEY => Ok(self.handle_key(SKey::read_packet(data)?).await),
+            login_packets::S_HELLO => {
+                if let Err(error) = self.expect_pre_play_packet(PrePlayPacket::Hello) {
+                    return Ok(self.reject_unexpected_packet(error).await);
+                }
+                Ok(self.handle_hello(SHello::read_packet(data)?).await)
+            }
+            login_packets::S_KEY => {
+                if let Err(error) = self.expect_pre_play_packet(PrePlayPacket::Key) {
+                    return Ok(self.reject_unexpected_packet(error).await);
+                }
+                Ok(self.handle_key(SKey::read_packet(data)?).await)
+            }
             login_packets::S_LOGIN_ACKNOWLEDGED => {
-                self.handle_login_acknowledged().await;
-                Ok(ConnectionAction::none())
+                if let Err(error) = self.expect_pre_play_packet(PrePlayPacket::LoginAcknowledged) {
+                    return Ok(self.reject_unexpected_packet(error).await);
+                }
+                Ok(self.handle_login_acknowledged().await)
             }
             _ => Err(PacketError::InvalidProtocol("Login".to_string())),
         }
@@ -581,7 +587,7 @@ impl JavaTcpClient {
         &self,
         packet: RawPacket,
     ) -> Result<ConnectionAction, PacketError> {
-        let data = &mut Cursor::new(packet.payload.as_slice());
+        let data = &mut Cursor::new(packet.payload());
 
         match packet.id {
             config::S_CUSTOM_PAYLOAD => {
@@ -594,13 +600,38 @@ impl JavaTcpClient {
                 Ok(ConnectionAction::none())
             }
             config::S_SELECT_KNOWN_PACKS => {
+                if let Err(error) = self.expect_pre_play_packet(PrePlayPacket::SelectKnownPacks) {
+                    return Ok(self.reject_unexpected_packet(error).await);
+                }
                 self.handle_select_known_packs(SSelectKnownPacks::read_packet(data)?)
                     .await;
                 Ok(ConnectionAction::none())
             }
-            config::S_FINISH_CONFIGURATION => Ok(self.finish_configuration().await),
+            config::S_FINISH_CONFIGURATION => {
+                if let Err(error) = self.expect_pre_play_packet(PrePlayPacket::FinishConfiguration)
+                {
+                    return Ok(self.reject_unexpected_packet(error).await);
+                }
+                Ok(self.finish_configuration().await)
+            }
             _ => Err(PacketError::InvalidProtocol("Config".to_string())),
         }
+    }
+
+    fn expect_pre_play_packet(&self, packet: PrePlayPacket) -> Result<(), PacketSequenceError> {
+        self.pre_play_state.lock().expect(packet)
+    }
+
+    pub(crate) async fn reject_unexpected_packet(
+        &self,
+        error: PacketSequenceError,
+    ) -> ConnectionAction {
+        log::warn!("Client {} {error}", self.id);
+        self.kick(TextComponent::translated(
+            translations::MULTIPLAYER_DISCONNECT_INVALID_PACKET.msg(),
+        ))
+        .await;
+        ConnectionAction::none()
     }
 
     /// Kicks the client with a given reason.

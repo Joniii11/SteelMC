@@ -76,9 +76,7 @@ impl FireBlock {
     /// or an adjacent block is flammable.
     fn can_survive_at(world: &dyn LevelReader, pos: BlockPos) -> bool {
         let below_pos = pos.below();
-        world
-            .get_block_state(below_pos)
-            .is_face_sturdy_at(below_pos, Direction::Up)
+        world.is_face_sturdy(world.get_block_state(below_pos), below_pos, Direction::Up)
         // TODO: || is_valid_fire_location (check adjacent flammable blocks once flammability exists)
     }
 
@@ -118,8 +116,11 @@ impl FireBlock {
         effect_collector.run_after(
             InsideBlockEffectType::FireIgnite,
             Box::new(move |entity| {
-                if !entity.fire_immune() {
+                if !entity.fire_immune()
+                    && let Some(entity_world) = entity.level()
+                {
                     entity.hurt(
+                        &entity_world,
                         &DamageSource::environment(&vanilla_damage_types::IN_FIRE),
                         fire_damage,
                     );
@@ -131,7 +132,7 @@ impl FireBlock {
 
 impl BlockBehavior for FireBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        if SoulFireBlock::can_survive_at(context.world.as_ref(), context.place_pos) {
+        if SoulFireBlock::can_survive_at(context.world.as_ref(), context.place_pos()) {
             Some(vanilla_blocks::SOUL_FIRE.default_state())
         } else {
             Some(self.block.default_state())
@@ -211,7 +212,7 @@ impl SoulFireBlock {
 impl BlockBehavior for SoulFireBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let state = self.block.default_state();
-        self.can_survive(state, context.world, context.place_pos)
+        self.can_survive(state, context.world, context.place_pos())
             .then_some(state)
     }
 
@@ -235,7 +236,7 @@ impl BlockBehavior for SoulFireBlock {
 #[cfg(test)]
 mod tests {
     use steel_registry::{
-        blocks::block_state_ext::BlockStateExt, test_support::init_test_registry, vanilla_blocks,
+        blocks::block_state_ext::BlockStateExt, init_vanilla_registry, vanilla_blocks,
     };
     use steel_utils::{BlockPos, BlockStateId};
 
@@ -253,7 +254,7 @@ mod tests {
 
     #[test]
     fn get_state_selects_soul_fire_on_soul_fire_base_block() {
-        init_test_registry();
+        init_vanilla_registry();
 
         let level = level_with_support(vanilla_blocks::SOUL_SAND.default_state());
 
@@ -266,7 +267,7 @@ mod tests {
 
     #[test]
     fn get_state_selects_regular_fire_otherwise() {
-        init_test_registry();
+        init_vanilla_registry();
 
         let level = level_with_support(vanilla_blocks::STONE.default_state());
 

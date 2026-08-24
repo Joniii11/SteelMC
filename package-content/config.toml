@@ -1,21 +1,28 @@
-#:schema https://raw.githubusercontent.com/4lve/SteelMC/refs/heads/master/package-content/config.schema.json
+#:schema https://raw.githubusercontent.com/Steel-Foundation/SteelMC/refs/heads/master/package-content/config.schema.json
+# Documentation: https://steelmc.dev/configuration/server-configuration/
 
 [server]
 # Server port
 server_port = 25565
 # Maximum number of players allowed on the server
 max_players = 20
-# Allow view_distance above vanilla's 32-chunk cap, up to 127.
+# Allow view_distance above vanilla's 32-chunk cap, up to 128.
 allow_extended_view_distance = false
-# Maximum view distance in chunks. Normally 1-32; 1-127 when allow_extended_view_distance is true.
+# Maximum view distance in chunks. Normally 1-32; 1-128 when allow_extended_view_distance is true.
 view_distance = 10
 # Maximum simulation distance in chunks
 simulation_distance = 10
+# Maximum chained neighbor-update tasks. Negative values disable the limit.
+max_chained_neighbor_updates = 1000000
 # Whether to use Mojang's authentication service
 online_mode = true
 # Optional authentication endpoint for online mode. Omit to use Mojang's session server.
 # auth_server = "https://sessionserver.mojang.com/session/minecraft/hasJoined"
-# Whether to enable encryption for client-server communication
+# Optional name-to-profile lookup endpoint used by commands such as /op.
+# profile_server = "https://api.minecraftservices.com/minecraft/profile/lookup/name"
+# Optional service public-key endpoint used to validate signed chat certificates.
+# services_server = "https://api.minecraftservices.com/publickeys"
+# Whether to enable encryption for client-server communication. Required in online mode.
 encryption = true
 # Whether the server allows unauthorized client flight
 allow_flight = false
@@ -39,8 +46,12 @@ command_spam_threshold_seconds = 10
 main_runtime = 0
 # Worker threads for the chunk Tokio runtime.
 chunk_runtime = 0
+# Persistent workers for inter-tick gameplay packet processing.
+packet_workers = 0
 # Worker threads for the Rayon chunk generation pool.
 chunk_generation = 0
+# Worker threads for the Rayon chunk encoding pool.
+chunk_encoding = 0
 
 # Compression settings
 [server.compression]
@@ -54,11 +65,11 @@ enable = true
 
 [[server.server_links.links]]
 label = "bug_report"
-url = "https://github.com/4lve/SteelMC/issues"
+url = "https://github.com/Steel-Foundation/SteelMC/issues"
 
 [[server.server_links.links]]
 label = "website"
-url = "https://github.com/4lve/SteelMC"
+url = "https://github.com/Steel-Foundation/SteelMC"
 
 # The news channel on discord
 [[server.server_links.links]]

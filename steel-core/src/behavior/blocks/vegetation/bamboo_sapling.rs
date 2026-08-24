@@ -5,7 +5,7 @@ use steel_registry::{
     blocks::{
         BlockRef,
         block_state_ext::BlockStateExt,
-        properties::{BambooLeaves, BlockStateProperties},
+        properties::{BambooLeaves, BlockStateProperties, EnumProperty},
     },
     item_stack::ItemStack,
     vanilla_blocks, vanilla_items,
@@ -26,6 +26,8 @@ pub struct BambooSaplingBlock {
     block: BlockRef,
 }
 
+const BAMBOO_LEAVES: &EnumProperty<BambooLeaves> = &BlockStateProperties::BAMBOO_LEAVES;
+
 impl BambooSaplingBlock {
     /// Creates a new Bamboo Sapling Behavior
     #[must_use]
@@ -39,7 +41,7 @@ impl BambooSaplingBlock {
             pos.above(),
             vanilla_blocks::BAMBOO
                 .default_state()
-                .set_value(&BlockStateProperties::BAMBOO_LEAVES, BambooLeaves::Small),
+                .set_value(BAMBOO_LEAVES, BambooLeaves::Small),
             UpdateFlags::UPDATE_ALL,
         );
     }
@@ -74,7 +76,7 @@ impl Bonemealable for BambooSaplingBlock {
 impl BlockBehavior for BambooSaplingBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let state = self.block.default_state();
-        self.can_survive(state, context.world, context.place_pos)
+        self.can_survive(state, context.world, context.place_pos())
             .then_some(state)
     }
 
@@ -102,10 +104,6 @@ impl BlockBehavior for BambooSaplingBlock {
         BambooStalkBlock::can_survive(world, pos)
     }
 
-    fn is_randomly_ticking(&self, _state: BlockStateId) -> bool {
-        true
-    }
-
     fn random_tick(&self, _state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
         if rand::random_range(0..3) == 0
             && world.get_block_state(pos.above()).is_air()
@@ -121,7 +119,7 @@ impl BlockBehavior for BambooSaplingBlock {
         _state: BlockStateId,
         _include_data: bool,
     ) -> Option<ItemStack> {
-        Some(ItemStack::new(&vanilla_items::ITEMS.bamboo))
+        Some(ItemStack::new(&vanilla_items::BAMBOO))
     }
 
     fn as_bonemealable(&self) -> Option<&dyn Bonemealable> {

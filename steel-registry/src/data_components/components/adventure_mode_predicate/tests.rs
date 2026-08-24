@@ -14,14 +14,14 @@ use crate::{
             MAX_DAMAGE, MAX_STACK_SIZE,
         },
     },
-    test_support::init_test_registry,
+    init_vanilla_registry,
 };
 use serde::Deserialize;
 use simdnbt::owned::NbtList;
 use steel_utils::{codec::VarInt, serial::WriteTo};
 
 fn codec_context() -> DataComponentCodecContext<'static> {
-    init_test_registry();
+    init_vanilla_registry();
     DataComponentCodecContext::new(&REGISTRY)
 }
 

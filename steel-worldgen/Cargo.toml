@@ -17,6 +17,9 @@ rustc-hash.workspace = true
 sha2.workspace = true
 tracing.workspace = true
 glam.workspace = true
+wincode.workspace = true
+
+rayon.workspace = true
 
 [build-dependencies]
 steel-utils.workspace = true
@@ -33,7 +36,7 @@ quote.workspace = true
 rustc-hash.workspace = true
 
 [dev-dependencies]
-steel-registry = { workspace = true, features = ["test-utils"] }
+steel-registry.workspace = true
 criterion.workspace = true
 
 [[bench]]

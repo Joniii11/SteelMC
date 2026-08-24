@@ -3,18 +3,17 @@
 //! bars connect to adjacent bars, bar solid blocks.
 
 use steel_macros::block_behavior;
+use steel_registry::DyeColor;
 use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_registry::blocks::properties::{BlockStateProperties, BoolProperty, Direction};
-use steel_registry::loot_table::DyeColor;
 use steel_utils::{BlockPos, BlockStateId};
 
-use crate::behavior::block::BlockBehavior;
+use crate::behavior::block::{BlockBehavior, schedule_water_tick_if_waterlogged};
 use crate::behavior::blocks::building::{get_connection_state, update_shape};
 use crate::behavior::context::BlockPlaceContext;
 use crate::entity::ai::path::PathComputationType;
 use crate::world::ScheduledTickAccess;
-use steel_registry::vanilla_fluids;
 
 /// All glass colored pane blocks
 #[block_behavior]
@@ -23,14 +22,14 @@ pub struct StainedGlassPaneBlock {
     #[json_arg(
         r#enum = "DyeColor",
         json = "color",
-        module = "steel_registry::loot_table"
+        module = "steel_registry::dye_color"
     )]
     #[expect(unused, reason = "Is needed for beacon beam")]
     color: DyeColor,
 }
 
 /// Waterlogged property.
-const WATERLOGGED: BoolProperty = BlockStateProperties::WATERLOGGED;
+const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
 impl StainedGlassPaneBlock {
     /// Creates a new pane block behavior for the given block.
@@ -50,17 +49,15 @@ impl BlockBehavior for StainedGlassPaneBlock {
         neighbor_pos: BlockPos,
         neighbor_state: BlockStateId,
     ) -> BlockStateId {
-        if state.get_value(&WATERLOGGED) {
-            let delay = world.fluid_tick_delay(&vanilla_fluids::WATER);
-            world.schedule_fluid_tick_default(pos, &vanilla_fluids::WATER, delay);
-        }
-        update_shape(state, neighbor_state, neighbor_pos, direction)
+        schedule_water_tick_if_waterlogged(state, world, pos);
+
+        update_shape(world, state, neighbor_state, neighbor_pos, direction)
     }
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         Some(
-            get_connection_state(self.block, context.world, &context.place_pos)
-                .set_value(&WATERLOGGED, context.is_water_source()),
+            get_connection_state(self.block, context.world, &context.place_pos())
+                .set_value(WATERLOGGED, context.is_water_source()),
         )
     }
 

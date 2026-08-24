@@ -19,7 +19,7 @@ use steel_utils::{
 
 use crate::{
     RegistryExt,
-    data_components::{Component, ComponentData, DataComponentCodecContext},
+    data_components::{ComponentData, DataComponentCodecContext},
     decorated_pot_pattern::DecoratedPotPatternRef,
 };
 
@@ -36,12 +36,17 @@ impl HashComponent for ProvidesPotteryPattern {
 }
 
 /// Writes Vanilla `DecoratedPotPatterns.STREAM_CODEC` holderregistry ID
-pub fn network_writer(
+pub fn network_writer(data: &ComponentData, writer: &mut Vec<u8>) -> Result<()> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    network_writer_with_context(&context, data, writer)
+}
+
+fn network_writer_with_context(
     context: &DataComponentCodecContext<'_>,
     data: &ComponentData,
     writer: &mut Vec<u8>,
 ) -> Result<()> {
-    let Some(component) = ProvidesPotteryPattern::from_data_ref(data) else {
+    let Some(component) = data.downcast_ref::<ProvidesPotteryPattern>() else {
         return Err(Error::other(
             "Component type mismatch for provides_pottery_pattern",
         ));
@@ -66,7 +71,12 @@ pub fn network_writer(
 }
 
 /// Reads Vanilla `DecoratedPotPatterns.STREAM_CODEC` holderegistry ID
-pub fn network_reader(
+pub fn network_reader(reader: &mut Cursor<&[u8]>) -> Result<ComponentData> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    network_reader_with_context(&context, reader)
+}
+
+fn network_reader_with_context(
     context: &DataComponentCodecContext<'_>,
     reader: &mut Cursor<&[u8]>,
 ) -> Result<ComponentData> {
@@ -78,16 +88,24 @@ pub fn network_reader(
         .decorated_pot_patterns
         .by_id(id)
         .ok_or_else(|| Error::other(format!("unknown decorated pot pattern id: {id}")))?;
-    Ok(ComponentData::ProvidesPotteryPattern(
-        ProvidesPotteryPattern { pattern },
-    ))
+    Ok(ComponentData::new(ProvidesPotteryPattern { pattern }))
 }
 
 /// Writes Vanilla registry fixed persistent holder representation
 #[must_use]
-pub fn nbt_writer(context: &DataComponentCodecContext<'_>, data: &ComponentData) -> NbtTag {
-    let Some(component) = ProvidesPotteryPattern::from_data_ref(data) else {
-        panic!("Component type mismatch for provides_pottery_pattern");
+pub fn nbt_writer(data: &ComponentData) -> Result<NbtTag> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    nbt_writer_with_context(&context, data)
+}
+
+fn nbt_writer_with_context(
+    context: &DataComponentCodecContext<'_>,
+    data: &ComponentData,
+) -> Result<NbtTag> {
+    let Some(component) = data.downcast_ref::<ProvidesPotteryPattern>() else {
+        return Err(Error::other(
+            "Component type mismatch for provides_pottery_pattern",
+        ));
     };
 
     if context
@@ -96,26 +114,29 @@ pub fn nbt_writer(context: &DataComponentCodecContext<'_>, data: &ComponentData)
         .by_key(&component.pattern.key)
         .is_none()
     {
-        panic!(
+        return Err(Error::other(format!(
             "provides_pottery_pattern references unregistered pattern {}",
             component.pattern.key
-        );
+        )));
     }
 
-    NbtTag::String(component.pattern.key.to_string().into())
+    Ok(NbtTag::String(component.pattern.key.to_string().into()))
 }
 
 /// Reads Vanilla registry fixed persistent holder representation
 #[must_use]
-pub fn nbt_reader(
+pub fn nbt_reader(tag: BorrowedNbtTag) -> Option<ComponentData> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    nbt_reader_with_context(&context, tag)
+}
+
+fn nbt_reader_with_context(
     context: &DataComponentCodecContext<'_>,
     tag: BorrowedNbtTag,
 ) -> Option<ComponentData> {
     let key = Identifier::from_str(&tag.string()?.to_str()).ok()?;
     let pattern = context.registry().decorated_pot_patterns.by_key(&key)?;
-    Some(ComponentData::ProvidesPotteryPattern(
-        ProvidesPotteryPattern { pattern },
-    ))
+    Some(ComponentData::new(ProvidesPotteryPattern { pattern }))
 }
 
 #[cfg(test)]
@@ -123,14 +144,18 @@ mod tests {
     use std::{collections::BTreeMap, io::Cursor, str::FromStr};
 
     use serde::Deserialize;
-    use steel_utils::Identifier;
+    use simdnbt::FromNbtTag;
+    use steel_utils::{
+        Identifier,
+        serial::{ReadFrom, WriteTo},
+    };
 
     use super::{nbt_reader, nbt_writer, network_reader, network_writer};
     use crate::{
         REGISTRY, RegistryExt,
         data_components::vanilla_components::PROVIDES_POTTERY_PATTERN,
-        data_components::{ComponentData, DataComponentCodecContext, DataComponentPatch},
-        test_support::init_test_registry,
+        data_components::{ComponentData, DataComponentPatch},
+        init_vanilla_registry,
     };
 
     #[derive(Deserialize)]
@@ -138,9 +163,8 @@ mod tests {
         provides_pottery_pattern: BTreeMap<String, i32>,
     }
 
-    fn context() -> DataComponentCodecContext<'static> {
-        init_test_registry();
-        DataComponentCodecContext::new(&REGISTRY)
+    fn init_registry() {
+        init_vanilla_registry();
     }
 
     fn fixtures() -> ComponentHashFixtures {
@@ -148,16 +172,24 @@ mod tests {
             .expect("component hash fixture must be valid JSON")
     }
 
+    fn component_hash(data: &ComponentData) -> i32 {
+        REGISTRY
+            .data_components
+            .by_key(&PROVIDES_POTTERY_PATTERN.key)
+            .expect("provides_pottery_pattern component must be registered")
+            .compute_hash(data)
+            .expect("pottery pattern component hash must encode")
+    }
+
     #[test]
     fn generated_pottery_sherd_components_match_snapshot_2_hashes() {
-        let context = context();
+        init_registry();
         let fixtures = fixtures();
         assert_eq!(fixtures.provides_pottery_pattern.len(), 23);
 
         for (item_key, expected_hash) in fixtures.provides_pottery_pattern {
             let item_key = Identifier::from_str(&item_key).expect("fixture item key must be valid");
-            let item = context
-                .registry()
+            let item = REGISTRY
                 .items
                 .by_key(&item_key)
                 .expect("fixture item must be registered");
@@ -167,7 +199,7 @@ mod tests {
                 .expect("fixture item must provide a pottery pattern");
 
             assert_eq!(
-                ComponentData::ProvidesPotteryPattern(*pattern).compute_hash(),
+                component_hash(&ComponentData::new(*pattern)),
                 expected_hash,
                 "provides_pottery_pattern hash mismatch for {item_key}"
             );
@@ -176,10 +208,9 @@ mod tests {
 
     #[test]
     fn codecs_use_vanillas_registered_holder_forms() {
-        let context = context();
+        init_registry();
         let snort = Identifier::vanilla_static("snort_pottery_sherd");
-        let item = context
-            .registry()
+        let item = REGISTRY
             .items
             .by_key(&snort)
             .expect("snort pottery sherd must be registered");
@@ -187,48 +218,45 @@ mod tests {
             .components
             .get_ref(PROVIDES_POTTERY_PATTERN)
             .expect("snort pottery sherd must provide a pattern");
-        let data = ComponentData::ProvidesPotteryPattern(component);
+        let data = ComponentData::new(component);
 
         let mut network = Vec::new();
-        network_writer(&context, &data, &mut network)
-            .expect("pottery pattern network encoding must succeed");
+        network_writer(&data, &mut network).expect("pottery pattern network encoding must succeed");
         assert_eq!(network, vec![22]);
         assert_eq!(
-            network_reader(&context, &mut Cursor::new(network.as_slice()))
+            network_reader(&mut Cursor::new(network.as_slice()))
                 .expect("pottery pattern network decoding must succeed"),
             data
         );
 
-        let persistent = nbt_writer(&context, &data);
+        let persistent =
+            nbt_writer(&data).expect("pottery pattern persistent encoding must succeed");
         let mut persistent_bytes = Vec::new();
         persistent.write(&mut persistent_bytes);
         let borrowed = simdnbt::borrow::read_tag(&mut Cursor::new(persistent_bytes.as_slice()))
             .expect("pottery pattern persistent data must be binary NBT");
-        assert_eq!(nbt_reader(&context, borrowed.as_tag()), Some(data.clone()));
+        assert_eq!(nbt_reader(borrowed.as_tag()), Some(data.clone()));
 
         let mut patch = DataComponentPatch::new();
         patch.set(PROVIDES_POTTERY_PATTERN, component);
         let mut patch_network = Vec::new();
         patch
-            .write_with_context(&context, &mut patch_network)
+            .write(&mut patch_network)
             .expect("pottery pattern patch network encoding must succeed");
         assert_eq!(
-            DataComponentPatch::read_with_context(
-                &context,
-                &mut Cursor::new(patch_network.as_slice()),
-            )
-            .expect("pottery pattern patch network decoding must succeed"),
+            DataComponentPatch::read(&mut Cursor::new(patch_network.as_slice()))
+                .expect("pottery pattern patch network decoding must succeed"),
             patch
         );
 
-        let persistent_patch = patch.to_nbt_tag_with_context(&context);
+        let persistent_patch = patch.to_nbt_tag_ref();
         let mut persistent_patch_bytes = Vec::new();
         persistent_patch.write(&mut persistent_patch_bytes);
         let borrowed =
             simdnbt::borrow::read_tag(&mut Cursor::new(persistent_patch_bytes.as_slice()))
                 .expect("pottery pattern patch persistent data must be binary NBT");
         assert_eq!(
-            DataComponentPatch::from_nbt_tag_with_context(&context, borrowed.as_tag())
+            DataComponentPatch::from_nbt_tag(borrowed.as_tag())
                 .expect("pottery pattern patch persistent decoding must succeed"),
             patch
         );

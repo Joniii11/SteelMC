@@ -4,13 +4,38 @@ use simdnbt::owned::NbtTag;
 use steel_utils::Identifier;
 
 use crate::sound_event::SoundEventRef;
+use crate::world_clock::WorldClockRef;
 
 #[derive(Debug)]
 pub struct BedRule {
-    pub can_set_spawn: &'static str,
-    pub can_sleep: &'static str,
+    pub can_set_spawn: BedRuleValue,
+    pub can_sleep: BedRuleValue,
     pub explodes: bool,
     pub error_message_key: Option<&'static str>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BedRuleValue {
+    Always,
+    WhenDark,
+    Never,
+}
+
+impl BedRuleValue {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Always => "always",
+            Self::WhenDark => "when_dark",
+            Self::Never => "never",
+        }
+    }
+}
+
+impl ToNbtTag for BedRuleValue {
+    fn to_nbt_tag(self) -> NbtTag {
+        self.as_str().to_nbt_tag()
+    }
 }
 
 #[derive(Debug)]
@@ -48,7 +73,7 @@ pub struct DimensionType {
     pub logical_height: i32,
     pub infiniburn: &'static str,
     pub ambient_light: f32,
-    pub default_clock: Option<&'static str>,
+    pub default_clock: Option<WorldClockRef>,
     pub timelines: Option<&'static str>,
     pub has_ender_dragon_fight: bool,
     pub monster_spawn_light_level: MonsterSpawnLightLevel,
@@ -124,7 +149,7 @@ impl ToNbtTag for &DimensionType {
         compound.insert("ambient_light", self.ambient_light);
         compound.insert("has_ender_dragon_fight", self.has_ender_dragon_fight);
         if let Some(clock) = self.default_clock {
-            compound.insert("default_clock", clock);
+            compound.insert("default_clock", clock.key.to_string().as_str());
         }
         if let Some(timelines) = self.timelines {
             compound.insert("timelines", timelines);

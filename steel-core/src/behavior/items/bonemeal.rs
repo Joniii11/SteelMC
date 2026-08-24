@@ -4,15 +4,15 @@ use rand::RngExt;
 use steel_macros::item_behavior;
 use steel_registry::{
     blocks::{block_state_ext::BlockStateExt, shapes::is_offset_shape_full_block},
-    vanilla_blocks,
+    data_components::vanilla_components::USE_EFFECTS,
+    level_events, vanilla_blocks, vanilla_game_events,
 };
 use steel_utils::{BlockPos, Direction, types::UpdateFlags};
 
 use crate::{
-    behavior::{
-        BLOCK_BEHAVIORS, BlockStateBehaviorExt, InteractionResult, ItemBehavior, UseOnContext,
-    },
-    world::World,
+    behavior::{BLOCK_BEHAVIORS, InteractionResult, ItemBehavior, UseOnContext},
+    entity::Entity,
+    world::{LevelReader as _, World},
 };
 
 /// Behavior for the Bonemeal item.
@@ -20,6 +20,18 @@ use crate::{
 pub struct BoneMealItem;
 
 impl BoneMealItem {
+    fn cause_finish_use_vibration(context: &UseOnContext<'_>) {
+        let interact_vibrations = context.inv.with_item(|item| {
+            item.get(USE_EFFECTS)
+                .is_some_and(|effects| effects.interact_vibrations)
+        });
+        if interact_vibrations {
+            context
+                .player
+                .game_event(&vanilla_game_events::ITEM_INTERACT_FINISH);
+        }
+    }
+
     fn grow(world: &Arc<World>, pos: BlockPos) -> bool {
         let state = world.get_block_state(pos);
         let Some(behavior) = BLOCK_BEHAVIORS.get_behavior_for_state(state) else {
@@ -104,12 +116,21 @@ impl ItemBehavior for BoneMealItem {
     fn use_on(&self, context: &mut UseOnContext) -> InteractionResult {
         if Self::grow(context.world, context.hit_result.block_pos) {
             context.inv.with_item(|item| item.shrink(1));
-            // TODO: particles
+            Self::cause_finish_use_vibration(context);
+            context.world.level_event(
+                level_events::PARTICLES_AND_SOUND_PLANT_GROWTH,
+                context.hit_result.block_pos,
+                15,
+                None,
+            );
             return InteractionResult::Success;
         }
         let state = context.world.get_block_state(context.hit_result.block_pos);
-        let is_clicked_face_sturdy =
-            state.is_face_sturdy_at(context.hit_result.block_pos, context.hit_result.direction);
+        let is_clicked_face_sturdy = context.world.is_face_sturdy(
+            state,
+            context.hit_result.block_pos,
+            context.hit_result.direction,
+        );
         if is_clicked_face_sturdy
             && Self::grow_water_plant(
                 context.world,
@@ -121,6 +142,16 @@ impl ItemBehavior for BoneMealItem {
             )
         {
             context.inv.with_item(|item| item.shrink(1));
+            Self::cause_finish_use_vibration(context);
+            context.world.level_event(
+                level_events::PARTICLES_AND_SOUND_PLANT_GROWTH,
+                context
+                    .hit_result
+                    .block_pos
+                    .relative(context.hit_result.direction),
+                15,
+                None,
+            );
             return InteractionResult::Success;
         }
         InteractionResult::Pass

@@ -2,6 +2,7 @@
 //!
 use core::iter;
 
+use simdnbt::owned::{NbtCompound, NbtList};
 use steel_protocol::packets::game::{AttributeModifierData, AttributeSnapshot};
 pub use steel_registry::attribute::AttributeModifierOperation;
 use steel_registry::attribute::AttributeRef;
@@ -204,6 +205,18 @@ impl AttributeInstance {
         true
     }
 
+    /// Removes every modifier while preserving the base value
+    fn remove_modifiers(&mut self) -> bool {
+        if self.modifiers.is_empty() {
+            return false;
+        }
+
+        self.modifiers.clear();
+        self.persistent.clear();
+        self.recalculate();
+        true
+    }
+
     /// Three-phase vanilla calculation:
     /// 1. `ADD_VALUE`
     /// 2. `ADD_MULTIPLIED_BASE`
@@ -344,6 +357,38 @@ impl AttributeMap {
     pub fn get_instance(&self, attribute: AttributeRef) -> Option<&AttributeInstance> {
         let id = attribute.try_id()?;
         self.instances.get(id)?.as_ref()
+    }
+
+    /// Serializes the vanilla `LivingEntity.attributes` list.
+    #[must_use]
+    pub(crate) fn to_vanilla_nbt(&self) -> NbtList {
+        let attributes = self
+            .instances
+            .iter()
+            .flatten()
+            .map(|instance| {
+                let mut attribute = NbtCompound::new();
+                attribute.insert("id", instance.attribute().key.to_string());
+                attribute.insert("base", instance.base_value());
+
+                let modifiers = instance
+                    .permanent_modifiers()
+                    .map(|modifier| {
+                        let mut packed = NbtCompound::new();
+                        packed.insert("id", modifier.id.to_string());
+                        packed.insert("amount", modifier.amount);
+                        packed.insert("operation", modifier.operation.name());
+                        packed
+                    })
+                    .collect::<Vec<_>>();
+                if !modifiers.is_empty() {
+                    attribute.insert("modifiers", NbtList::Compound(modifiers));
+                }
+
+                attribute
+            })
+            .collect();
+        NbtList::Compound(attributes)
     }
 
     /// Returns whether an attribute has a modifier with the given ID.
@@ -494,17 +539,37 @@ impl AttributeMap {
             }
         }
     }
+
+    /// Removes all permanent and transient modifiers while preserving base values
+    pub fn remove_all_modifiers(&mut self) {
+        let Self {
+            instances,
+            to_update,
+            to_sync,
+        } = self;
+        for (id, slot) in instances.iter_mut().enumerate() {
+            if let Some(inst) = slot
+                && inst.remove_modifiers()
+            {
+                to_update.mark(id as u16);
+                if inst.attribute.syncable {
+                    to_sync.mark(id as u16);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use steel_registry::{REGISTRY, test_support, vanilla_attributes, vanilla_entities};
+    use simdnbt::owned::NbtTag;
+    use steel_registry::{REGISTRY, init_vanilla_registry, vanilla_attributes, vanilla_entities};
 
     use super::*;
 
     #[test]
     fn all_generated_entity_default_attributes_resolve() {
-        test_support::init_test_registry();
+        init_vanilla_registry();
 
         for (_, entity_type) in REGISTRY.entity_types.iter() {
             let _ = AttributeMap::new_for_entity(entity_type);
@@ -513,7 +578,7 @@ mod tests {
 
     #[test]
     fn player_gravity_is_initialized_from_default_attributes() {
-        test_support::init_test_registry();
+        init_vanilla_registry();
 
         let attributes = AttributeMap::new_for_entity(&vanilla_entities::PLAYER);
 
@@ -526,62 +591,97 @@ mod tests {
     }
 
     #[test]
-    fn living_entity_defaults_include_vanilla_26_3_movement_attributes() {
-        test_support::init_test_registry();
-
-        let pig_attributes = AttributeMap::new_for_entity(&vanilla_entities::PIG);
-        assert_required_attribute_defaults(
-            &pig_attributes,
-            &[
-                vanilla_attributes::BOUNCINESS,
-                vanilla_attributes::AIR_DRAG_MODIFIER,
-                vanilla_attributes::FRICTION_MODIFIER,
-                vanilla_attributes::NAME_TAG_DISTANCE,
-                vanilla_attributes::BELOW_NAME_DISTANCE,
-                vanilla_attributes::MAX_ABSORPTION,
-                vanilla_attributes::CAMERA_DISTANCE,
-                vanilla_attributes::WAYPOINT_TRANSMIT_RANGE,
-            ],
+    fn vanilla_nbt_only_contains_permanent_modifiers() {
+        init_vanilla_registry();
+        let mut attributes = AttributeMap::new_for_entity(&vanilla_entities::PLAYER);
+        attributes.add_modifier(
+            vanilla_attributes::MAX_HEALTH,
+            AttributeModifier {
+                id: Identifier::vanilla_static("transient_test"),
+                amount: 1.0,
+                operation: AttributeModifierOperation::AddValue,
+            },
+            false,
+        );
+        attributes.add_modifier(
+            vanilla_attributes::MAX_HEALTH,
+            AttributeModifier {
+                id: Identifier::vanilla_static("permanent_test"),
+                amount: 2.0,
+                operation: AttributeModifierOperation::AddMultipliedBase,
+            },
+            true,
         );
 
-        let player_attributes = AttributeMap::new_for_entity(&vanilla_entities::PLAYER);
-        assert_required_attribute_defaults(
-            &player_attributes,
-            &[
-                vanilla_attributes::BOUNCINESS,
-                vanilla_attributes::AIR_DRAG_MODIFIER,
-                vanilla_attributes::FRICTION_MODIFIER,
-                vanilla_attributes::NAME_TAG_DISTANCE,
-                vanilla_attributes::BELOW_NAME_DISTANCE,
-                vanilla_attributes::MAX_ABSORPTION,
-                vanilla_attributes::CAMERA_DISTANCE,
-            ],
-        );
-        assert_attribute_value(
-            &player_attributes,
-            vanilla_attributes::WAYPOINT_TRANSMIT_RANGE,
-            60_000_000.0,
-        );
-        assert_attribute_value(
-            &player_attributes,
-            vanilla_attributes::WAYPOINT_RECEIVE_RANGE,
-            60_000_000.0,
-        );
-    }
+        let NbtList::Compound(packed_attributes) = attributes.to_vanilla_nbt() else {
+            panic!("attributes should serialize as a compound list");
+        };
+        let max_health = packed_attributes
+            .iter()
+            .find(|attribute| {
+                attribute.string("id").is_some_and(|id| {
+                    id.to_str().as_ref() == vanilla_attributes::MAX_HEALTH.key.to_string()
+                })
+            })
+            .unwrap_or_else(|| panic!("max health should be serialized"));
+        let Some(NbtTag::List(NbtList::Compound(modifiers))) = max_health.get("modifiers") else {
+            panic!("permanent modifier should be serialized");
+        };
 
-    fn assert_required_attribute_defaults(
-        attributes: &AttributeMap,
-        expected_defaults: &[AttributeRef],
-    ) {
-        for &attribute in expected_defaults {
-            assert_attribute_value(attributes, attribute, attribute.default_value);
-        }
-    }
-
-    fn assert_attribute_value(attributes: &AttributeMap, attribute: AttributeRef, expected: f64) {
+        assert_eq!(modifiers.len(), 1);
         assert_eq!(
-            attributes.required_value(attribute).to_bits(),
-            expected.to_bits()
+            modifiers[0].string("id").map(ToString::to_string),
+            Some("minecraft:permanent_test".to_owned())
         );
+        assert_eq!(modifiers[0].double("amount"), Some(2.0));
+        assert_eq!(
+            modifiers[0].string("operation").map(ToString::to_string),
+            Some("add_multiplied_base".to_owned())
+        );
+    }
+
+    #[test]
+    fn removing_all_modifiers_preserves_base_value() {
+        init_vanilla_registry();
+        let mut attributes = AttributeMap::new_for_entity(&vanilla_entities::PLAYER);
+        attributes.set_base_value(vanilla_attributes::MAX_HEALTH, 30.0);
+
+        let transient_id = Identifier::vanilla_static("transient_test");
+        let permanent_id = Identifier::vanilla_static("permanent_test");
+        assert!(attributes.add_modifier(
+            vanilla_attributes::MAX_HEALTH,
+            AttributeModifier {
+                id: Identifier::vanilla_static("transient_test"),
+                amount: 2.0,
+                operation: AttributeModifierOperation::AddValue,
+            },
+            false,
+        ));
+        assert!(attributes.add_modifier(
+            vanilla_attributes::MAX_HEALTH,
+            AttributeModifier {
+                id: Identifier::vanilla_static("permanent_test"),
+                amount: 3.0,
+                operation: AttributeModifierOperation::AddValue,
+            },
+            true,
+        ));
+
+        attributes.remove_all_modifiers();
+
+        assert_eq!(
+            attributes
+                .get_base_value(vanilla_attributes::MAX_HEALTH)
+                .map(f64::to_bits),
+            Some(30.0_f64.to_bits())
+        );
+        assert_eq!(
+            attributes
+                .get_value(vanilla_attributes::MAX_HEALTH)
+                .map(f64::to_bits),
+            Some(30.0_f64.to_bits())
+        );
+        assert!(!attributes.has_modifier(vanilla_attributes::MAX_HEALTH, &transient_id));
+        assert!(!attributes.has_modifier(vanilla_attributes::MAX_HEALTH, &permanent_id));
     }
 }

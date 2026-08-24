@@ -5,7 +5,7 @@ use steel_utils::BlockPos;
 
 use super::random_pos::default_random_pos;
 use super::selector::{Goal, GoalControls};
-use crate::behavior::{BLOCK_BEHAVIORS, BlockCollisionContext, BlockStateBehaviorExt as _};
+use crate::behavior::{BLOCK_BEHAVIORS, BlockCollisionContext};
 use crate::entity::PathfinderMob;
 use crate::fluid::FluidStateExt as _;
 
@@ -117,14 +117,13 @@ fn block_pos_corner(pos: BlockPos) -> DVec3 {
 mod tests {
     use std::sync::Weak;
 
-    use steel_registry::{
-        test_support::init_test_registry, vanilla_damage_types, vanilla_entities,
-    };
+    use steel_registry::{init_vanilla_registry, vanilla_damage_types, vanilla_entities};
 
     use super::*;
     use crate::entity::LivingEntity;
     use crate::entity::damage::DamageSource;
     use crate::entity::entities::PigEntity;
+    use crate::test_support::test_world;
 
     #[test]
     fn panic_goal_uses_move_control() {
@@ -136,18 +135,20 @@ mod tests {
 
     #[test]
     fn panic_goal_uses_vanilla_panic_damage_tag() {
-        init_test_registry();
+        init_vanilla_registry();
         let pig = PigEntity::new(&vanilla_entities::PIG, 1, DVec3::ZERO, Weak::new());
 
         assert!(!PanicGoal::should_panic(&pig));
 
         assert!(pig.hurt_server(
+            test_world(),
             &DamageSource::environment(&vanilla_damage_types::GENERIC),
             1.0
         ));
         assert!(!PanicGoal::should_panic(&pig));
 
         assert!(pig.hurt_server(
+            test_world(),
             &DamageSource::environment(&vanilla_damage_types::PLAYER_ATTACK),
             2.0
         ));

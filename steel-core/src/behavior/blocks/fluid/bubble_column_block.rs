@@ -3,8 +3,7 @@ use std::sync::Arc;
 use steel_macros::block_behavior;
 use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt as _;
-use steel_registry::blocks::properties::{BlockStateProperties, Direction};
-use steel_registry::fluid::FluidState;
+use steel_registry::blocks::properties::{BlockStateProperties, BoolProperty, Direction};
 use steel_registry::item_stack::ItemStack;
 use steel_registry::sound_events;
 use steel_registry::vanilla_block_tags::BlockTag;
@@ -17,18 +16,21 @@ use steel_utils::{BlockPos, BlockStateId};
 
 use crate::behavior::context::BlockPlaceContext;
 use crate::behavior::{
-    BLOCK_BEHAVIORS, BlockCollisionContext, BlockStateBehaviorExt, block::BlockBehavior,
-    block::PickupResult,
+    BLOCK_BEHAVIORS, BlockCollisionContext, block::BlockBehavior, block::PickupResult,
 };
 use crate::entity::{Entity, InsideBlockEffectCollector};
 use crate::player::Player;
-use crate::world::{LevelAccessor, LevelReader, ScheduledTickAccess, World};
+use crate::world::{
+    ConditionalBlockSetResult, LevelAccessor, LevelReader, ScheduledTickAccess, World,
+};
 
 /// Vanilla `BubbleColumnBlock` column propagation and fluid state.
 #[block_behavior]
 pub struct BubbleColumnBlock {
     block: BlockRef,
 }
+
+const DRAG: &BoolProperty = &BlockStateProperties::DRAG;
 
 impl BubbleColumnBlock {
     /// Creates a bubble column block behavior.
@@ -43,7 +45,22 @@ impl BubbleColumnBlock {
         occupy_at: BlockPos,
         below_state: BlockStateId,
     ) {
-        let occupy_state = level.get_block_state(occupy_at);
+        Self::update_column_with_state(
+            bubble_column,
+            level,
+            occupy_at,
+            level.get_block_state(occupy_at),
+            below_state,
+        );
+    }
+
+    fn update_column_with_state(
+        bubble_column: BlockRef,
+        level: &dyn LevelAccessor,
+        occupy_at: BlockPos,
+        occupy_state: BlockStateId,
+        below_state: BlockStateId,
+    ) {
         if !Self::can_occupy(bubble_column, occupy_state) {
             return;
         }
@@ -71,7 +88,7 @@ impl BubbleColumnBlock {
             .has_tag(&FluidTag::BUBBLE_COLUMN_CAN_OCCUPY)
             && occupy_state.get_block() == &vanilla_blocks::WATER
             && fluid_state.is_source()
-            && fluid_state.amount >= 8
+            && fluid_state.is_full()
     }
 
     fn column_state(
@@ -86,17 +103,13 @@ impl BubbleColumnBlock {
             .get_block()
             .has_tag(&BlockTag::ENABLES_BUBBLE_COLUMN_PUSH_UP)
         {
-            return bubble_column
-                .default_state()
-                .set_value(&BlockStateProperties::DRAG, false);
+            return bubble_column.default_state().set_value(DRAG, false);
         }
         if below_state
             .get_block()
             .has_tag(&BlockTag::ENABLES_BUBBLE_COLUMN_DRAG_DOWN)
         {
-            return bubble_column
-                .default_state()
-                .set_value(&BlockStateProperties::DRAG, true);
+            return bubble_column.default_state().set_value(DRAG, true);
         }
 
         if occupy_state.get_block() == bubble_column {
@@ -127,7 +140,7 @@ impl BubbleColumnBlock {
             return;
         }
 
-        let drag_down = state.get_value(&BlockStateProperties::DRAG);
+        let drag_down = state.get_value(DRAG);
         if Self::is_open_above(level, pos) {
             entity.on_above_bubble_column(drag_down, pos);
         } else {
@@ -176,12 +189,14 @@ impl BlockBehavior for BubbleColumnBlock {
         state
     }
 
-    fn tick(&self, _state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
-        Self::update_column(self.block, world, pos, world.get_block_state(pos.below()));
-    }
-
-    fn get_fluid_state(&self, _state: BlockStateId) -> FluidState {
-        FluidState::source(&vanilla_fluids::WATER)
+    fn tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
+        Self::update_column_with_state(
+            self.block,
+            world,
+            pos,
+            state,
+            world.get_block_state(pos.below()),
+        );
     }
 
     fn entity_inside(
@@ -200,16 +215,20 @@ impl BlockBehavior for BubbleColumnBlock {
         &self,
         world: &Arc<World>,
         pos: BlockPos,
-        _state: BlockStateId,
+        state: BlockStateId,
         _player: Option<&Player>,
     ) -> Option<PickupResult> {
-        world.set_block(
+        if world.set_block_if_unchanged(
             pos,
+            state,
             vanilla_blocks::AIR.default_state(),
             UpdateFlags::UPDATE_ALL_IMMEDIATE,
-        );
+        ) != ConditionalBlockSetResult::Changed
+        {
+            return None;
+        }
         Some(PickupResult {
-            filled_bucket: ItemStack::new(&vanilla_items::ITEMS.water_bucket),
+            filled_bucket: ItemStack::new(&vanilla_items::WATER_BUCKET),
             sound: Some(&sound_events::ITEM_BUCKET_FILL),
         })
     }
@@ -221,7 +240,7 @@ mod tests {
 
     use glam::DVec3;
     use steel_registry::entity_type::EntityTypeRef;
-    use steel_registry::test_support::init_test_registry;
+    use steel_registry::init_vanilla_registry;
     use steel_registry::vanilla_entities;
     use steel_utils::locks::SyncMutex;
 
@@ -286,12 +305,12 @@ mod tests {
     fn bubble_column_state(drag_down: bool) -> BlockStateId {
         vanilla_blocks::BUBBLE_COLUMN
             .default_state()
-            .set_value(&BlockStateProperties::DRAG, drag_down)
+            .set_value(DRAG, drag_down)
     }
 
     #[test]
     fn bubble_column_update_shape_schedules_water_and_column_tick() {
-        init_test_registry();
+        init_vanilla_registry();
         let behavior = BubbleColumnBlock::new(&vanilla_blocks::BUBBLE_COLUMN);
         let level = TestLevel::default();
         let state = vanilla_blocks::BUBBLE_COLUMN.default_state();
@@ -318,7 +337,7 @@ mod tests {
 
     #[test]
     fn bubble_column_update_column_uses_push_up_and_drag_down_blocks() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
         let level = TestLevel::default()
             .with_block(BlockPos::ZERO, vanilla_blocks::WATER.default_state())
@@ -338,13 +357,13 @@ mod tests {
         assert_eq!(placed.len(), 2);
         assert!(placed.iter().all(|placed| {
             placed.state.get_block() == &vanilla_blocks::BUBBLE_COLUMN
-                && !placed.state.get_value(&BlockStateProperties::DRAG)
+                && !placed.state.get_value(DRAG)
         }));
     }
 
     #[test]
     fn precise_entity_with_open_block_above_uses_above_bubble_column_hook() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
         let level = TestLevel::default();
         let entity = RecordingEntity::new();
@@ -369,7 +388,7 @@ mod tests {
 
     #[test]
     fn precise_entity_with_fluid_above_stays_inside_bubble_column() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
         let level = TestLevel::default().with_block(
             BlockPos::ZERO.above(),
@@ -393,7 +412,7 @@ mod tests {
 
     #[test]
     fn imprecise_entity_does_not_apply_bubble_column_effect() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
         let level = TestLevel::default();
         let entity = RecordingEntity::new();

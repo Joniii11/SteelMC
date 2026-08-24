@@ -1,4 +1,4 @@
-//! World-carving: runtime types for running direct carvers during the
+//! World-carving: runtime types for running direct world carvers during the
 //! `CARVERS` chunk stage.
 //!
 //! Mirrors vanilla's `net.minecraft.world.level.levelgen.carver` package. The
@@ -13,22 +13,22 @@ use smallvec::SmallVec;
 use steel_math::lerp2;
 use steel_math::trig;
 use steel_registry::biome::BiomeRef;
+use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_utils::ChunkPos;
-use steel_utils::{BlockPos, BlockStateId, types::UpdateFlags};
+use steel_utils::{BlockPos, BlockStateId};
 use steel_worldgen::density::DimensionNoises;
 use steel_worldgen::surface::{SurfaceConditionNoiseCache, SurfaceRuleContext};
 
-use crate::behavior::BlockStateBehaviorExt as _;
-use crate::chunk::{
-    chunk_access::ChunkAccess,
-    heightmap::{Heightmap, HeightmapType},
-};
-use crate::worldgen::carving_mask::CarvingMask;
+use crate::chunk::heightmap::Heightmap;
+use crate::worldgen::generator::{CarversPhase, GenerationChunk};
 use crate::worldgen::surface::SurfaceSystem;
 use steel_worldgen::noise::{Aquifer, AquiferResult};
 
 pub mod canyon;
 pub mod cave;
+mod mask;
+
+pub use mask::CarvingMask;
 
 /// The four preliminary-surface-level samples at a chunk's block corners, in
 /// world Y. Indexed by local `(x, z)` corner as `(0,0)`, `(16,0)`, `(0,16)`,
@@ -58,9 +58,7 @@ pub struct SourceChunk {
 
 /// Runtime context for a single `apply_carvers` invocation on one chunk.
 ///
-/// Mirrors vanilla's `CarvingContext`. Owns the freshly-built [`Aquifer`] for
-/// this chunk; the aquifer is regenerated per carver invocation rather than
-/// cached on the chunk's generic proto representation.
+/// Mirrors vanilla's `CarvingContext` and borrows the Aquifer retained from Noise.
 pub struct CarvingContext<'a, N: DimensionNoises> {
     /// Dimension minimum Y (inclusive).
     pub min_y: i32,
@@ -68,9 +66,8 @@ pub struct CarvingContext<'a, N: DimensionNoises> {
     pub gen_depth: i32,
     /// Surface system (biome-specific surface noise + clay bands).
     pub surface_system: &'a SurfaceSystem,
-    /// Owned aquifer for this chunk. Built fresh from the dimension's noises
-    /// at the start of `apply_carvers`.
-    pub aquifer: Aquifer<N>,
+    /// Aquifer for this chunk, retained from Noise or reconstructed after a disk reload.
+    pub aquifer: &'a mut Aquifer<N>,
     /// Preliminary surface levels at the 4 corners of this chunk, used for
     /// bilinear interpolation of `min_surface_level` during top-material
     /// lookup.
@@ -113,6 +110,7 @@ impl<N: DimensionNoises> CarvingContext<'_, N> {
     /// carver-specific variant). Vanilla hardcodes
     /// `stone_depth_above = stone_depth_below = 1` here, and the water height
     /// depends on whether the carved block was replaced with a fluid.
+    #[must_use]
     pub fn top_material(
         &self,
         biome_id: u16,
@@ -222,10 +220,7 @@ pub(super) fn horizontal_tunnel_radius(progress_arg: f32, thickness: f32) -> f64
     1.5 + f64::from(radius_offset)
 }
 
-/// The references every carver method needs. Bundled so `carve_ellipsoid`,
-/// `create_tunnel`, `create_room`, `carve_cave`, `carve_canyon`, and
-/// `do_carve` can all be `&mut self` methods instead of repeating the same
-/// 7–8 arguments.
+/// The references every direct carver needs while building the per-chunk mask.
 pub struct CarveRun<'a, 'b, N, F>
 where
     N: DimensionNoises,
@@ -236,7 +231,7 @@ where
     /// Noise generators for this dimension.
     pub noises: &'a N,
     /// Chunk being carved into.
-    pub chunk: &'a ChunkAccess,
+    pub chunk: GenerationChunk<'a, CarversPhase>,
     /// Chunk NW block X (cached; `ctx.chunk_min_x` mirrors this).
     pub chunk_min_x: i32,
     /// Chunk NW block Z (cached; `ctx.chunk_min_z` mirrors this).
@@ -261,6 +256,10 @@ where
     #[expect(
         clippy::similar_names,
         reason = "min_x_idx / min_z_idx / max_x_idx / max_z_idx mirror vanilla"
+    )]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "x/y/z/horizontal_radius/vertical_radius + skip_checker mirrors vanilla"
     )]
     pub fn carve_ellipsoid<S: CarveSkipChecker>(
         &mut self,
@@ -315,9 +314,8 @@ where
     }
 
     /// Applies Snapshot-2 `CarverOutput` after every direct carver has marked
-    /// its geometry. This is intentionally separate from `carve_ellipsoid`:
-    /// overlapping direct carvers share one mask before the aquifer and
-    /// top-material decisions are evaluated.
+    /// its geometry. Overlapping carvers therefore share one mask before the
+    /// aquifer and top-material decisions are evaluated.
     pub fn apply_carving_mask(&mut self) {
         let mut ranges = Vec::new();
         self.mask
@@ -347,7 +345,7 @@ where
                     AquiferResult::Air => self.ids.air,
                 };
 
-                self.chunk.set_block_state(pos, state, UpdateFlags::empty());
+                self.chunk.set_block_state(pos, state);
                 if self.ctx.aquifer.should_schedule_fluid_update() && state.has_fluid() {
                     self.chunk.mark_pos_for_postprocessing(pos);
                 }
@@ -361,7 +359,6 @@ where
                     continue;
                 }
 
-                let under_fluid = state.has_fluid();
                 let steep = self.steep_material_condition(world_x, world_z);
                 let biome_id =
                     (self.biome_getter)(BlockPos(IVec3::new(world_x, world_y - 1, world_z)));
@@ -371,10 +368,9 @@ where
                     world_y - 1,
                     world_z,
                     steep,
-                    under_fluid,
+                    state.has_fluid(),
                 ) {
-                    self.chunk
-                        .set_block_state(below_pos, top, UpdateFlags::empty());
+                    self.chunk.set_block_state(below_pos, top);
                     if top.has_fluid() {
                         self.chunk.mark_pos_for_postprocessing(below_pos);
                     }
@@ -384,21 +380,13 @@ where
     }
 
     fn steep_material_condition(&self, world_x: i32, world_z: i32) -> bool {
-        let heightmaps = self.chunk.proto_heightmaps();
-        if let Some(worldgen_surface) = heightmaps.get(HeightmapType::WorldSurfaceWg) {
-            return steep_material_condition(worldgen_surface, world_x, world_z);
-        }
-        drop(heightmaps);
-
-        self.chunk
-            .prime_heightmaps(&[HeightmapType::WorldSurfaceWg]);
-        let heightmaps = self.chunk.proto_heightmaps();
-        if let Some(worldgen_surface) = heightmaps.get(HeightmapType::WorldSurfaceWg) {
-            return steep_material_condition(worldgen_surface, world_x, world_z);
-        }
-
-        log::error!("WorldSurfaceWg heightmap missing during carver top-material lookup");
-        false
+        let Some(steep) = self.chunk.with_world_surface_heightmap(|worldgen_surface| {
+            steep_material_condition(worldgen_surface, world_x, world_z)
+        }) else {
+            log::error!("WorldSurfaceWg heightmap missing during carver top-material lookup");
+            return false;
+        };
+        steep
     }
 }
 

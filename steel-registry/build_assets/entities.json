@@ -45226,9 +45226,10 @@
               "serializer": "villager_data",
               "default_value": {
                 "type": "minecraft:plains",
-                "profession": "minecraft:mason",
+                "profession": "minecraft:shepherd",
                 "level": 1
-              }
+              },
+              "runtime_initializer": "random_villager_profession"
             },
             {
               "index": 21,

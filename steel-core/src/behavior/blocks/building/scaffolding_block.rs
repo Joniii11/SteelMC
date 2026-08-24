@@ -1,11 +1,17 @@
 use steel_macros::block_behavior;
 use steel_registry::blocks::{
-    BlockRef, block_state_ext::BlockStateExt, properties::BlockStateProperties, shapes::VoxelShape,
+    BlockRef,
+    block_state_ext::BlockStateExt,
+    properties::{BlockStateProperties, BoolProperty, Direction, IntProperty},
+    shapes::VoxelShape,
 };
 use steel_utils::{BlockLocalAabb, BlockPos, BlockStateId};
 
-use crate::behavior::{BlockBehavior, BlockCollisionContext, BlockPlaceContext};
-use crate::world::LevelReader;
+use crate::behavior::{
+    BlockBehavior, BlockCollisionContext, BlockPlaceContext,
+    block::schedule_water_tick_if_waterlogged,
+};
+use crate::world::{LevelReader, ScheduledTickAccess};
 
 const SHAPE_STABLE_BOXES: &[BlockLocalAabb] = &[
     BlockLocalAabb::new(0.0, 0.875, 0.0, 1.0, 1.0, 1.0),
@@ -31,6 +37,9 @@ pub struct ScaffoldingBlock {
     block: BlockRef,
 }
 
+const BOTTOM: &BoolProperty = &BlockStateProperties::BOTTOM;
+const STABILITY_DISTANCE: &IntProperty = &BlockStateProperties::STABILITY_DISTANCE;
+
 impl ScaffoldingBlock {
     /// Creates a scaffolding block behavior.
     #[must_use]
@@ -40,8 +49,22 @@ impl ScaffoldingBlock {
 }
 
 impl BlockBehavior for ScaffoldingBlock {
+    fn update_shape(
+        &self,
+        state: BlockStateId,
+        world: &dyn ScheduledTickAccess,
+        pos: BlockPos,
+        _direction: Direction,
+        _neighbor_pos: BlockPos,
+        _neighbor_state: BlockStateId,
+    ) -> BlockStateId {
+        schedule_water_tick_if_waterlogged(state, world, pos);
+        world.schedule_block_tick_default(pos, self.block, 1);
+        state
+    }
+
     // TODO: Mirror vanilla scaffolding placement here, including WATERLOGGED,
-    // STABILITY_DISTANCE, BOTTOM, on_place, and update_shape tick scheduling.
+    // STABILITY_DISTANCE, BOTTOM, and on_place.
     fn get_state_for_placement(&self, _context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         Some(self.block.default_state())
     }
@@ -61,8 +84,8 @@ impl BlockBehavior for ScaffoldingBlock {
             return SHAPE_STABLE;
         }
 
-        let distance = state.get_value(&BlockStateProperties::STABILITY_DISTANCE);
-        let bottom = state.get_value(&BlockStateProperties::BOTTOM);
+        let distance = state.get_value(STABILITY_DISTANCE);
+        let bottom = state.get_value(BOTTOM);
         if distance != 0 && bottom && context.is_above(SHAPE_BELOW_BLOCK, pos, true) {
             SHAPE_UNSTABLE_BOTTOM
         } else {
@@ -74,15 +97,17 @@ impl BlockBehavior for ScaffoldingBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use steel_registry::{test_support, vanilla_blocks};
+    use steel_registry::{init_vanilla_registry, vanilla_blocks, vanilla_fluids};
 
     use crate::test_support::TestLevel;
+
+    const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
     fn scaffolding_state(distance: u8, bottom: bool) -> BlockStateId {
         vanilla_blocks::SCAFFOLDING
             .default_state()
-            .set_value(&BlockStateProperties::STABILITY_DISTANCE, distance)
-            .set_value(&BlockStateProperties::BOTTOM, bottom)
+            .set_value(STABILITY_DISTANCE, distance)
+            .set_value(BOTTOM, bottom)
     }
 
     fn collision_shape(state: BlockStateId, context: BlockCollisionContext) -> VoxelShape {
@@ -93,7 +118,7 @@ mod tests {
 
     #[test]
     fn placement_context_has_no_scaffolding_collision() {
-        test_support::init_test_registry();
+        init_vanilla_registry();
 
         let shape = collision_shape(
             scaffolding_state(0, false),
@@ -105,7 +130,7 @@ mod tests {
 
     #[test]
     fn entity_above_scaffolding_collides_with_stable_shape() {
-        test_support::init_test_registry();
+        init_vanilla_registry();
 
         let shape = collision_shape(
             scaffolding_state(0, false),
@@ -117,7 +142,7 @@ mod tests {
 
     #[test]
     fn descending_entity_only_collides_with_unstable_bottom_shape() {
-        test_support::init_test_registry();
+        init_vanilla_registry();
 
         let shape = collision_shape(
             scaffolding_state(1, true),
@@ -129,7 +154,7 @@ mod tests {
 
     #[test]
     fn non_bottom_descending_scaffolding_has_empty_collision() {
-        test_support::init_test_registry();
+        init_vanilla_registry();
 
         let shape = collision_shape(
             scaffolding_state(1, false),
@@ -137,5 +162,46 @@ mod tests {
         );
 
         assert_eq!(shape, VoxelShape::EMPTY);
+    }
+
+    #[test]
+    fn shape_update_schedules_stability_and_water_ticks() {
+        init_vanilla_registry();
+        let behavior = ScaffoldingBlock::new(&vanilla_blocks::SCAFFOLDING);
+        let state = vanilla_blocks::SCAFFOLDING
+            .default_state()
+            .set_value(WATERLOGGED, true);
+        let pos = BlockPos::new(0, 64, 0);
+        let level = TestLevel::default();
+
+        assert_eq!(
+            behavior.update_shape(
+                state,
+                &level,
+                pos,
+                Direction::North,
+                pos.north(),
+                vanilla_blocks::AIR.default_state(),
+            ),
+            state
+        );
+        assert_eq!(
+            level
+                .scheduled_block_ticks
+                .borrow()
+                .iter()
+                .map(|tick| (tick.pos, tick.block, tick.delay))
+                .collect::<Vec<_>>(),
+            vec![(pos, &vanilla_blocks::SCAFFOLDING, 1)]
+        );
+        assert_eq!(
+            level
+                .scheduled_fluid_ticks
+                .borrow()
+                .iter()
+                .map(|tick| (tick.pos, tick.fluid, tick.delay))
+                .collect::<Vec<_>>(),
+            vec![(pos, &vanilla_fluids::WATER, 5)]
+        );
     }
 }

@@ -20,7 +20,7 @@ use steel_utils::{
 
 use crate::{
     RegistryExt, TaggedRegistryExt,
-    data_components::{Component, ComponentData, DataComponentCodecContext},
+    data_components::{ComponentData, DataComponentCodecContext},
     sound_event::SoundEventHolder,
 };
 
@@ -307,12 +307,17 @@ fn push_hash_entry<T: HashComponent + ?Sized>(entries: &mut Vec<HashEntry>, key:
 }
 
 /// `BlockTransformer.STREAM_CODEC`
-pub fn network_writer(
+pub fn network_writer(data: &ComponentData, writer: &mut Vec<u8>) -> Result<()> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    network_writer_with_context(&context, data, writer)
+}
+
+fn network_writer_with_context(
     context: &DataComponentCodecContext<'_>,
     data: &ComponentData,
     writer: &mut Vec<u8>,
 ) -> Result<()> {
-    let Some(transformer) = BlockTransformer::from_data_ref(data) else {
+    let Some(transformer) = data.downcast_ref::<BlockTransformer>() else {
         return Err(Error::other(
             "Component type mismatch for block_transformer",
         ));
@@ -348,7 +353,12 @@ pub fn network_writer(
 }
 
 /// `BlockTransformer.STREAM_CODEC`
-pub fn network_reader(
+pub fn network_reader(data: &mut Cursor<&[u8]>) -> Result<ComponentData> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    network_reader_with_context(&context, data)
+}
+
+fn network_reader_with_context(
     context: &DataComponentCodecContext<'_>,
     data: &mut Cursor<&[u8]>,
 ) -> Result<ComponentData> {
@@ -383,29 +393,41 @@ pub fn network_reader(
         });
     }
 
-    Ok(ComponentData::BlockTransformer(BlockTransformer {
-        transforms,
-    }))
+    Ok(ComponentData::new(BlockTransformer { transforms }))
 }
 
 /// `BlockTransformer.CODEC`
-#[must_use]
-pub fn nbt_writer(context: &DataComponentCodecContext<'_>, data: &ComponentData) -> NbtTag {
-    let Some(transformer) = BlockTransformer::from_data_ref(data) else {
-        panic!("Component type mismatch for block_transformer");
+pub fn nbt_writer(data: &ComponentData) -> Result<NbtTag> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    nbt_writer_with_context(&context, data)
+}
+
+fn nbt_writer_with_context(
+    context: &DataComponentCodecContext<'_>,
+    data: &ComponentData,
+) -> Result<NbtTag> {
+    let Some(transformer) = data.downcast_ref::<BlockTransformer>() else {
+        return Err(Error::other(
+            "Component type mismatch for block_transformer",
+        ));
     };
-    block_transformer_nbt(context, transformer)
+    Ok(block_transformer_nbt(context, transformer))
 }
 
 /// `BlockTransformer.CODEC`
-pub fn nbt_reader(
+pub fn nbt_reader(tag: BorrowedNbtTag) -> Option<ComponentData> {
+    let context = DataComponentCodecContext::new(&crate::REGISTRY);
+    nbt_reader_with_context(&context, tag)
+}
+
+fn nbt_reader_with_context(
     context: &DataComponentCodecContext<'_>,
     tag: BorrowedNbtTag,
 ) -> Option<ComponentData> {
     let tag = tag.to_owned();
     decode_transformer_nbt(context, &tag)
         .ok()
-        .map(ComponentData::BlockTransformer)
+        .map(ComponentData::new)
 }
 
 fn read_count(data: &mut Cursor<&[u8]>, field: &str) -> Result<i32> {
@@ -2066,9 +2088,11 @@ mod tests {
     use std::{collections::BTreeMap, io::Cursor, str::FromStr};
 
     use serde::Deserialize;
+    use simdnbt::FromNbtTag;
     use simdnbt::owned::{NbtList, NbtTag};
     use steel_utils::{
         Identifier,
+        serial::{ReadFrom, WriteTo},
         snbt::{parse_vanilla_snbt, to_vanilla_snbt},
     };
 
@@ -2081,10 +2105,8 @@ mod tests {
     use crate::{
         REGISTRY, RegistryExt,
         data_components::vanilla_components::BLOCK_TRANSFORMER,
-        data_components::{
-            Component, ComponentData, DataComponentCodecContext, DataComponentPatch,
-        },
-        test_support::init_test_registry,
+        data_components::{ComponentData, DataComponentCodecContext, DataComponentPatch},
+        init_vanilla_registry,
     };
 
     #[derive(Deserialize)]
@@ -2099,9 +2121,8 @@ mod tests {
         block_transformer_all_variants: AllVariantsFixture,
     }
 
-    fn context() -> DataComponentCodecContext<'static> {
-        init_test_registry();
-        DataComponentCodecContext::new(&REGISTRY)
+    fn init_registry() {
+        init_vanilla_registry();
     }
 
     fn fixtures() -> ComponentHashFixtures {
@@ -2109,9 +2130,16 @@ mod tests {
             .expect("component hash fixture must be valid JSON")
     }
 
-    fn all_variants_transformer(
-        context: &DataComponentCodecContext<'_>,
-    ) -> (BlockTransformer, simdnbt::owned::NbtTag, i32) {
+    fn component_hash(data: &ComponentData) -> i32 {
+        REGISTRY
+            .data_components
+            .by_key(&BLOCK_TRANSFORMER.key)
+            .expect("block_transformer component must be registered")
+            .compute_hash(data)
+            .expect("block transformer component hash must encode")
+    }
+
+    fn all_variants_transformer() -> (BlockTransformer, simdnbt::owned::NbtTag, i32) {
         let fixture = fixtures().block_transformer_all_variants;
         let tag = parse_vanilla_snbt(&fixture.snbt)
             .expect("Vanilla all-variants transformer SNBT fixture must parse");
@@ -2119,22 +2147,23 @@ mod tests {
         tag.write(&mut bytes);
         let borrowed = simdnbt::borrow::read_tag(&mut Cursor::new(bytes.as_slice()))
             .expect("all-variants transformer fixture must decode as binary NBT");
-        let data = nbt_reader(context, borrowed.as_tag())
+        let data = nbt_reader(borrowed.as_tag())
             .expect("all-variants transformer fixture must decode through the component codec");
-        let transformer = BlockTransformer::from_data(data)
+        let transformer = data
+            .downcast_ref::<BlockTransformer>()
+            .cloned()
             .expect("fixture must decode to a block transformer component");
         (transformer, tag, fixture.hash)
     }
 
     #[test]
     fn component_hash_matches_snapshot_2_vanilla_transformer_fixtures() {
-        let context = context();
+        init_registry();
         let fixtures = fixtures();
 
         for (item_key, expected_hash) in fixtures.block_transformer {
             let item_key = Identifier::from_str(&item_key).expect("fixture item key must be valid");
-            let item = context
-                .registry()
+            let item = REGISTRY
                 .items
                 .by_key(&item_key)
                 .expect("fixture item must be registered");
@@ -2144,7 +2173,7 @@ mod tests {
                 .expect("fixture item must have block_transformer");
 
             assert_eq!(
-                ComponentData::BlockTransformer(transformer.clone()).compute_hash(),
+                component_hash(&ComponentData::new(transformer.clone())),
                 expected_hash,
                 "block_transformer hash mismatch for {item_key}"
             );
@@ -2153,49 +2182,49 @@ mod tests {
 
     #[test]
     fn all_vanilla_provider_and_predicate_variants_round_trip_and_hash() {
-        let context = context();
-        let (transformer, fixture_tag, expected_hash) = all_variants_transformer(&context);
-        let data = ComponentData::BlockTransformer(transformer.clone());
+        init_registry();
+        let (transformer, fixture_tag, expected_hash) = all_variants_transformer();
+        let data = ComponentData::new(transformer.clone());
 
         assert_eq!(
-            to_vanilla_snbt(&nbt_writer(&context, &data)),
+            to_vanilla_snbt(
+                &nbt_writer(&data).expect("block transformer persistent encoding must succeed")
+            ),
             to_vanilla_snbt(&fixture_tag),
             "persistent codec must preserve every vanilla provider and predicate variant"
         );
-        assert_eq!(data.compute_hash(), expected_hash);
+        assert_eq!(component_hash(&data), expected_hash);
 
         let mut bytes = Vec::new();
-        network_writer(&context, &data, &mut bytes)
+        network_writer(&data, &mut bytes)
             .expect("all-variants transformer network encoding must succeed");
-        let decoded = network_reader(&context, &mut Cursor::new(bytes.as_slice()))
+        let decoded = network_reader(&mut Cursor::new(bytes.as_slice()))
             .expect("all-variants transformer network decoding must succeed");
         assert_eq!(decoded, data);
     }
 
     #[test]
     fn data_component_patch_round_trips_registry_aware_transformer_codecs() {
-        let context = context();
-        let (transformer, _, _) = all_variants_transformer(&context);
+        init_registry();
+        let (transformer, _, _) = all_variants_transformer();
         let mut patch = DataComponentPatch::new();
         patch.set(BLOCK_TRANSFORMER, transformer);
 
         let mut network = Vec::new();
         patch
-            .write_with_context(&context, &mut network)
+            .write(&mut network)
             .expect("registry-aware block_transformer patch must encode");
-        let network_patch =
-            DataComponentPatch::read_with_context(&context, &mut Cursor::new(network.as_slice()))
-                .expect("registry-aware block_transformer patch must decode");
+        let network_patch = DataComponentPatch::read(&mut Cursor::new(network.as_slice()))
+            .expect("registry-aware block_transformer patch must decode");
         assert_eq!(network_patch, patch);
 
-        let persistent = patch.to_nbt_tag_with_context(&context);
+        let persistent = patch.to_nbt_tag_ref();
         let mut persistent_bytes = Vec::new();
         persistent.write(&mut persistent_bytes);
         let borrowed = simdnbt::borrow::read_tag(&mut Cursor::new(persistent_bytes.as_slice()))
             .expect("persistent block_transformer patch must decode as NBT");
-        let persistent_patch =
-            DataComponentPatch::from_nbt_tag_with_context(&context, borrowed.as_tag())
-                .expect("registry-aware block_transformer persistent patch must decode");
+        let persistent_patch = DataComponentPatch::from_nbt_tag(borrowed.as_tag())
+            .expect("registry-aware block_transformer persistent patch must decode");
         assert_eq!(persistent_patch, patch);
     }
 
@@ -2233,7 +2262,8 @@ mod tests {
 
     #[test]
     fn empty_nbt_lists_use_vanillas_end_element_type() {
-        let context = context();
+        init_registry();
+        let context = DataComponentCodecContext::new(&REGISTRY);
 
         let NbtTag::Compound(provider) = provider_nbt(
             &context,

@@ -360,7 +360,7 @@ const fn path_node_from(node: &Node) -> Node {
 mod tests {
     use std::ops::RangeInclusive;
 
-    use steel_registry::{REGISTRY, test_support::init_test_registry, vanilla_blocks};
+    use steel_registry::{REGISTRY, init_vanilla_registry, vanilla_blocks};
     use steel_utils::{BlockPos, BlockStateId, WorldAabb};
 
     use super::{PathFinder, PathRequest};
@@ -408,11 +408,15 @@ mod tests {
         fn height(&self) -> i32 {
             384
         }
+
+        fn sea_level(&self) -> i32 {
+            63
+        }
     }
 
     #[test]
     fn pathfinder_finds_direct_walkable_path() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
 
         let level = flat_level(0..=2, -1..=1);
@@ -453,7 +457,7 @@ mod tests {
 
     #[test]
     fn pathfinder_returns_closest_path_when_target_is_not_reached() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
 
         let level = flat_level(0..=4, -1..=1);

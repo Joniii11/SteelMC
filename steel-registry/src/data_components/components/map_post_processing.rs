@@ -1,28 +1,18 @@
-//! `minecraft:map_post_processing`
+//! Vanilla `minecraft:map_post_processing` transient item component.
 
-use std::io::{Cursor, Error, Result};
+use std::io::{Cursor, Result, Write};
 
-use steel_utils::{
-    codec::VarInt,
-    serial::{ReadFrom, WriteTo},
-};
+use steel_utils::codec::VarInt;
+use steel_utils::serial::{ReadFrom, WriteTo};
 
-use crate::data_components::{Component, ComponentData, DataComponentCodecContext};
-
-/// `MapPostProcessing`
+/// Operation applied to a filled map after crafting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapPostProcessing {
-    /// Locks map processing
     Lock,
-    /// Scales map processing
     Scale,
 }
 
-static LOCK_VALUE: MapPostProcessing = MapPostProcessing::Lock;
-static SCALE_VALUE: MapPostProcessing = MapPostProcessing::Scale;
-
 impl MapPostProcessing {
-    /// Stream ID
     #[must_use]
     pub const fn id(self) -> i32 {
         match self {
@@ -31,9 +21,7 @@ impl MapPostProcessing {
         }
     }
 
-    /// Zero fallback ID
-    #[must_use]
-    pub const fn from_id(id: i32) -> Self {
+    const fn from_id(id: i32) -> Self {
         match id {
             1 => Self::Scale,
             _ => Self::Lock,
@@ -41,117 +29,56 @@ impl MapPostProcessing {
     }
 }
 
-impl Component for MapPostProcessing {
-    fn into_data(self) -> ComponentData {
-        ComponentData::I32(self.id())
-    }
-
-    fn from_data(data: ComponentData) -> Option<Self> {
-        match data {
-            ComponentData::I32(id) => Some(Self::from_id(id)),
-            _ => None,
-        }
-    }
-
-    fn from_data_ref(data: &ComponentData) -> Option<&Self> {
-        match data {
-            ComponentData::I32(id) => match Self::from_id(*id) {
-                Self::Lock => Some(&LOCK_VALUE),
-                Self::Scale => Some(&SCALE_VALUE),
-            },
-            _ => None,
-        }
+impl WriteTo for MapPostProcessing {
+    fn write(&self, writer: &mut impl Write) -> Result<()> {
+        VarInt(self.id()).write(writer)
     }
 }
 
-/// `MapPostProcessing.STREAM_CODEC`
-pub fn network_writer(
-    _context: &DataComponentCodecContext<'_>,
-    data: &ComponentData,
-    writer: &mut Vec<u8>,
-) -> Result<()> {
-    let Some(component) = MapPostProcessing::from_data_ref(data) else {
-        return Err(Error::other(
-            "Component type mismatch for map_post_processing",
-        ));
-    };
-    VarInt(component.id()).write(writer)
-}
-
-/// `MapPostProcessing.STREAM_CODEC`
-pub fn network_reader(
-    _context: &DataComponentCodecContext<'_>,
-    reader: &mut Cursor<&[u8]>,
-) -> Result<ComponentData> {
-    Ok(MapPostProcessing::from_id(VarInt::read(reader)?.0).into_data())
+impl ReadFrom for MapPostProcessing {
+    fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
+        Ok(Self::from_id(VarInt::read(data)?.0))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
 
-    use steel_utils::{codec::VarInt, serial::WriteTo};
+    use steel_utils::codec::VarInt;
+    use steel_utils::serial::{ReadFrom as _, WriteTo as _};
 
-    use super::{MapPostProcessing, network_reader, network_writer};
-    use crate::{
-        REGISTRY,
-        data_components::vanilla_components::MAP_POST_PROCESSING,
-        data_components::{ComponentData, DataComponentCodecContext, DataComponentPatch},
-        test_support::init_test_registry,
-    };
+    use super::MapPostProcessing;
 
-    fn context() -> DataComponentCodecContext<'static> {
-        init_test_registry();
-        DataComponentCodecContext::new(&REGISTRY)
+    #[test]
+    fn network_ids_match_vanilla() {
+        for (value, id) in [(MapPostProcessing::Lock, 0), (MapPostProcessing::Scale, 1)] {
+            let mut encoded = Vec::new();
+            value.write(&mut encoded).expect("value should encode");
+            assert_eq!(
+                VarInt::read(&mut Cursor::new(encoded.as_slice()))
+                    .expect("encoded ID should decode")
+                    .0,
+                id
+            );
+            assert_eq!(
+                MapPostProcessing::read(&mut Cursor::new(encoded.as_slice()))
+                    .expect("map post-processing value should decode"),
+                value
+            );
+        }
     }
 
     #[test]
-    fn stream_ids_and_out_of_bounds_mapping_match_vanilla() {
-        let context = context();
-        for (value, expected, bytes) in [
-            (MapPostProcessing::Lock, MapPostProcessing::Lock, vec![0]),
-            (MapPostProcessing::Scale, MapPostProcessing::Scale, vec![1]),
-        ] {
-            let data = ComponentData::I32(value.id());
-            let mut encoded = Vec::new();
-            network_writer(&context, &data, &mut encoded)
-                .expect("map post processing stream encoding must succeed");
-            assert_eq!(encoded, bytes);
-            assert_eq!(
-                network_reader(&context, &mut Cursor::new(encoded.as_slice()))
-                    .expect("map post processing stream decoding must succeed"),
-                ComponentData::I32(expected.id())
-            );
-        }
-
+    fn out_of_bounds_network_ids_fall_back_to_lock() {
         for id in [-1, 2, i32::MAX] {
             let mut encoded = Vec::new();
-            VarInt(id)
-                .write(&mut encoded)
-                .expect("writing to a vec must succeed");
+            VarInt(id).write(&mut encoded).expect("id should encode");
             assert_eq!(
-                network_reader(&context, &mut Cursor::new(encoded.as_slice()))
-                    .expect("out-of-bounds stream ID must decode"),
-                ComponentData::I32(MapPostProcessing::Lock.id())
+                MapPostProcessing::read(&mut Cursor::new(encoded.as_slice()))
+                    .expect("out-of-bounds ID should decode"),
+                MapPostProcessing::Lock
             );
         }
-    }
-
-    #[test]
-    fn transient_component_patch_round_trips_only_on_the_network() {
-        let context = context();
-        let mut patch = DataComponentPatch::new();
-        patch.set(MAP_POST_PROCESSING, MapPostProcessing::Scale);
-
-        let mut network = Vec::new();
-        patch
-            .write_with_context(&context, &mut network)
-            .expect("transient map post processing patch must encode on the network");
-        assert_eq!(
-            DataComponentPatch::read_with_context(&context, &mut Cursor::new(network.as_slice()))
-                .expect("transient map post processing patch must decode on the network"),
-            patch
-        );
-        assert!(patch.is_persistently_empty(&context));
     }
 }

@@ -7,7 +7,7 @@
 use heck::ToShoutySnakeCase;
 use proc_macro2::Span;
 use serde::Deserialize;
-use std::{env, fs, path::Path};
+use std::{env, fs, path::Path, process::Command};
 use syn::Ident;
 
 mod blocks;
@@ -70,12 +70,43 @@ pub fn main() {
     println!("cargo:rerun-if-changed={manifest_dir}/src/behavior/blocks");
     println!("cargo:rerun-if-changed={manifest_dir}/src/behavior/items");
     println!("cargo:rerun-if-changed={manifest_dir}/src/entity/entities");
+
+    let git_hash = git_output(["rev-parse", "HEAD"]);
+    let git_hash_short = git_output(["rev-parse", "--short=7", "HEAD"]);
+    println!("cargo:rustc-env=GIT_HASH={git_hash}");
+    println!("cargo:rustc-env=GIT_HASH_SHORT={git_hash_short}");
+    println!("cargo:rerun-if-changed={manifest_dir}/../.git/HEAD");
+    println!("cargo:rerun-if-changed={manifest_dir}/../.git/refs/heads");
 }
 
-/// Items use lowercase field names (`vanilla_items::ITEMS.stone`)
+fn git_output<const N: usize>(args: [&str; N]) -> String {
+    Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|e| e.to_string())
+        .and_then(|output| {
+            if output.status.success() {
+                String::from_utf8(output.stdout).map_err(|e| e.to_string())
+            } else {
+                Err(format!("exited with {}", output.status))
+            }
+        })
+        .map_or_else(
+            |e| {
+                println!(
+                    "cargo:warning=git {} failed, using \"unknown\": {e}",
+                    args.join(" ")
+                );
+                "unknown".to_owned()
+            },
+            |stdout| stdout.trim().to_owned(),
+        )
+}
+
+/// Items use `SCREAMING_SNAKE_CASE` statics (`vanilla_items::STONE`)
 #[must_use]
 fn to_item_ident(name: &str) -> Ident {
-    Ident::new(name, Span::call_site())
+    Ident::new(&name.to_shouty_snake_case(), Span::call_site())
 }
 
 /// Blocks use `SCREAMING_SNAKE_CASE` constants (`vanilla_blocks::STONE`)

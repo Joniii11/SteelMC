@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use steel_macros::block_behavior;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::blocks::properties::{BlockStateProperties, Direction, DoubleBlockHalf};
+use steel_registry::blocks::properties::{
+    BlockStateProperties, Direction, DoubleBlockHalf, EnumProperty,
+};
 use steel_registry::fluid::{FluidRef, FluidState};
 use steel_registry::vanilla_block_tags::BlockTag;
 use steel_registry::{vanilla_blocks, vanilla_fluids};
@@ -13,13 +15,15 @@ use crate::behavior::blocks::vegetation::bonemealable::Bonemealable;
 use crate::behavior::context::BlockPlaceContext;
 use crate::world::{LevelAccessor, LevelReader, ScheduledTickAccess, World};
 
-use super::{BlockRef, water_source_fluid_state};
+use super::BlockRef;
 
 /// Behavior for seagrass blocks.
 #[block_behavior]
 pub struct SeagrassBlock {
     block: BlockRef,
 }
+
+const DOUBLE_BLOCK_HALF: &EnumProperty<DoubleBlockHalf> = &BlockStateProperties::DOUBLE_BLOCK_HALF;
 
 impl SeagrassBlock {
     /// Creates a new seagrass block behavior.
@@ -56,7 +60,7 @@ impl BlockBehavior for SeagrassBlock {
     fn can_survive(&self, _state: BlockStateId, world: &dyn LevelReader, pos: BlockPos) -> bool {
         let below_pos = pos.below();
         let below = world.get_block_state(below_pos);
-        below.is_face_sturdy_at(below_pos, Direction::Up)
+        world.is_face_sturdy(below, below_pos, Direction::Up)
             && !below
                 .get_block()
                 .has_tag(&BlockTag::CANNOT_SUPPORT_SEAGRASS)
@@ -64,12 +68,8 @@ impl BlockBehavior for SeagrassBlock {
 
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         let state = self.block.default_state();
-        (context.is_full_water() && self.can_survive(state, context.world, context.place_pos))
+        (context.is_full_water() && self.can_survive(state, context.world, context.place_pos()))
             .then_some(state)
-    }
-
-    fn get_fluid_state(&self, _state: BlockStateId) -> FluidState {
-        water_source_fluid_state()
     }
 
     fn is_liquid_container(&self, _state: BlockStateId) -> bool {
@@ -112,14 +112,10 @@ impl Bonemealable for SeagrassBlock {
         _rng: &mut dyn rand::Rng,
         pos: BlockPos,
     ) {
-        let lower_state = vanilla_blocks::TALL_SEAGRASS.default_state().set_value(
-            &BlockStateProperties::DOUBLE_BLOCK_HALF,
-            DoubleBlockHalf::Lower,
-        );
-        let upper_state = lower_state.set_value(
-            &BlockStateProperties::DOUBLE_BLOCK_HALF,
-            DoubleBlockHalf::Upper,
-        );
+        let lower_state = vanilla_blocks::TALL_SEAGRASS
+            .default_state()
+            .set_value(DOUBLE_BLOCK_HALF, DoubleBlockHalf::Lower);
+        let upper_state = lower_state.set_value(DOUBLE_BLOCK_HALF, DoubleBlockHalf::Upper);
         world.set_block(pos, lower_state, UpdateFlags::UPDATE_CLIENTS);
         world.set_block(pos.above(), upper_state, UpdateFlags::UPDATE_CLIENTS);
     }
@@ -127,11 +123,13 @@ impl Bonemealable for SeagrassBlock {
 
 #[cfg(test)]
 mod tests {
-    use steel_registry::{test_support::init_test_registry, vanilla_blocks};
+    use steel_registry::{blocks::properties::BoolProperty, init_vanilla_registry, vanilla_blocks};
 
     use crate::test_support::TestLevel;
 
     use super::*;
+
+    const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
     fn seagrass_level(support: BlockStateId, above: BlockStateId) -> TestLevel {
         TestLevel::default()
@@ -141,7 +139,7 @@ mod tests {
 
     #[test]
     fn seagrass_update_shape_breaks_without_support() {
-        init_test_registry();
+        init_vanilla_registry();
         let behavior = SeagrassBlock::new(&vanilla_blocks::SEAGRASS);
         let level = seagrass_level(
             vanilla_blocks::AIR.default_state(),
@@ -164,7 +162,7 @@ mod tests {
 
     #[test]
     fn seagrass_update_shape_schedules_water_when_it_survives() {
-        init_test_registry();
+        init_vanilla_registry();
         let behavior = SeagrassBlock::new(&vanilla_blocks::SEAGRASS);
         let level = seagrass_level(
             vanilla_blocks::DIRT.default_state(),
@@ -187,12 +185,12 @@ mod tests {
 
     #[test]
     fn seagrass_bonemeal_requires_water_block_above() {
-        init_test_registry();
+        init_vanilla_registry();
         let behavior = SeagrassBlock::new(&vanilla_blocks::SEAGRASS);
         let state = vanilla_blocks::SEAGRASS.default_state();
         let waterlogged_slab = vanilla_blocks::OAK_SLAB
             .default_state()
-            .set_value(&BlockStateProperties::WATERLOGGED, true);
+            .set_value(WATERLOGGED, true);
 
         let water_level = seagrass_level(
             vanilla_blocks::DIRT.default_state(),

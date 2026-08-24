@@ -16,6 +16,7 @@
 
 use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 
+use crate::nbt::nbt_list_values;
 use crate::snbt::unwrap_vanilla_list_element;
 
 /// Type tags matching Minecraft's `HashOps` implementation.
@@ -96,6 +97,13 @@ impl ComponentHasher {
     /// Writes raw bytes without any tag or length prefix.
     pub fn put_raw_bytes(&mut self, bytes: &[u8]) {
         self.data.extend_from_slice(bytes);
+    }
+
+    /// Writes the four-byte hash of a nested codec value.
+    ///
+    /// Vanilla lists contain child hashes rather than each child's unhashed payload.
+    pub fn put_component_hash<T: HashComponent + ?Sized>(&mut self, value: &T) {
+        self.put_raw_bytes(&value.compute_hash().to_le_bytes());
     }
 
     /// Hashes an empty/null value.
@@ -276,15 +284,6 @@ impl ComponentHasher {
     pub fn finish(self) -> i32 {
         crc32c::crc32c(&self.data) as i32
     }
-
-    /// Finishes hashing and returns the hash as a padded i64.
-    /// Used for sorting map entries.
-    #[must_use]
-    pub fn finish_as_long(self) -> i64 {
-        let hash = crc32c::crc32c(&self.data);
-        // Pad to long by zero-extending (matches Guava's HashCode.padToLong())
-        i64::from(hash)
-    }
 }
 
 /// A hash entry for map sorting.
@@ -309,11 +308,17 @@ impl HashEntry {
     pub fn new(key_hasher: ComponentHasher, value_hasher: ComponentHasher) -> Self {
         let key_bytes = crc32c::crc32c(&key_hasher.data);
         let value_bytes = crc32c::crc32c(&value_hasher.data);
+        Self::from_hashes(key_bytes, value_bytes)
+    }
+
+    /// Creates a map entry from child hashes already computed by dispatched codecs.
+    #[must_use]
+    pub const fn from_hashes(key_hash: u32, value_hash: u32) -> Self {
         Self {
-            key_hash: i64::from(key_bytes),
-            value_hash: i64::from(value_bytes),
-            key_bytes: key_bytes.to_le_bytes(),
-            value_bytes: value_bytes.to_le_bytes(),
+            key_hash: key_hash as i64,
+            value_hash: value_hash as i64,
+            key_bytes: key_hash.to_le_bytes(),
+            value_bytes: value_hash.to_le_bytes(),
         }
     }
 }
@@ -462,8 +467,52 @@ impl HashComponent for String {
 
 impl HashComponent for () {
     fn hash_component(&self, hasher: &mut ComponentHasher) {
-        // Unit type hashes as empty
-        hasher.put_empty();
+        hasher.start_map();
+        hasher.end_map();
+    }
+}
+
+impl HashComponent for NbtTag {
+    fn hash_component(&self, hasher: &mut ComponentHasher) {
+        match self {
+            NbtTag::Byte(value) => hasher.put_byte(*value),
+            NbtTag::Short(value) => hasher.put_short(*value),
+            NbtTag::Int(value) => hasher.put_int(*value),
+            NbtTag::Long(value) => hasher.put_long(*value),
+            NbtTag::Float(value) => hasher.put_float(*value),
+            NbtTag::Double(value) => hasher.put_double(*value),
+            NbtTag::ByteArray(values) => hasher.put_byte_array(values),
+            NbtTag::String(value) => hasher.put_string(&value.to_string()),
+            NbtTag::List(values) => {
+                hasher.start_list();
+                for value in nbt_list_values(values) {
+                    hasher.put_component_hash(&value);
+                }
+                hasher.end_list();
+            }
+            NbtTag::Compound(values) => {
+                let mut entries = values
+                    .iter()
+                    .map(|(key, value)| {
+                        let mut key_hasher = ComponentHasher::new();
+                        key_hasher.put_string(&key.to_string());
+                        let mut value_hasher = ComponentHasher::new();
+                        value.hash_component(&mut value_hasher);
+                        HashEntry::new(key_hasher, value_hasher)
+                    })
+                    .collect::<Vec<_>>();
+                sort_map_entries(&mut entries);
+
+                hasher.start_map();
+                for entry in entries {
+                    hasher.put_raw_bytes(&entry.key_bytes);
+                    hasher.put_raw_bytes(&entry.value_bytes);
+                }
+                hasher.end_map();
+            }
+            NbtTag::IntArray(values) => hasher.put_int_array(values),
+            NbtTag::LongArray(values) => hasher.put_long_array(values),
+        }
     }
 }
 
@@ -511,6 +560,15 @@ mod tests {
         let hash = hasher.finish();
         // Format: [TAG_MAP_START=2] [TAG_MAP_END=3]
         assert_ne!(hash, 0);
+    }
+
+    #[test]
+    fn unit_codec_hashes_as_an_empty_map() {
+        let mut hasher = ComponentHasher::new();
+        hasher.start_map();
+        hasher.end_map();
+
+        assert_eq!(().compute_hash(), hasher.finish());
     }
 
     #[test]
@@ -599,6 +657,38 @@ mod tests {
             h.finish()
         };
         assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn nbt_compound_hash_is_independent_of_entry_order() {
+        use simdnbt::owned::NbtCompound;
+
+        let first = NbtTag::Compound(NbtCompound::from_values(vec![
+            ("first".into(), NbtTag::Int(1)),
+            ("second".into(), NbtTag::String("two".into())),
+        ]));
+        let reversed = NbtTag::Compound(NbtCompound::from_values(vec![
+            ("second".into(), NbtTag::String("two".into())),
+            ("first".into(), NbtTag::Int(1)),
+        ]));
+
+        assert_eq!(first.compute_hash(), reversed.compute_hash());
+    }
+
+    #[test]
+    fn nbt_list_hash_unwraps_vanillas_heterogeneous_list_marker() {
+        use simdnbt::owned::{NbtCompound, NbtList};
+
+        let mut wrapper = NbtCompound::new();
+        wrapper.insert("", 7);
+        let encoded = NbtTag::List(NbtList::Compound(vec![wrapper]));
+
+        let mut expected = ComponentHasher::new();
+        expected.start_list();
+        expected.put_component_hash(&NbtTag::Int(7));
+        expected.end_list();
+
+        assert_eq!(encoded.compute_hash(), expected.finish());
     }
 
     #[test]

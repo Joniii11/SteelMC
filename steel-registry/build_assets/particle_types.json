@@ -2,641 +2,769 @@
   {
     "id": 0,
     "key": "minecraft:angry_villager",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 1,
     "key": "minecraft:block",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "BlockParticleOption"
   },
   {
     "id": 2,
     "key": "minecraft:block_marker",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "BlockParticleOption"
   },
   {
     "id": 3,
     "key": "minecraft:bubble",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 4,
     "key": "minecraft:sulfur_bubbles",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 5,
     "key": "minecraft:noxious_gas",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 6,
     "key": "minecraft:noxious_gas_cloud",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 7,
     "key": "minecraft:geyser",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "GeyserParticleOptions"
   },
   {
     "id": 8,
     "key": "minecraft:geyser_base",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "GeyserBaseParticleOptions"
   },
   {
     "id": 9,
     "key": "minecraft:geyser_poof",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "GeyserBaseParticleOptions"
   },
   {
     "id": 10,
     "key": "minecraft:geyser_plume",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "GeyserParticleOptions"
   },
   {
     "id": 11,
     "key": "minecraft:cloud",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 12,
     "key": "minecraft:copper_fire_flame",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 13,
     "key": "minecraft:crit",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 14,
     "key": "minecraft:damage_indicator",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 15,
     "key": "minecraft:dragon_breath",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "PowerParticleOption"
   },
   {
     "id": 16,
     "key": "minecraft:dripping_lava",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 17,
     "key": "minecraft:falling_lava",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 18,
     "key": "minecraft:landing_lava",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 19,
     "key": "minecraft:dripping_water",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 20,
     "key": "minecraft:falling_water",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 21,
     "key": "minecraft:dust",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "DustParticleOptions"
   },
   {
     "id": 22,
     "key": "minecraft:dust_color_transition",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "DustColorTransitionOptions"
   },
   {
     "id": 23,
     "key": "minecraft:effect",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SpellParticleOption"
   },
   {
     "id": 24,
     "key": "minecraft:elder_guardian",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 25,
     "key": "minecraft:enchanted_hit",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 26,
     "key": "minecraft:enchant",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 27,
     "key": "minecraft:end_rod",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 28,
     "key": "minecraft:entity_effect",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "ColorParticleOption"
   },
   {
     "id": 29,
     "key": "minecraft:explosion_emitter",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 30,
     "key": "minecraft:explosion",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 31,
     "key": "minecraft:gust",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 32,
     "key": "minecraft:small_gust",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 33,
     "key": "minecraft:gust_emitter_large",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 34,
     "key": "minecraft:gust_emitter_small",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 35,
     "key": "minecraft:sonic_boom",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 36,
     "key": "minecraft:falling_dust",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "BlockParticleOption"
   },
   {
     "id": 37,
     "key": "minecraft:firework",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 38,
     "key": "minecraft:fishing",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 39,
     "key": "minecraft:flame",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 40,
     "key": "minecraft:infested",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 41,
     "key": "minecraft:cherry_leaves",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 42,
     "key": "minecraft:pale_oak_leaves",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 43,
     "key": "minecraft:red_poplar_leaves",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 44,
     "key": "minecraft:orange_poplar_leaves",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 45,
     "key": "minecraft:yellow_poplar_leaves",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 46,
     "key": "minecraft:tinted_leaves",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "ColorParticleOption"
   },
   {
     "id": 47,
     "key": "minecraft:sculk_soul",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 48,
     "key": "minecraft:sculk_charge",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SculkChargeParticleOptions"
   },
   {
     "id": 49,
     "key": "minecraft:sculk_charge_pop",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 50,
     "key": "minecraft:soul_fire_flame",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 51,
     "key": "minecraft:soul",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 52,
     "key": "minecraft:flash",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "ColorParticleOption"
   },
   {
     "id": 53,
     "key": "minecraft:happy_villager",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 54,
     "key": "minecraft:composter",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 55,
     "key": "minecraft:heart",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 56,
     "key": "minecraft:instant_effect",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SpellParticleOption"
   },
   {
     "id": 57,
     "key": "minecraft:item",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "ItemParticleOption"
   },
   {
     "id": 58,
     "key": "minecraft:vibration",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "VibrationParticleOption"
   },
   {
     "id": 59,
     "key": "minecraft:trail",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "TrailParticleOption"
   },
   {
     "id": 60,
     "key": "minecraft:pause_mob_growth",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 61,
     "key": "minecraft:reset_mob_growth",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 62,
     "key": "minecraft:item_slime",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 63,
     "key": "minecraft:item_cobweb",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 64,
     "key": "minecraft:item_snowball",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 65,
     "key": "minecraft:large_smoke",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 66,
     "key": "minecraft:lava",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 67,
     "key": "minecraft:mycelium",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 68,
     "key": "minecraft:note",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 69,
     "key": "minecraft:poof",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 70,
     "key": "minecraft:portal",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 71,
     "key": "minecraft:rain",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 72,
     "key": "minecraft:smoke",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 73,
     "key": "minecraft:white_smoke",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 74,
     "key": "minecraft:sneeze",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 75,
     "key": "minecraft:spit",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 76,
     "key": "minecraft:squid_ink",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 77,
     "key": "minecraft:sweep_attack",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 78,
     "key": "minecraft:totem_of_undying",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 79,
     "key": "minecraft:underwater",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 80,
     "key": "minecraft:splash",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 81,
     "key": "minecraft:witch",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 82,
     "key": "minecraft:bubble_pop",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 83,
     "key": "minecraft:current_down",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 84,
     "key": "minecraft:bubble_column_up",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 85,
     "key": "minecraft:nautilus",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 86,
     "key": "minecraft:dolphin",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 87,
     "key": "minecraft:campfire_cosy_smoke",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 88,
     "key": "minecraft:campfire_signal_smoke",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 89,
     "key": "minecraft:dripping_honey",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 90,
     "key": "minecraft:falling_honey",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 91,
     "key": "minecraft:landing_honey",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 92,
     "key": "minecraft:falling_nectar",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 93,
     "key": "minecraft:falling_spore_blossom",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 94,
     "key": "minecraft:ash",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 95,
     "key": "minecraft:crimson_spore",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 96,
     "key": "minecraft:warped_spore",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 97,
     "key": "minecraft:spore_blossom_air",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 98,
     "key": "minecraft:dripping_obsidian_tear",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 99,
     "key": "minecraft:falling_obsidian_tear",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 100,
     "key": "minecraft:landing_obsidian_tear",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 101,
     "key": "minecraft:reverse_portal",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 102,
     "key": "minecraft:white_ash",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 103,
     "key": "minecraft:small_flame",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 104,
     "key": "minecraft:snowflake",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 105,
     "key": "minecraft:dripping_dripstone_lava",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 106,
     "key": "minecraft:falling_dripstone_lava",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 107,
     "key": "minecraft:dripping_dripstone_water",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 108,
     "key": "minecraft:falling_dripstone_water",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 109,
     "key": "minecraft:glow_squid_ink",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 110,
     "key": "minecraft:glow",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 111,
     "key": "minecraft:wax_on",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 112,
     "key": "minecraft:wax_off",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 113,
     "key": "minecraft:electric_spark",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 114,
     "key": "minecraft:scrape",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 115,
     "key": "minecraft:shriek",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "ShriekParticleOption"
   },
   {
     "id": 116,
     "key": "minecraft:egg_crack",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 117,
     "key": "minecraft:dust_plume",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 118,
     "key": "minecraft:trial_spawner_detection",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 119,
     "key": "minecraft:trial_spawner_detection_ominous",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 120,
     "key": "minecraft:vault_connection",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 121,
     "key": "minecraft:dust_pillar",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "BlockParticleOption"
   },
   {
     "id": 122,
     "key": "minecraft:ominous_spawning",
-    "override_limiter": true
+    "override_limiter": true,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 123,
     "key": "minecraft:raid_omen",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 124,
     "key": "minecraft:trial_omen",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 125,
     "key": "minecraft:block_crumble",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "BlockParticleOption"
   },
   {
     "id": 126,
     "key": "minecraft:firefly",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   },
   {
     "id": 127,
     "key": "minecraft:sulfur_cube_goo",
-    "override_limiter": false
+    "override_limiter": false,
+    "options_type": "SimpleParticleOptions"
   }
 ]

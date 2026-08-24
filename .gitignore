@@ -16,6 +16,7 @@
 /world
 /saves
 /players
+/script/.gitcraft-tmp
 
 # Misc
 CLAUDE.md
@@ -23,6 +24,7 @@ CLAUDE.md
 /minecraft-src
 .agents
 skills-lock.json
+docs
 
 # Package
 profile.json.gz
@@ -38,3 +40,5 @@ rustc-ice-*
 .idea
 
 .DS_STORE
+.gitcraft-tmp/
+/.vs

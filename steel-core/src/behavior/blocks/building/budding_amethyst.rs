@@ -1,7 +1,8 @@
 use crate::{
-    behavior::{BlockBehavior, BlockPlaceContext, BlockStateBehaviorExt},
+    behavior::{BlockBehavior, BlockPlaceContext, blocks::AmethystBlock},
+    entity::projectile::Projectile,
     fluid::FluidStateExt as _,
-    world::World,
+    world::{ClipHitResult, World},
 };
 use std::sync::Arc;
 use steel_macros::block_behavior;
@@ -63,10 +64,6 @@ impl BlockBehavior for BuddingAmethystBlock {
         Some(self.block.default_state())
     }
 
-    fn is_randomly_ticking(&self, _state: BlockStateId) -> bool {
-        true
-    }
-
     fn random_tick(&self, _state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
         if rand::random_range(0..5) == 0 {
             let direction = Direction::random();
@@ -111,7 +108,15 @@ impl BlockBehavior for BuddingAmethystBlock {
             }
         }
     }
-    // TODO: OnProjectile hit from AmethystBlock inheritance
+    fn on_projectile_hit(
+        &self,
+        _state: BlockStateId,
+        world: &Arc<World>,
+        hit: &ClipHitResult,
+        _projectile: &dyn Projectile,
+    ) {
+        AmethystBlock::play_projectile_hit_sound(world, hit.block_pos);
+    }
 }
 
 #[cfg(test)]
@@ -119,12 +124,16 @@ mod tests {
     use super::*;
     use crate::behavior::init_behaviors;
     use steel_registry::{
-        blocks::properties::BlockStateProperties, test_support::init_test_registry,
+        blocks::properties::{BlockStateProperties, IntProperty},
+        init_vanilla_registry,
     };
+
+    const LEVEL: &IntProperty = &BlockStateProperties::LEVEL;
+    const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
     #[test]
     fn growth_state_waterlogs_when_replacing_water_block() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
 
         let state = BuddingAmethystBlock::growth_state(
@@ -138,12 +147,12 @@ mod tests {
 
     #[test]
     fn cluster_can_grow_in_falling_full_water() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
 
         let falling_full_water = vanilla_blocks::WATER
             .default_state()
-            .set_value(&BlockStateProperties::LEVEL, 8);
+            .set_value(LEVEL, LEVEL.max);
 
         assert!(BuddingAmethystBlock::can_cluster_grow_at_state(
             falling_full_water,
@@ -153,12 +162,10 @@ mod tests {
 
     #[test]
     fn cluster_cannot_grow_in_partial_flowing_water() {
-        init_test_registry();
+        init_vanilla_registry();
         init_behaviors();
 
-        let partial_flowing_water = vanilla_blocks::WATER
-            .default_state()
-            .set_value(&BlockStateProperties::LEVEL, 1);
+        let partial_flowing_water = vanilla_blocks::WATER.default_state().set_value(LEVEL, 1);
 
         assert!(!BuddingAmethystBlock::can_cluster_grow_at_state(
             partial_flowing_water,

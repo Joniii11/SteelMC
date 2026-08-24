@@ -132,7 +132,9 @@ pub trait AgeableMob: Mob {
     fn set_synced_baby(&self, baby: bool);
 
     /// Hook called after the baby/adult boundary changes.
-    fn age_boundary_changed(&self, _baby: bool) {}
+    fn age_boundary_changed(&self, _baby: bool) {
+        self.refresh_dimensions();
+    }
 
     /// Returns vanilla `AgeableMob.getBabyStartAge`.
     fn get_baby_start_age(&self) -> i32 {
@@ -258,7 +260,7 @@ pub trait AgeableMob: Mob {
             item_stack.copy_with_count(item_stack.count())
         };
 
-        if !item_stack.is(&vanilla_items::ITEMS.golden_dandelion)
+        if !item_stack.is(&vanilla_items::GOLDEN_DANDELION)
             || !AgeableMob::is_baby(self)
             || self.age_lock_particle_timer() != 0
             || REGISTRY
@@ -336,7 +338,7 @@ mod tests {
 
     use glam::DVec3;
     use steel_registry::entity_type::EntityTypeRef;
-    use steel_registry::{test_support::init_test_registry, vanilla_entities};
+    use steel_registry::{init_vanilla_registry, vanilla_entities};
 
     use super::*;
     use crate::entity::{EntityBase, LivingEntity, LivingEntityBase, MobBase};
@@ -354,7 +356,7 @@ mod tests {
 
     impl TestAgeableMob {
         fn new() -> Self {
-            init_test_registry();
+            init_vanilla_registry();
             Self {
                 base: EntityBase::new(
                     1,

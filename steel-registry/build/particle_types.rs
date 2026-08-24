@@ -12,6 +12,39 @@ struct ParticleTypeEntry {
     id: usize,
     key: Identifier,
     override_limiter: bool,
+    options_type: ParticleOptionsType,
+}
+
+#[derive(Deserialize)]
+enum ParticleOptionsType {
+    #[serde(rename = "SimpleParticleOptions")]
+    Simple,
+    #[serde(rename = "BlockParticleOption")]
+    Block,
+    #[serde(rename = "ColorParticleOption")]
+    Color,
+    #[serde(rename = "DustParticleOptions")]
+    Dust,
+    #[serde(rename = "DustColorTransitionOptions")]
+    DustColorTransition,
+    #[serde(rename = "GeyserParticleOptions")]
+    Geyser,
+    #[serde(rename = "GeyserBaseParticleOptions")]
+    GeyserBase,
+    #[serde(rename = "PowerParticleOption")]
+    Power,
+    #[serde(rename = "SpellParticleOption")]
+    Spell,
+    #[serde(rename = "ItemParticleOption")]
+    Item,
+    #[serde(rename = "SculkChargeParticleOptions")]
+    SculkCharge,
+    #[serde(rename = "ShriekParticleOption")]
+    Shriek,
+    #[serde(rename = "TrailParticleOption")]
+    Trail,
+    #[serde(rename = "VibrationParticleOption")]
+    Vibration,
 }
 
 pub(crate) fn build() -> TokenStream {
@@ -30,12 +63,26 @@ pub(crate) fn build() -> TokenStream {
         );
         let key = generate_identifier(&particle_type.key);
         let override_limiter = particle_type.override_limiter;
+        let options_type = match particle_type.options_type {
+            ParticleOptionsType::Simple => quote! { SimpleParticleOptions },
+            ParticleOptionsType::Block => quote! { BlockParticleOption },
+            ParticleOptionsType::Color => quote! { ColorParticleOption },
+            ParticleOptionsType::Dust => quote! { DustParticleOptions },
+            ParticleOptionsType::DustColorTransition => quote! { DustColorTransitionOptions },
+            ParticleOptionsType::Geyser => quote! { GeyserParticleOptions },
+            ParticleOptionsType::GeyserBase => quote! { GeyserBaseParticleOptions },
+            ParticleOptionsType::Power => quote! { PowerParticleOption },
+            ParticleOptionsType::Spell => quote! { SpellParticleOption },
+            ParticleOptionsType::Item => quote! { ItemParticleOption },
+            ParticleOptionsType::SculkCharge => quote! { SculkChargeParticleOptions },
+            ParticleOptionsType::Shriek => quote! { ShriekParticleOption },
+            ParticleOptionsType::Trail => quote! { TrailParticleOption },
+            ParticleOptionsType::Vibration => quote! { VibrationParticleOption },
+        };
 
         constants.extend(quote! {
-            pub static #ident: ParticleType = ParticleType {
-                key: #key,
-                override_limiter: #override_limiter,
-            };
+            pub static #ident: ParticleType =
+                ParticleType::of::<#options_type>(#key, #override_limiter);
         });
 
         registrations.extend(quote! {
@@ -44,7 +91,13 @@ pub(crate) fn build() -> TokenStream {
     }
 
     quote! {
-        use crate::particle_type::{ParticleType, ParticleTypeRegistry};
+        use crate::particle_type::{
+            BlockParticleOption, ColorParticleOption, DustColorTransitionOptions,
+            DustParticleOptions, GeyserBaseParticleOptions, GeyserParticleOptions,
+            ItemParticleOption, ParticleType, ParticleTypeRegistry, PowerParticleOption,
+            SculkChargeParticleOptions, ShriekParticleOption, SimpleParticleOptions,
+            SpellParticleOption, TrailParticleOption, VibrationParticleOption,
+        };
         use std::borrow::Cow;
         use steel_utils::Identifier;
 

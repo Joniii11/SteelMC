@@ -1,53 +1,81 @@
 //! This module contains the `Server` struct, which is the main entry point for the server.
+mod broadcasting;
 /// Tick-polled server jobs.
 pub mod jobs;
+mod packet_processor;
 mod pregen;
 /// The registry cache for the server.
 pub mod registry_cache;
+mod run_loop;
+mod service_keys;
 /// The tick rate manager for the server.
 pub mod tick_rate_manager;
+mod world_tick_workers;
 /// Domain-aware loaded world map.
 pub mod worlds;
 
-use crate::behavior::init_behaviors;
-use crate::block_entity::init_block_entities;
+use crate::bootstrap::init_globals;
 use crate::chunk::{
-    chunk_access::ChunkStatus,
     chunk_request::{ChunkRequest, ChunkRequestHandle, ChunkRequestState, ChunkTicketKind},
+    status::ChunkStatus,
 };
-use crate::command::CommandDispatcher;
-use crate::config::{ResolvedWorldConfig, RuntimeConfig, WorldsConfig};
+use crate::command::brigadier::{StringReader, SuggestionError, Suggestions};
+use crate::command::execution::{
+    CommandExecutionContext, CommandResultCallback, CommandSource, ExecutionCommandSource,
+    ExecutionStop,
+};
+use crate::command::sender::{CommandExecutionOwner, CommandSender};
+use crate::command::storage::DomainCommandStorage;
+use crate::command::{
+    COMMAND_REQUESTS_PER_TICK, COMMAND_RESUMPTIONS_PER_TICK, CommandCompletion, CommandDispatcher,
+    CommandQueueFull, CommandRegistry, CommandRequest, CommandRequestQueue,
+    PendingCommandExecutionQueue, client_permission_event, command_suggestions_packet,
+    command_tree_packet, create_registered_dispatcher,
+};
+use crate::config::{ResolvedWorldConfig, RuntimeConfig, WorldsConfig, validate_login_security};
 use crate::entity::{
     Entity, EntityBase, PendingWorldChangeToken, RemovalReason, SharedEntity, change_entity_world,
-    init_entities,
 };
 
 use crate::chunk_saver::{ChunkStorage, PersistentEntity, registry::WorldStorageRegistry};
 use crate::level_data::{LevelDataManager, RespawnData, WorldGenerationSettings};
+use crate::permission::{
+    OP_GROUP, PermissionGroupManager, PermissionGroupManagerError, PermissionGroupUpdateError,
+    PermissionGroupsConfig, PermissionMetadataExpression, PermissionRuleExpression, PermissionSet,
+    PermissionSubjectIndex, PermissionSubjectState,
+};
 use crate::player::chunk_sender::{ChunkSender, EncodedChunk};
 use crate::player::connection::NetworkConnection;
+use crate::player::connection::ScheduledPlayPacket;
 use crate::player::player_data::{
     PersistentEnderPearl, PersistentPlayerData, PersistentRootVehicle,
 };
 use crate::player::player_data_storage::{GlobalPlayerData, PlayerDataStorage};
-use crate::player::{Player, ResetReason};
+use crate::player::player_inventory::MenuRemovalStatus;
+use crate::player::{
+    DomainResidenceToken, GameProfile, KnownPlayer, KnownPlayerNameLookup, KnownPlayers, Player,
+    ProfileLookupError, ResetReason, is_valid_player_name, lookup_online_profile, offline_uuid,
+};
 use crate::portal::{
     PortalKind, TeleportPostTransition, TeleportTransition, WorldChangeRequest, end_gateway,
     end_portal, nether_portal,
 };
-use crate::random_sequences::RandomSequences;
-use crate::saved_data::SavedDataManager;
-use crate::server::jobs::{JobPoll, ServerJob, ServerJobContext, ServerJobQueue};
+use crate::scoreboard::DomainScoreboards;
+use crate::server::jobs::{FnServerJob, ServerJobContext, ServerJobQueue};
+use crate::server::packet_processor::PacketProcessor;
 use crate::server::registry_cache::RegistryCache;
+use crate::server::service_keys::ServiceKeyStore;
 use crate::server::worlds::WorldMap;
 use crate::world::player_spawn_finder::{PlayerSpawnSearch, PlayerSpawnSearchPoll};
-use crate::world::{PlayerMap, World, WorldConfig, WorldGameTickTimings};
+use crate::world::{PlayerMap, World, WorldConfig};
 use crate::worldgen::WorldGeneratorRegistry;
 use crate::worldgen::registry::GeneratorOutput;
+use crossbeam::queue::SegQueue;
 use glam::DVec3;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use rustc_hash::FxHashMap;
 use std::{
+    collections::BTreeSet,
     io, mem,
     num::NonZero,
     path::Path,
@@ -55,27 +83,34 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use steel_crypto::key_store::KeyStore;
+use steel_crypto::{key_store::KeyStore, signature::ProfileKeyValidator};
 use steel_protocol::packet_traits::{ClientPacket, EncodedPacket};
 use steel_protocol::packets::game::{
-    CEntityEvent, CGameEvent, CLogin, CPlayerInfoUpdate, CRemovePlayerInfo,
+    CCommandSuggestions, CEntityEvent, CLogin, CPlayerInfoUpdate, CRemovePlayerInfo,
     CSetDefaultSpawnPosition, CSystemChat, CTabList, CTickingState, CTickingStep,
-    CommonPlayerSpawnInfo, GameEventType, RelativeMovement,
+    CommonPlayerSpawnInfo, RelativeMovement,
 };
 use steel_protocol::utils::ConnectionProtocol;
-use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_game_rules::{
     ALLOW_ENTERING_NETHER_USING_PORTALS, IMMEDIATE_RESPAWN, LIMITED_CRAFTING, REDUCED_DEBUG_INFO,
 };
 use steel_registry::{
-    REGISTRY, Registry, RegistryEntry, dimension_type::DimensionTypeRef, vanilla_dimension_types,
-    vanilla_entities,
+    RegistryEntry, dimension_type::DimensionTypeRef, vanilla_dimension_types, vanilla_entities,
 };
-use steel_utils::locks::SyncMutex;
-use steel_utils::{BlockPos, ChunkPos, Identifier, entity_events::EntityStatus, locks::SyncRwLock};
+use steel_utils::{
+    BlockPos, ChunkPos, Identifier,
+    locks::{AsyncMutex, SyncMutex, SyncRwLock},
+    text::DisplayResolutor,
+    translations,
+};
 use text_components::{Modifier, TextComponent, format::Color};
 use tick_rate_manager::{SprintReport, TickRateManager};
-use tokio::{runtime::Runtime, task::spawn_blocking, time::sleep};
+use tokio::{
+    runtime::Runtime,
+    sync::Notify,
+    task::{JoinSet, spawn_blocking},
+    time::sleep,
+};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -84,15 +119,57 @@ const TAB_LIST_UPDATE_INTERVAL: u64 = 20;
 /// Interval in ticks between player info broadcasts (600 ticks = 30 seconds).
 /// Matches vanilla `PlayerList.SEND_PLAYER_INFO_INTERVAL`.
 const SEND_PLAYER_INFO_INTERVAL: u64 = 600;
+/// Wall-clock interval between saves of command-owned persistent server data.
+/// Matches vanilla's intended five-minute autosave cadence.
+const COMMAND_DATA_AUTOSAVE_INTERVAL: Duration = Duration::from_secs(300);
+
+#[derive(Clone, Copy)]
+struct TabListTickStats {
+    tps: f32,
+    recent_mspt: f32,
+    average_mspt: f32,
+    p95_mspt: f32,
+}
+
+impl TabListTickStats {
+    fn capture(tick_manager: &TickRateManager) -> Self {
+        Self {
+            tps: tick_manager.get_tps(),
+            recent_mspt: tick_manager.get_smoothed_mspt(),
+            average_mspt: tick_manager.get_average_mspt(),
+            p95_mspt: tick_manager.get_p95(),
+        }
+    }
+}
+
+/// Results from saving every command-owned persistent data set.
+pub struct CommandDataSaveResults {
+    /// Number of dirty domain scoreboards written, or the save error.
+    pub scoreboards: io::Result<usize>,
+    /// Number of dirty domain command-storage values written, or the save error.
+    pub storage: io::Result<usize>,
+}
+
+mod known_players;
+
+use known_players::KnownPlayerCacheState;
 
 /// Tick rate for the chunk sending loop.
 const CHUNK_SENDING_TPS: u64 = 20;
 
-/// Tick rate for the chunk scheduling loop.
-const CHUNK_SCHEDULING_TPS: u64 = 20;
+/// Work duration at which background chunk work is considered slow.
+const SLOW_CHUNK_TICK_THRESHOLD: Duration = Duration::from_millis(50);
 
 fn configured_chunk_generation_threads(configured_threads: Option<usize>) -> Option<usize> {
     cap_positive_thread_count(configured_threads, available_worker_threads())
+}
+
+fn configured_chunk_encoding_threads(configured_threads: Option<usize>) -> Option<usize> {
+    cap_positive_thread_count(configured_threads, available_worker_threads())
+}
+
+fn configured_packet_workers(configured_workers: Option<usize>) -> usize {
+    packet_workers_for_available(configured_workers, available_worker_threads())
 }
 
 fn available_worker_threads() -> usize {
@@ -107,142 +184,20 @@ fn cap_positive_thread_count(
     Some(configured_threads.min(available_threads.max(1)))
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Weak;
-
-    use glam::DVec3;
-    use steel_registry::entity_type::EntityTypeRef;
-    use steel_registry::game_rules::GameRuleValue;
-    use steel_registry::{vanilla_dimension_types, vanilla_entities};
-    use uuid::Uuid;
-
-    use crate::entity::{Entity, EntityBase};
-
-    use super::{
-        can_entity_return_from_end_to_overworld, cap_positive_thread_count,
-        is_allowed_to_enter_portal_target, is_end_return_transition,
-    };
-
-    struct TestEntity {
-        base: EntityBase,
-        entity_type: EntityTypeRef,
-        projectile_owner_uuid: Option<Uuid>,
+fn packet_workers_for_available(
+    configured_workers: Option<usize>,
+    available_threads: usize,
+) -> usize {
+    let available_threads = available_threads.max(1);
+    if let Some(configured_workers) = configured_workers.filter(|&workers| workers > 0) {
+        return configured_workers.min(available_threads);
     }
 
-    impl TestEntity {
-        fn new(entity_type: EntityTypeRef, projectile_owner_uuid: Option<Uuid>) -> Self {
-            Self {
-                base: EntityBase::new(1, DVec3::ZERO, entity_type.dimensions, Weak::new()),
-                entity_type,
-                projectile_owner_uuid,
-            }
-        }
-    }
-
-    crate::entity::impl_test_downcast_type!(TestEntity);
-
-    impl Entity for TestEntity {
-        fn base(&self) -> &EntityBase {
-            &self.base
-        }
-
-        fn entity_type(&self) -> EntityTypeRef {
-            self.entity_type
-        }
-
-        fn projectile_owner_uuid(&self) -> Option<Uuid> {
-            self.projectile_owner_uuid
-        }
-    }
-
-    #[test]
-    fn positive_thread_count_is_capped_to_available_threads() {
-        assert_eq!(cap_positive_thread_count(Some(16), 8), Some(8));
-        assert_eq!(cap_positive_thread_count(Some(4), 8), Some(4));
-    }
-
-    #[test]
-    fn zero_thread_count_keeps_pool_default() {
-        assert_eq!(cap_positive_thread_count(Some(0), 8), None);
-        assert_eq!(cap_positive_thread_count(None, 8), None);
-    }
-
-    #[test]
-    fn nether_portal_entry_obeys_allow_entering_nether_gamerule() {
-        assert!(is_allowed_to_enter_portal_target(
-            false,
-            GameRuleValue::Bool(false)
-        ));
-        assert!(is_allowed_to_enter_portal_target(
-            true,
-            GameRuleValue::Bool(true)
-        ));
-        assert!(!is_allowed_to_enter_portal_target(
-            true,
-            GameRuleValue::Bool(false)
-        ));
-    }
-
-    #[test]
-    fn can_teleport_passenger_gate_only_applies_to_end_return() {
-        assert!(is_end_return_transition(
-            &vanilla_dimension_types::THE_END,
-            &vanilla_dimension_types::OVERWORLD
-        ));
-        assert!(!is_end_return_transition(
-            &vanilla_dimension_types::THE_END,
-            &vanilla_dimension_types::THE_NETHER
-        ));
-        assert!(!is_end_return_transition(
-            &vanilla_dimension_types::OVERWORLD,
-            &vanilla_dimension_types::OVERWORLD
-        ));
-        assert!(!is_end_return_transition(
-            &vanilla_dimension_types::OVERWORLD,
-            &vanilla_dimension_types::THE_END
-        ));
-    }
-
-    #[test]
-    fn ender_pearl_end_return_requires_owner_seen_credits_when_owner_is_player() {
-        let blocked_owner = Uuid::from_u128(1);
-        let allowed_owner = Uuid::from_u128(2);
-        let unknown_owner = Uuid::from_u128(3);
-        let blocked_pearl = TestEntity::new(&vanilla_entities::ENDER_PEARL, Some(blocked_owner));
-        let allowed_pearl = TestEntity::new(&vanilla_entities::ENDER_PEARL, Some(allowed_owner));
-        let unknown_owner_pearl =
-            TestEntity::new(&vanilla_entities::ENDER_PEARL, Some(unknown_owner));
-        let no_player_owner_pearl = TestEntity::new(&vanilla_entities::ENDER_PEARL, None);
-        let item = TestEntity::new(&vanilla_entities::ITEM, Some(blocked_owner));
-        let owner_seen_credits = |uuid: &Uuid| match *uuid {
-            uuid if uuid == blocked_owner => Some(false),
-            uuid if uuid == allowed_owner => Some(true),
-            _ => None,
-        };
-
-        assert!(!can_entity_return_from_end_to_overworld(
-            &blocked_pearl,
-            owner_seen_credits
-        ));
-        assert!(can_entity_return_from_end_to_overworld(
-            &allowed_pearl,
-            owner_seen_credits
-        ));
-        assert!(can_entity_return_from_end_to_overworld(
-            &unknown_owner_pearl,
-            owner_seen_credits
-        ));
-        assert!(can_entity_return_from_end_to_overworld(
-            &no_player_owner_pearl,
-            owner_seen_credits
-        ));
-        assert!(can_entity_return_from_end_to_overworld(
-            &item,
-            owner_seen_credits
-        ));
-    }
+    ((available_threads / 2).max(2)).min(available_threads)
 }
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Copy)]
 struct PreparedSpawn {
@@ -260,20 +215,6 @@ fn apply_default_spawn(player: &Arc<Player>, world: &Arc<World>, spawn: Prepared
         .update_for_game_mode(world.default_gamemode);
 }
 
-fn world_spawn_transition(world: Arc<World>) -> TeleportTransition {
-    let spawn = local_respawn_data_for_world(&world);
-    TeleportTransition {
-        target_world: world,
-        position: respawn_position(&spawn),
-        rotation: (spawn.yaw, spawn.pitch),
-        velocity: DVec3::ZERO,
-        relatives: RelativeMovement::NONE,
-        portal_cooldown: 0,
-        as_passenger: false,
-        post_transition: TeleportPostTransition::do_nothing(),
-    }
-}
-
 fn is_allowed_to_enter_portal(source_world: &World, target_world: &World) -> bool {
     is_allowed_to_enter_portal_target(
         is_nether_dimension_type(target_world),
@@ -281,23 +222,15 @@ fn is_allowed_to_enter_portal(source_world: &World, target_world: &World) -> boo
     )
 }
 
-fn is_allowed_to_enter_portal_target(
+const fn is_allowed_to_enter_portal_target(
     target_is_nether: bool,
-    allow_entering_nether_using_portals: GameRuleValue,
+    allow_entering_nether_using_portals: bool,
 ) -> bool {
     if !target_is_nether {
         return true;
     }
 
-    match allow_entering_nether_using_portals {
-        GameRuleValue::Bool(allowed) => allowed,
-        value @ GameRuleValue::Int(_) => {
-            panic!(
-                "gamerule {} should be a bool, got {value:?}",
-                ALLOW_ENTERING_NETHER_USING_PORTALS.key
-            )
-        }
-    }
+    allow_entering_nether_using_portals
 }
 
 fn can_teleport_between_worlds(
@@ -364,15 +297,6 @@ fn local_respawn_data_for_world(world: &World) -> RespawnData {
     RespawnData::of(world.key.clone(), data.spawn_pos(), data.spawn.angle, 0.0)
 }
 
-fn respawn_position(respawn_data: &RespawnData) -> DVec3 {
-    let pos = respawn_data.pos();
-    DVec3::new(
-        f64::from(pos.x()) + 0.5,
-        f64::from(pos.y()),
-        f64::from(pos.z()) + 0.5,
-    )
-}
-
 fn generation_settings_for_world(
     world_entry: &ResolvedWorldConfig,
     generator_output: &GeneratorOutput,
@@ -397,7 +321,19 @@ fn world_config_registries() -> Result<(WorldGeneratorRegistry, WorldStorageRegi
 struct DomainPlayerState {
     world: Arc<World>,
     data: DomainPlayerData,
-    _spawn_chunk_request: ChunkRequestHandle,
+    spawn_chunk_request: ChunkRequestHandle,
+}
+
+struct UnpreparedDomainPlayerState {
+    world: Arc<World>,
+    explicit_target: bool,
+    data: UnpreparedDomainPlayerData,
+}
+
+enum UnpreparedDomainPlayerData {
+    SavedRestored { data: Box<PersistentPlayerData> },
+    SavedWithoutLocation { data: Box<PersistentPlayerData> },
+    FirstVisit,
 }
 
 enum DomainPlayerData {
@@ -406,10 +342,10 @@ enum DomainPlayerData {
     },
     SavedWithoutLocation {
         data: Box<PersistentPlayerData>,
-        default_spawn: PreparedSpawn,
+        spawn: PreparedSpawn,
     },
     FirstVisit {
-        default_spawn: PreparedSpawn,
+        spawn: PreparedSpawn,
     },
 }
 
@@ -417,827 +353,54 @@ struct DomainSwitchRequest {
     player: Arc<Player>,
     target_domain: String,
     target_world: Option<Arc<World>>,
-    restore_saved_location: bool,
-}
-
-struct PendingPlayerJoin {
-    player: Arc<Player>,
-    state: Result<DomainPlayerState, String>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum PlayerAdmissionState {
-    Joining,
-    Disconnecting,
-}
-
-struct PlayerJoinQueue {
-    sender: mpsc::Sender<PendingPlayerJoin>,
-    receiver: SyncMutex<mpsc::Receiver<PendingPlayerJoin>>,
-}
-
-impl PlayerJoinQueue {
-    fn new() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        Self {
-            sender,
-            receiver: SyncMutex::new(receiver),
-        }
-    }
-
-    fn send(&self, join: PendingPlayerJoin) {
-        let _ = self.sender.send(join);
-    }
-
-    fn drain(&self) -> Vec<PendingPlayerJoin> {
-        let receiver = self.receiver.lock();
-        let mut joins = Vec::new();
-        while let Ok(join) = receiver.try_recv() {
-            joins.push(join);
-        }
-        joins
-    }
-}
-
-struct RootVehicleRestoreJob {
-    player: Arc<Player>,
-    world: Arc<World>,
-    request: ChunkRequestHandle,
-    attach: [u8; 16],
-    root_uuid: [u8; 16],
-}
-
-impl RootVehicleRestoreJob {
-    fn new(
-        player: Arc<Player>,
-        world: Arc<World>,
-        root_vehicle: &PersistentRootVehicle,
-    ) -> Option<Self> {
-        let root_chunk = persistent_entity_chunk(&root_vehicle.entity)?;
-        let request = world.chunk_map.request_chunk(
-            root_chunk,
-            ChunkStatus::StructureStarts,
-            ChunkTicketKind::PlayerSpawn,
-        );
-        Some(Self {
-            player,
-            world,
-            request,
-            attach: root_vehicle.attach,
-            root_uuid: root_vehicle.entity.uuid,
-        })
-    }
-}
-
-impl ServerJob for RootVehicleRestoreJob {
-    fn poll(&mut self, _context: &mut ServerJobContext) -> JobPoll {
-        if self.player.connection.closed()
-            || !self.player.has_joined_world()
-            || !Arc::ptr_eq(&self.player.get_world(), &self.world)
-        {
-            return JobPoll::Finished;
-        }
-
-        match self.request.poll() {
-            ChunkRequestState::Pending { .. } => JobPoll::Pending,
-            ChunkRequestState::Cancelled => JobPoll::Finished,
-            ChunkRequestState::Ready => {
-                let Some(_ready) = self.request.ready_chunks() else {
-                    return JobPoll::Pending;
-                };
-                if let Some(root_vehicle) = self.player.take_matching_pending_root_vehicle(
-                    &self.world,
-                    self.attach,
-                    self.root_uuid,
-                ) {
-                    restore_root_vehicle_for_player(&self.player, &self.world, root_vehicle);
-                }
-                JobPoll::Finished
-            }
-        }
-    }
-
-    fn cancel(&mut self) {
-        self.request.cancel();
-    }
-}
-
-fn clear_pending_world_change(entity: &SharedEntity, pending_token: PendingWorldChangeToken) {
-    entity.finish_pending_world_change(pending_token);
-}
-
-fn finish_pending_world_change_after_transition(
-    entity: &SharedEntity,
     pending_token: PendingWorldChangeToken,
-    changed_entity: Option<SharedEntity>,
-) {
-    match changed_entity {
-        Some(changed_entity) if Arc::ptr_eq(entity, &changed_entity) => {
-            changed_entity.finish_pending_world_change(pending_token);
-        }
-        Some(_) => {}
-        None => {
-            entity.finish_pending_world_change(pending_token);
-        }
+}
+
+/// Failure while atomically editing one player's persisted permission state.
+#[derive(Debug, thiserror::Error)]
+pub enum PlayerPermissionUpdateError<E> {
+    /// The caller rejected the proposed edit.
+    #[error("{0}")]
+    Edit(E),
+    /// The edit assigns a group that is not configured.
+    #[error("unknown permission group '{0}'")]
+    UnknownGroup(String),
+    /// The permission snapshot could not be persisted.
+    #[error("failed to update player permissions: {0}")]
+    Storage(io::Error),
+}
+
+impl<E> From<io::Error> for PlayerPermissionUpdateError<E> {
+    fn from(value: io::Error) -> Self {
+        Self::Storage(value)
     }
 }
 
-fn finish_portal_world_change(
-    entity: &SharedEntity,
-    pending_token: PendingWorldChangeToken,
-    changed_entity: Option<SharedEntity>,
-) -> JobPoll {
-    finish_pending_world_change_after_transition(entity, pending_token, changed_entity);
-    JobPoll::Finished
-}
+mod permissions;
 
-fn portal_entity_still_valid(
-    entity: &SharedEntity,
-    source_world: &Arc<World>,
-    pending_token: PendingWorldChangeToken,
-) -> bool {
-    !entity.is_removed()
-        && entity.is_world_change_token_pending(pending_token)
-        && entity
-            .level()
-            .is_some_and(|world| Arc::ptr_eq(&world, source_world))
-        && source_world.contains_live_or_unloading_entity(entity)
-        && !entity
-            .as_player()
-            .is_some_and(|player| player.connection.closed())
-}
+#[cfg(test)]
+use permissions::validate_player_permission_group_update;
 
-fn poll_portal_chunks_until_ready(
-    request: &mut ChunkRequestHandle,
-    entity: &SharedEntity,
-    pending_token: PendingWorldChangeToken,
-) -> Option<JobPoll> {
-    match request.poll() {
-        ChunkRequestState::Pending { .. } => Some(JobPoll::Pending),
-        ChunkRequestState::Cancelled => {
-            clear_pending_world_change(entity, pending_token);
-            Some(JobPoll::Finished)
-        }
-        ChunkRequestState::Ready => {
-            if request.ready_chunks().is_some() {
-                None
-            } else {
-                Some(JobPoll::Pending)
-            }
-        }
-    }
-}
+mod player_admission;
+mod player_lifecycle;
 
-struct NetherPortalTeleportJob {
-    entity: SharedEntity,
-    source_world: Arc<World>,
-    target_world: Arc<World>,
-    portal_pos: BlockPos,
-    approximate_exit_pos: BlockPos,
-    to_nether: bool,
-    pending_token: PendingWorldChangeToken,
-    request: ChunkRequestHandle,
-}
+use player_admission::{PlayerAdmissionState, PlayerDisconnectQueue, PlayerJoinQueue};
 
-impl NetherPortalTeleportJob {
-    fn new(
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        target_world: Arc<World>,
-        portal_pos: BlockPos,
-        approximate_exit_pos: BlockPos,
-        to_nether: bool,
-        pending_token: PendingWorldChangeToken,
-    ) -> Self {
-        let request = target_world.chunk_map.request_square(
-            nether_portal::prewarm_center(approximate_exit_pos),
-            nether_portal::prewarm_chunk_radius(to_nether),
-            ChunkStatus::Full,
-            ChunkTicketKind::Portal,
-        );
-        Self {
-            entity,
-            source_world,
-            target_world,
-            portal_pos,
-            approximate_exit_pos,
-            to_nether,
-            pending_token,
-            request,
-        }
-    }
+mod world_changes;
 
-    fn still_valid(&self) -> bool {
-        portal_entity_still_valid(&self.entity, &self.source_world, self.pending_token)
-    }
-
-    fn clear_pending(&self) {
-        clear_pending_world_change(&self.entity, self.pending_token);
-    }
-
-    fn finish_transition(&self, changed_entity: Option<SharedEntity>) {
-        finish_pending_world_change_after_transition(
-            &self.entity,
-            self.pending_token,
-            changed_entity,
-        );
-    }
-}
-
-impl ServerJob for NetherPortalTeleportJob {
-    fn poll(&mut self, context: &mut ServerJobContext) -> JobPoll {
-        if !self.still_valid() {
-            self.clear_pending();
-            return JobPoll::Finished;
-        }
-
-        if let Some(job_poll) =
-            poll_portal_chunks_until_ready(&mut self.request, &self.entity, self.pending_token)
-        {
-            return job_poll;
-        }
-
-        let Some(server) = context.server() else {
-            self.clear_pending();
-            return JobPoll::Finished;
-        };
-        if !is_allowed_to_enter_portal(&self.source_world, &self.target_world)
-            || !server.can_teleport_between_worlds(
-                self.entity.as_ref(),
-                &self.source_world,
-                &self.target_world,
-            )
-        {
-            self.clear_pending();
-            return JobPoll::Finished;
-        }
-        let Some(transition) = nether_portal::calculate_transition(
-            &self.source_world,
-            &self.target_world,
-            self.entity.as_ref(),
-            self.portal_pos,
-            self.approximate_exit_pos,
-            self.to_nether,
-        ) else {
-            self.clear_pending();
-            return JobPoll::Finished;
-        };
-        let changed_entity = change_entity_world(Arc::clone(&self.entity), &transition);
-        self.finish_transition(changed_entity);
-        JobPoll::Finished
-    }
-
-    fn cancel(&mut self) {
-        self.clear_pending();
-        self.request.cancel();
-    }
-}
-
-const END_PORTAL_RESPAWN_SEARCH_READY_CANDIDATE_BUDGET: usize = 8;
-
-struct EndPortalRespawnSpawn {
-    position: DVec3,
-    rotation: (f32, f32),
-}
-
-struct EndPortalTeleportJob {
-    entity: SharedEntity,
-    source_world: Arc<World>,
-    pending_token: PendingWorldChangeToken,
-    phase: EndPortalTeleportPhase,
-}
-
-enum EndPortalTeleportPhase {
-    EntryToEnd {
-        target_world: Arc<World>,
-        request: ChunkRequestHandle,
-    },
-    ReturningEntity {
-        target_world: Arc<World>,
-        respawn_data: RespawnData,
-        request: ChunkRequestHandle,
-    },
-    SearchingPlayerRespawn {
-        target_world: Arc<World>,
-        respawn_data: RespawnData,
-        search: PlayerSpawnSearch,
-    },
-    LoadingPlayerRespawn {
-        target_world: Arc<World>,
-        spawn: EndPortalRespawnSpawn,
-        request: ChunkRequestHandle,
-    },
-}
-
-impl EndPortalTeleportJob {
-    fn entry_to_end(
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        target_world: Arc<World>,
-        pending_token: PendingWorldChangeToken,
-    ) -> Self {
-        let request = target_world.chunk_map.request_square(
-            end_portal::end_platform_prewarm_center(),
-            end_portal::end_platform_prewarm_chunk_radius(),
-            ChunkStatus::Full,
-            ChunkTicketKind::Portal,
-        );
-        Self {
-            entity,
-            source_world,
-            pending_token,
-            phase: EndPortalTeleportPhase::EntryToEnd {
-                target_world,
-                request,
-            },
-        }
-    }
-
-    fn returning_entity(
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        target_world: Arc<World>,
-        respawn_data: RespawnData,
-        pending_token: PendingWorldChangeToken,
-    ) -> Self {
-        let request = target_world.chunk_map.request_chunk(
-            end_portal::prewarm_center(respawn_data.pos()),
-            ChunkStatus::Full,
-            ChunkTicketKind::Portal,
-        );
-        Self {
-            entity,
-            source_world,
-            pending_token,
-            phase: EndPortalTeleportPhase::ReturningEntity {
-                target_world,
-                respawn_data,
-                request,
-            },
-        }
-    }
-
-    fn returning_player(
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        target_world: Arc<World>,
-        respawn_data: RespawnData,
-        pending_token: PendingWorldChangeToken,
-    ) -> Result<Self, String> {
-        let search = PlayerSpawnSearch::new(
-            &target_world,
-            respawn_data.pos(),
-            target_world.default_gamemode,
-        )?;
-        Ok(Self {
-            entity,
-            source_world,
-            pending_token,
-            phase: EndPortalTeleportPhase::SearchingPlayerRespawn {
-                target_world,
-                respawn_data,
-                search,
-            },
-        })
-    }
-
-    fn still_valid(&self) -> bool {
-        portal_entity_still_valid(&self.entity, &self.source_world, self.pending_token)
-    }
-
-    fn clear_pending(&self) {
-        clear_pending_world_change(&self.entity, self.pending_token);
-    }
-}
-
-impl ServerJob for EndPortalTeleportJob {
-    fn poll(&mut self, _context: &mut ServerJobContext) -> JobPoll {
-        if !self.still_valid() {
-            self.clear_pending();
-            return JobPoll::Finished;
-        }
-
-        let entity = Arc::clone(&self.entity);
-        let pending_token = self.pending_token;
-        loop {
-            match &mut self.phase {
-                EndPortalTeleportPhase::EntryToEnd {
-                    target_world,
-                    request,
-                } => {
-                    if let Some(job_poll) =
-                        poll_portal_chunks_until_ready(request, &entity, pending_token)
-                    {
-                        return job_poll;
-                    }
-                    let Some(transition) =
-                        end_portal::calculate_entry_transition(target_world, entity.as_ref())
-                    else {
-                        clear_pending_world_change(&entity, pending_token);
-                        return JobPoll::Finished;
-                    };
-                    let changed_entity = change_entity_world(Arc::clone(&entity), &transition);
-                    return finish_portal_world_change(&entity, pending_token, changed_entity);
-                }
-                EndPortalTeleportPhase::ReturningEntity {
-                    target_world,
-                    respawn_data,
-                    request,
-                } => {
-                    if let Some(job_poll) =
-                        poll_portal_chunks_until_ready(request, &entity, pending_token)
-                    {
-                        return job_poll;
-                    }
-                    let transition = end_portal::calculate_entity_return_transition(
-                        target_world,
-                        entity.as_ref(),
-                        respawn_data,
-                    );
-                    let changed_entity = change_entity_world(Arc::clone(&entity), &transition);
-                    return finish_portal_world_change(&entity, pending_token, changed_entity);
-                }
-                EndPortalTeleportPhase::SearchingPlayerRespawn {
-                    target_world,
-                    respawn_data,
-                    search,
-                } => match search.poll_with_ready_candidate_budget(
-                    target_world,
-                    END_PORTAL_RESPAWN_SEARCH_READY_CANDIDATE_BUDGET,
-                ) {
-                    PlayerSpawnSearchPoll::Pending => return JobPoll::Pending,
-                    PlayerSpawnSearchPoll::Cancelled => {
-                        clear_pending_world_change(&entity, pending_token);
-                        return JobPoll::Finished;
-                    }
-                    PlayerSpawnSearchPoll::Ready(position) => {
-                        let spawn = EndPortalRespawnSpawn {
-                            position,
-                            rotation: (respawn_data.yaw, respawn_data.pitch),
-                        };
-                        let request = target_world.request_player_spawn_chunks(position);
-                        self.phase = EndPortalTeleportPhase::LoadingPlayerRespawn {
-                            target_world: target_world.clone(),
-                            spawn,
-                            request,
-                        };
-                    }
-                },
-                EndPortalTeleportPhase::LoadingPlayerRespawn {
-                    target_world,
-                    spawn,
-                    request,
-                } => {
-                    if let Some(job_poll) =
-                        poll_portal_chunks_until_ready(request, &entity, pending_token)
-                    {
-                        return job_poll;
-                    }
-                    let transition = end_portal::calculate_player_return_transition(
-                        target_world,
-                        entity.as_ref(),
-                        spawn.position,
-                        spawn.rotation,
-                    );
-                    let changed_entity = change_entity_world(Arc::clone(&entity), &transition);
-                    return finish_portal_world_change(&entity, pending_token, changed_entity);
-                }
-            }
-        }
-    }
-
-    fn cancel(&mut self) {
-        self.clear_pending();
-        match &mut self.phase {
-            EndPortalTeleportPhase::EntryToEnd { request, .. }
-            | EndPortalTeleportPhase::ReturningEntity { request, .. }
-            | EndPortalTeleportPhase::LoadingPlayerRespawn { request, .. } => request.cancel(),
-            EndPortalTeleportPhase::SearchingPlayerRespawn { .. } => {}
-        }
-    }
-}
-
-struct EndGatewayTeleportJob {
-    entity: SharedEntity,
-    source_world: Arc<World>,
-    portal_pos: BlockPos,
-    source_is_end: bool,
-    pending_token: PendingWorldChangeToken,
-    phase: EndGatewayTeleportPhase,
-}
-
-enum EndGatewayTeleportPhase {
-    LoadingReady { request: ChunkRequestHandle },
-    LoadingSearchPath { request: ChunkRequestHandle },
-}
-
-impl EndGatewayTeleportJob {
-    fn new(
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        portal_pos: BlockPos,
-        source_is_end: bool,
-        pending_token: PendingWorldChangeToken,
-    ) -> Option<Self> {
-        let preparation = end_gateway::initial_chunks(&source_world, portal_pos, source_is_end)?;
-        let phase = match preparation {
-            end_gateway::EndGatewayChunkPreparation::Ready(chunks) => {
-                EndGatewayTeleportPhase::LoadingReady {
-                    request: request_end_gateway_chunks(&source_world, chunks),
-                }
-            }
-            end_gateway::EndGatewayChunkPreparation::SearchPath(chunks) => {
-                EndGatewayTeleportPhase::LoadingSearchPath {
-                    request: request_end_gateway_chunks(&source_world, chunks),
-                }
-            }
-        };
-        Some(Self {
-            entity,
-            source_world,
-            portal_pos,
-            source_is_end,
-            pending_token,
-            phase,
-        })
-    }
-
-    fn still_valid(&self) -> bool {
-        portal_entity_still_valid(&self.entity, &self.source_world, self.pending_token)
-    }
-
-    fn clear_pending(&self) {
-        clear_pending_world_change(&self.entity, self.pending_token);
-    }
-}
-
-impl ServerJob for EndGatewayTeleportJob {
-    fn poll(&mut self, _context: &mut ServerJobContext) -> JobPoll {
-        if !self.still_valid() {
-            self.clear_pending();
-            return JobPoll::Finished;
-        }
-
-        let entity = Arc::clone(&self.entity);
-        let pending_token = self.pending_token;
-        let source_world = Arc::clone(&self.source_world);
-        let portal_pos = self.portal_pos;
-        let source_is_end = self.source_is_end;
-        loop {
-            match &mut self.phase {
-                EndGatewayTeleportPhase::LoadingReady { request } => match request.poll() {
-                    ChunkRequestState::Pending { .. } => return JobPoll::Pending,
-                    ChunkRequestState::Cancelled => {
-                        clear_pending_world_change(&entity, pending_token);
-                        return JobPoll::Finished;
-                    }
-                    ChunkRequestState::Ready => {
-                        let Some(_ready) = request.ready_chunks() else {
-                            return JobPoll::Pending;
-                        };
-                        let Some(transition) = end_gateway::calculate_transition(
-                            &source_world,
-                            entity.as_ref(),
-                            portal_pos,
-                            source_is_end,
-                        ) else {
-                            clear_pending_world_change(&entity, pending_token);
-                            return JobPoll::Finished;
-                        };
-                        let changed_entity = change_entity_world(Arc::clone(&entity), &transition);
-                        finish_pending_world_change_after_transition(
-                            &entity,
-                            pending_token,
-                            changed_entity,
-                        );
-                        return JobPoll::Finished;
-                    }
-                },
-                EndGatewayTeleportPhase::LoadingSearchPath { request } => match request.poll() {
-                    ChunkRequestState::Pending { .. } => return JobPoll::Pending,
-                    ChunkRequestState::Cancelled => {
-                        clear_pending_world_change(&entity, pending_token);
-                        return JobPoll::Finished;
-                    }
-                    ChunkRequestState::Ready => {
-                        let Some(_ready) = request.ready_chunks() else {
-                            return JobPoll::Pending;
-                        };
-                        let Some(chunks) = end_gateway::final_chunks_after_search(
-                            &source_world,
-                            portal_pos,
-                            source_is_end,
-                        ) else {
-                            clear_pending_world_change(&entity, pending_token);
-                            return JobPoll::Finished;
-                        };
-                        self.phase = EndGatewayTeleportPhase::LoadingReady {
-                            request: request_end_gateway_chunks(&source_world, chunks),
-                        };
-                    }
-                },
-            }
-        }
-    }
-
-    fn cancel(&mut self) {
-        self.clear_pending();
-        match &mut self.phase {
-            EndGatewayTeleportPhase::LoadingReady { request }
-            | EndGatewayTeleportPhase::LoadingSearchPath { request } => request.cancel(),
-        }
-    }
-}
-
-fn request_end_gateway_chunks(world: &Arc<World>, chunks: Vec<ChunkPos>) -> ChunkRequestHandle {
-    world.chunk_map.request_chunks(ChunkRequest {
-        status: ChunkStatus::Full,
-        positions: chunks,
-        ticket_kind: ChunkTicketKind::Portal,
-    })
-}
-
-fn persistent_entity_chunk(entity: &PersistentEntity) -> Option<ChunkPos> {
-    let pos = DVec3::new(entity.pos[0], entity.pos[1], entity.pos[2]);
-    if !pos.x.is_finite() || !pos.y.is_finite() || !pos.z.is_finite() {
-        tracing::warn!(
-            uuid = ?Uuid::from_bytes(entity.uuid),
-            "Skipping persisted entity with non-finite position {pos:?}",
-        );
-        return None;
-    }
-    Some(ChunkPos::from_entity_pos(pos))
-}
-
-fn restore_root_vehicle_for_player(
-    player: &Arc<Player>,
-    world: &Arc<World>,
-    root_vehicle: PersistentRootVehicle,
-) {
-    let Some(root_chunk) = persistent_entity_chunk(&root_vehicle.entity) else {
-        return;
-    };
-    let level = Arc::downgrade(world);
-    let entities =
-        ChunkStorage::persistent_to_entity_tree_at_level(&root_vehicle.entity, root_chunk, &level);
-    if entities.is_empty() {
-        tracing::warn!(
-            player = %player.gameprofile.name,
-            "Persisted RootVehicle did not recreate any runtime entities",
-        );
-        return;
-    }
-
-    let attach_uuid = Uuid::from_bytes(root_vehicle.attach);
-    let Some(attach_entity) = entities
-        .iter()
-        .find(|entity| entity.uuid() == attach_uuid)
-        .cloned()
-    else {
-        tracing::warn!(
-            player = %player.gameprofile.name,
-            attach = ?attach_uuid,
-            "Discarding persisted RootVehicle because the attach entity is missing",
-        );
-        discard_restored_entities(&entities);
-        return;
-    };
-
-    if let Err(error) = world.register_loaded_entity_tree(&entities) {
-        tracing::warn!(
-            player = %player.gameprofile.name,
-            attach = ?attach_uuid,
-            root = ?Uuid::from_bytes(root_vehicle.entity.uuid),
-            "Discarding persisted RootVehicle because its entity tree could not be registered: {error}",
-        );
-        discard_restored_entities(&entities);
-        return;
-    }
-
-    let player_entity: SharedEntity = player.clone();
-    EntityBase::restore_passenger_relationship(&attach_entity, &player_entity);
-    attach_entity.position_rider(player.as_ref());
-    player.send_restored_vehicle_mount_sync(attach_entity.as_ref());
-
-    world.mark_chunk_dirty(root_chunk);
-    for entity in &entities {
-        world.mark_chunk_dirty(ChunkPos::from_entity_pos(entity.position()));
-    }
-}
-
-fn discard_restored_entities(entities: &[SharedEntity]) {
-    for entity in entities {
-        entity.set_removed(RemovalReason::Discarded);
-    }
-}
-
-/// Re-spawns a single persisted ender pearl in its own world once the target
-/// chunk is loaded (vanilla `ServerPlayer.loadAndSpawnEnderPearl`).
-struct EnderPearlRestoreJob {
-    player: Arc<Player>,
-    world: Arc<World>,
-    request: ChunkRequestHandle,
-    uuid: Uuid,
-    entity: PersistentEntity,
-}
-
-impl EnderPearlRestoreJob {
-    fn new(player: Arc<Player>, world: Arc<World>, entity: PersistentEntity) -> Option<Self> {
-        let chunk = persistent_entity_chunk(&entity)?;
-        let uuid = Uuid::from_bytes(entity.uuid);
-        let request = world.chunk_map.request_chunk(
-            chunk,
-            ChunkStatus::StructureStarts,
-            ChunkTicketKind::PlayerSpawn,
-        );
-        Some(Self {
-            player,
-            world,
-            request,
-            uuid,
-            entity,
-        })
-    }
-}
-
-impl ServerJob for EnderPearlRestoreJob {
-    fn poll(&mut self, _context: &mut ServerJobContext) -> JobPoll {
-        // The pearl lives in its own world, which may differ from the player's, so
-        // only the connection (not the player's current world) gates the restore.
-        if self.player.connection.closed() {
-            return JobPoll::Finished;
-        }
-
-        match self.request.poll() {
-            ChunkRequestState::Pending { .. } => JobPoll::Pending,
-            ChunkRequestState::Cancelled => JobPoll::Finished,
-            ChunkRequestState::Ready => {
-                if self.request.ready_chunks().is_none() {
-                    return JobPoll::Pending;
-                }
-                if !restore_ender_pearl_for_player(&self.player, &self.world, &self.entity) {
-                    self.player.remove_pending_ender_pearl(self.uuid);
-                }
-                JobPoll::Finished
-            }
-        }
-    }
-
-    fn cancel(&mut self) {
-        self.request.cancel();
-    }
-}
-
-fn restore_ender_pearl_for_player(
-    player: &Arc<Player>,
-    world: &Arc<World>,
-    entity: &PersistentEntity,
-) -> bool {
-    let Some(chunk) = persistent_entity_chunk(entity) else {
-        return false;
-    };
-    let level = Arc::downgrade(world);
-    let entities = ChunkStorage::persistent_to_entity_tree_at_level(entity, chunk, &level);
-    let Some(pearl) = entities.first().cloned() else {
-        tracing::warn!(
-            player = %player.gameprofile.name,
-            "Persisted ender pearl did not recreate a runtime entity",
-        );
-        return false;
-    };
-    if pearl.entity_type() != &vanilla_entities::ENDER_PEARL {
-        tracing::warn!(
-            player = %player.gameprofile.name,
-            entity_type = ?pearl.entity_type().key,
-            "Persisted ender pearl recreated a non-pearl root entity",
-        );
-        return false;
-    }
-
-    let owner: SharedEntity = player.clone();
-    for entity in &entities {
-        entity.restore_owner_reference(&owner);
-    }
-
-    if let Err(error) = world.register_loaded_entity_tree(&entities) {
-        tracing::warn!(
-            player = %player.gameprofile.name,
-            "Discarding persisted ender pearl because it could not be registered: {error}",
-        );
-        discard_restored_entities(&entities);
-        return false;
-    }
-
-    player.register_ender_pearl(&pearl);
-    world.chunk_map.place_ender_pearl_ticket(chunk);
-    world.mark_chunk_dirty(chunk);
-    true
-}
+use jobs::domain_switch::DomainSwitchJob;
+use jobs::teleport::{
+    EndGatewayTeleportJob, EndPortalTeleportJob, EnderPearlRestoreJob, NetherPortalTeleportJob,
+    RootVehicleRestoreJob, WorldSpawnTeleportJob, clear_pending_world_change,
+    portal_entity_still_valid,
+};
 
 /// The main server struct.
 pub struct Server {
     /// Runtime configuration (view distance, compression, etc.).
     pub config: Arc<RuntimeConfig>,
+    /// Runtime permission groups and their persistence boundary.
+    pub permission_groups: PermissionGroupManager,
     /// The cancellation token for graceful shutdown.
     pub cancel_token: CancellationToken,
     /// The key store for the server.
@@ -1246,59 +409,155 @@ pub struct Server {
     pub registry_cache: RegistryCache,
     /// A list of all the worlds on the server.
     pub worlds: WorldMap,
-    /// Server random sequences
-    random_sequences: Arc<RandomSequences>,
     /// Players currently connected to the server, independent of world membership.
     online_players: PlayerMap,
     /// UUIDs reserved by a join or disconnect/save lifecycle transition.
     player_admissions: SyncMutex<FxHashMap<Uuid, PlayerAdmissionState>>,
     /// The tick rate manager for the server.
     pub tick_rate_manager: SyncRwLock<TickRateManager>,
+    /// Command scoreboards isolated by Steel domain.
+    pub scoreboards: DomainScoreboards,
+    /// Command NBT storage isolated by Steel domain.
+    pub(crate) command_storage: DomainCommandStorage,
     /// Saves and dispatches commands to appropriate handlers.
-    pub command_dispatcher: SyncRwLock<CommandDispatcher>,
+    command_dispatcher: SyncRwLock<CommandDispatcher>,
+    /// Steel-owned permission keys exposed for command autocomplete.
+    command_permission_keys: Vec<String>,
+    /// Command work submitted from connection and console tasks.
+    command_requests: CommandRequestQueue,
+    /// Decoded serverbound play packets handled during the inter-tick phase.
+    packet_processor: PacketProcessor,
+    /// Dedicated worker pool for CPU-heavy chunk persistence and packet encoding.
+    chunk_encoding_pool: Arc<ThreadPool>,
     /// Jobs resumed from a known point in the server game tick.
     pub jobs: ServerJobQueue,
     /// Player data storage for saving/loading player state.
     pub player_data_storage: PlayerDataStorage,
+    /// Persisted permission state indexed by player UUID.
+    player_permission_states: SyncRwLock<PermissionSubjectIndex>,
+    /// Serializes persistence and cache publication for player permission edits.
+    player_permission_updates: AsyncMutex<()>,
+    /// Player identities and coalesced persistence state.
+    known_players: SyncMutex<KnownPlayerCacheState>,
+    /// Wakes shutdown when the single known-player save worker becomes idle.
+    known_player_save_idle: Notify,
+    /// HTTP client used by online-mode name-to-profile lookups.
+    profile_lookup_client: reqwest::Client,
+    /// Cached Mojang service keys used to validate player-key certificates.
+    service_keys: Arc<ServiceKeyStore>,
     /// Player joins prepared by async I/O and finalized at the game tick safe point.
     pending_player_joins: PlayerJoinQueue,
+    /// Disconnected players waiting to be detached at the next game tick safe point.
+    pending_player_disconnects: PlayerDisconnectQueue,
     /// Queued world changes to process after the tick.
     pub pending_world_changes: SyncMutex<Vec<(SharedEntity, WorldChangeRequest)>>,
     /// Queued domain switches to process after world ticks.
     pending_domain_switches: SyncMutex<Vec<DomainSwitchRequest>>,
 }
 
+struct GameTickTaskGuard {
+    server: Arc<Server>,
+    cancel_token: CancellationToken,
+}
+
+impl GameTickTaskGuard {
+    const fn new(server: Arc<Server>, cancel_token: CancellationToken) -> Self {
+        Self {
+            server,
+            cancel_token,
+        }
+    }
+}
+
+impl Drop for GameTickTaskGuard {
+    fn drop(&mut self) {
+        self.server.packet_processor.stop();
+        self.cancel_token.cancel();
+    }
+}
+
 impl Server {
-    /// Creates a new server.
-    ///
-    #[expect(
-        clippy::too_many_lines,
-        reason = "server initialization is a single cohesive flow"
-    )]
+    pub(crate) fn permission_rule_suggestions(&self) -> Vec<String> {
+        let mut suggestions = self
+            .command_permission_keys
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let config = self.permission_groups.config_snapshot();
+        for group in config.groups.values() {
+            suggestions.extend(group.allow.iter().cloned());
+            suggestions.extend(group.deny.iter().cloned());
+        }
+        for (_, state) in self.player_permission_states.read().entries() {
+            suggestions.extend(state.overrides().entries().iter().map(|entry| {
+                PermissionRuleExpression::new(entry.key().clone(), entry.context().clone())
+                    .to_string()
+            }));
+        }
+        suggestions.into_iter().collect()
+    }
+
+    pub(crate) fn permission_metadata_suggestions(&self) -> Vec<String> {
+        let mut suggestions = BTreeSet::new();
+        let config = self.permission_groups.config_snapshot();
+        for group in config.groups.values() {
+            suggestions.extend(group.metadata.iter().map(|rule| rule.key.clone()));
+        }
+        for (_, state) in self.player_permission_states.read().entries() {
+            suggestions.extend(state.metadata_overrides().entries().iter().map(|entry| {
+                PermissionMetadataExpression::new(entry.key().clone(), entry.context().clone())
+                    .to_string()
+            }));
+        }
+        suggestions.into_iter().collect()
+    }
+
+    /// Creates a new server with only Steel's built-in commands.
     pub async fn new(
         chunk_runtime: Arc<Runtime>,
         cancel_token: CancellationToken,
         config: RuntimeConfig,
         worlds_config: WorldsConfig,
+        permission_groups: PermissionGroupManager,
     ) -> Result<Self, String> {
+        Self::new_with_commands(
+            chunk_runtime,
+            cancel_token,
+            config,
+            worlds_config,
+            permission_groups,
+            CommandRegistry::new(),
+        )
+        .await
+    }
+
+    /// Creates a new server and atomically merges startup command extensions after built-ins.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "server initialization is a single cohesive flow"
+    )]
+    pub async fn new_with_commands(
+        chunk_runtime: Arc<Runtime>,
+        cancel_token: CancellationToken,
+        config: RuntimeConfig,
+        worlds_config: WorldsConfig,
+        permission_groups: PermissionGroupManager,
+        command_registry: CommandRegistry,
+    ) -> Result<Self, String> {
+        validate_login_security(config.online_mode, config.encryption).map_err(str::to_owned)?;
         let config = Arc::new(config);
-        let start = Instant::now();
-        let mut registry = Registry::new_vanilla();
-        registry.freeze();
-        log::info!("Vanilla registry loaded in {:?}", start.elapsed());
-
-        if REGISTRY.init(registry).is_err() {
-            return Err("global registry has already been initialized".to_owned());
-        }
-
-        // Initialize behavior registries after the main registry is frozen
-        init_behaviors();
-        init_block_entities();
-        init_entities();
-        log::info!("Behavior registries initialized");
+        init_globals()?;
         log::info!(
             "SteelMC is not affiliated with Mojang or Microsoft. Use is subject to the Minecraft EULA: https://aka.ms/MinecraftEULA"
         );
+
+        // Authlib starts this fetch alongside server initialization and waits on first use.
+        // Steel completes the same initial attempt before opening its listener.
+        let service_keys = Arc::new(
+            ServiceKeyStore::new(config.services_server.as_deref())
+                .map_err(|error| format!("failed to configure Minecraft services keys: {error}"))?,
+        );
+        let service_keys_ready = service_keys.start(cancel_token.clone());
 
         let registry_cache = RegistryCache::new(config.compression);
 
@@ -1322,6 +581,18 @@ impl Server {
                 .build()
                 .map_err(|e| format!("failed to create generation thread pool: {e}"))?
         });
+        let chunk_encoding_pool = Arc::new({
+            let mut builder =
+                ThreadPoolBuilder::new().thread_name(|i| format!("rayon-chunk-encode-{i}"));
+            if let Some(chunk_encoding_threads) =
+                configured_chunk_encoding_threads(config.chunk_encoding_threads)
+            {
+                builder = builder.num_threads(chunk_encoding_threads);
+            }
+            builder
+                .build()
+                .map_err(|e| format!("failed to create chunk encoding thread pool: {e}"))?
+        });
 
         let player_data_storage = PlayerDataStorage::new(
             resolved_worlds.save_path.clone(),
@@ -1329,108 +600,58 @@ impl Server {
         )
         .await
         .map_err(|e| format!("failed to create player data storage: {e}"))?;
+        let player_permission_states = player_data_storage
+            .load_permission_subjects()
+            .await
+            .map_err(|error| format!("failed to load player permissions: {error}"))?;
+        let known_players = player_data_storage
+            .load_known_players()
+            .await
+            .map_err(|error| format!("failed to load known players: {error}"))?;
         let mut worlds = WorldMap::new(
             resolved_worlds.default_domain.clone(),
             &resolved_worlds.domains,
             &resolved_worlds.worlds,
         );
 
-        let server_default_world_key = resolved_worlds
-            .domains
-            .iter()
-            .find(|domain| domain.name == resolved_worlds.default_domain)
-            .map(|domain| domain.default_world.clone())
-            .ok_or_else(|| "server default domain has no default world".to_owned())?;
-        let server_default_world = resolved_worlds
-            .worlds
-            .iter()
-            .find(|world| world.key == server_default_world_key)
-            .ok_or_else(|| "server default world is not present in resolved worlds".to_owned())?;
-        let default_world_path = resolved_worlds
-            .save_path
-            .join(&server_default_world.domain)
-            .join("worlds")
-            .join(&server_default_world.name);
-        let default_storage_output = storage_registry
-            .create(
-                &server_default_world.storage,
-                &resolved_worlds.save_path,
-                Path::new(&default_world_path),
-            )
-            .map_err(|error| {
-                format!(
-                    "failed to create storage for server default world {}: {error}",
-                    server_default_world.key
+        for world_entry in &resolved_worlds.worlds {
+            let default_world_path = resolved_worlds
+                .save_path
+                .join(&world_entry.domain)
+                .join("worlds")
+                .join(&world_entry.name);
+            let storage_output = storage_registry
+                .create(
+                    &world_entry.storage,
+                    &resolved_worlds.save_path,
+                    Path::new(&default_world_path),
                 )
-            })?;
-        let random_sequence_seed = LevelDataManager::load_seed_or_default(
-            default_storage_output.level_data_path.as_deref(),
-            server_default_world.seed,
-        )
-        .await
-        .map_err(|error| {
-            format!(
-                "failed to load level data seed for server default world {}: {error}",
-                server_default_world.key
-            )
-        })?;
-        let random_sequences = Arc::new(
-            RandomSequences::load(
-                SavedDataManager::new(default_storage_output.level_data_path.as_deref()),
-                random_sequence_seed,
+                .map_err(|e| format!("failed to create storage for {}: {e}", world_entry.key))?;
+            let world_seed = LevelDataManager::load_seed_or_default(
+                storage_output.level_data_path.as_deref(),
+                world_entry.seed,
             )
             .await
-            .map_err(|error| format!("failed to load server random sequences: {error}"))?,
-        );
-        let mut default_storage_output = Some(default_storage_output);
-
-        for world_entry in &resolved_worlds.worlds {
-            let (storage_output, world_seed) = if world_entry.key == server_default_world_key {
-                let Some(storage_output) = default_storage_output.take() else {
-                    return Err("server default world storage was consumed twice".to_owned());
-                };
-                (storage_output, random_sequence_seed)
-            } else {
-                let default_world_path = resolved_worlds
-                    .save_path
-                    .join(&world_entry.domain)
-                    .join("worlds")
-                    .join(&world_entry.name);
-
-                let storage_output = storage_registry
-                    .create(
-                        &world_entry.storage,
-                        &resolved_worlds.save_path,
-                        Path::new(&default_world_path),
-                    )
-                    .map_err(|e| {
-                        format!("failed to create storage for {}: {e}", world_entry.key)
-                    })?;
-
-                let world_seed = LevelDataManager::load_seed_or_default(
-                    storage_output.level_data_path.as_deref(),
-                    world_entry.seed,
+            .map_err(|e| {
+                format!(
+                    "failed to load level data seed for {}: {e}",
+                    world_entry.key
                 )
-                .await
-                .map_err(|e| {
-                    format!(
-                        "failed to load level data seed for {}: {e}",
-                        world_entry.key
-                    )
-                })?;
-                (storage_output, world_seed)
-            };
-
+            })?;
             let generator_output = generator_registry
-                .create(&world_entry.generator_config, world_seed)
+                .create(
+                    storage_output.level_data_path.as_deref(),
+                    &world_entry.generator_config,
+                    world_seed,
+                    generation_pool.clone(),
+                )
                 .map_err(|e| format!("failed to create generator for {}: {e}", world_entry.key))?;
             let generation_settings = generation_settings_for_world(world_entry, &generator_output);
-            let world = World::new_with_config(
+            let world = World::new_with_config_and_encoding_pool(
                 chunk_runtime.clone(),
                 world_entry.key.clone(),
                 generator_output.dimension_type,
                 world_seed,
-                Arc::clone(&random_sequences),
                 WorldConfig {
                     storage: storage_output.storage,
                     level_data_path: storage_output
@@ -1440,6 +661,7 @@ impl Server {
                     generation_settings,
                     view_distance: config.view_distance,
                     simulation_distance: config.simulation_distance,
+                    max_chained_neighbor_updates: config.max_chained_neighbor_updates,
                     compression: config.compression,
                     is_flat: generator_output.is_flat,
                     sea_level: generator_output.sea_level,
@@ -1447,6 +669,7 @@ impl Server {
                     difficulty: world_entry.difficulty,
                 },
                 generation_pool.clone(),
+                Arc::clone(&chunk_encoding_pool),
             )
             .await
             .map_err(|e| format!("failed to create world {}: {e}", world_entry.key))?;
@@ -1457,1696 +680,146 @@ impl Server {
             worlds.insert(world_entry.key.clone(), world);
         }
 
+        let scoreboards = DomainScoreboards::load(&worlds)
+            .await
+            .map_err(|error| format!("failed to load domain scoreboards: {error}"))?;
+        let command_storage = DomainCommandStorage::load(&worlds)
+            .await
+            .map_err(|error| format!("failed to load domain command storage: {error}"))?;
+        let registered_commands = create_registered_dispatcher(command_registry)
+            .map_err(|error| format!("failed to register commands: {error}"))?;
+        let command_permission_keys = registered_commands
+            .permissions
+            .into_iter()
+            .map(|permission| permission.as_str().to_owned())
+            .collect();
+
+        if service_keys_ready.await.is_err() {
+            log::error!("Minecraft services key fetch task stopped before its initial attempt");
+        }
+
         Ok(Server {
             config,
+            permission_groups,
             cancel_token,
             key_store: KeyStore::create(),
             worlds,
-            random_sequences,
             online_players: PlayerMap::new(),
             player_admissions: SyncMutex::new(FxHashMap::default()),
             registry_cache,
             tick_rate_manager: SyncRwLock::new(TickRateManager::new()),
-            command_dispatcher: SyncRwLock::new(CommandDispatcher::new()),
+            scoreboards,
+            command_storage,
+            command_dispatcher: SyncRwLock::new(registered_commands.dispatcher),
+            command_permission_keys,
+            command_requests: CommandRequestQueue::new(),
+            packet_processor: PacketProcessor::new(),
+            chunk_encoding_pool,
             jobs: ServerJobQueue::new(),
             player_data_storage,
+            player_permission_states: SyncRwLock::new(player_permission_states),
+            player_permission_updates: AsyncMutex::new(()),
+            known_players: SyncMutex::new(KnownPlayerCacheState::new(known_players)),
+            known_player_save_idle: Notify::new(),
+            profile_lookup_client: reqwest::Client::new(),
+            service_keys,
             pending_player_joins: PlayerJoinQueue::new(),
+            pending_player_disconnects: PlayerDisconnectQueue::new(),
             pending_world_changes: SyncMutex::new(vec![]),
             pending_domain_switches: SyncMutex::new(vec![]),
         })
     }
 
-    /// Saves random sequences
-    pub async fn save_random_sequences(&self) -> io::Result<()> {
-        self.random_sequences.save().await
+    /// Returns the current player-certificate validator, if service keys are available.
+    pub fn profile_key_signature_validator(&self) -> Option<Arc<ProfileKeyValidator>> {
+        self.service_keys.profile_key_validator()
     }
 
-    /// Queues initial player join work.
-    ///
-    /// Persistent data is loaded asynchronously, then world insertion is finalized at the
-    /// game tick safe point so the socket reader can enter play immediately.
-    pub fn queue_player_join(self: &Arc<Self>, player: Arc<Player>) {
-        if player.connection.closed() {
-            return;
-        }
-        if !self.reserve_player_join(&player) {
-            player.disconnect("You are already connected to this server");
-            return;
-        }
-
-        let server = Arc::clone(self);
-        tokio::spawn(async move {
-            let state = server.prepare_player_join(&player).await;
-            server
-                .pending_player_joins
-                .send(PendingPlayerJoin { player, state });
-        });
-    }
-
-    async fn prepare_player_join(&self, player: &Player) -> Result<DomainPlayerState, String> {
-        let target_domain = self.load_join_domain(player).await?;
-        self.load_domain_player_state(player, &target_domain, None, true)
-            .await
-    }
-
-    fn process_player_joins(&self) {
-        for join in self.pending_player_joins.drain() {
-            self.finish_prepared_player_join(join);
-        }
-    }
-
-    fn finish_prepared_player_join(&self, join: PendingPlayerJoin) {
-        let PendingPlayerJoin { player, state } = join;
-        let uuid = player.gameprofile.id;
-        if player.connection.closed() {
-            self.release_player_admission(uuid, PlayerAdmissionState::Joining);
-            return;
-        }
-
-        let state = match state {
-            Ok(state) => state,
-            Err(error) => {
-                self.release_player_admission(uuid, PlayerAdmissionState::Joining);
-                log::error!(
-                    "Failed to load player data for {}: {error}",
-                    player.gameprofile.name
-                );
-                player.disconnect("Failed to load player data");
-                return;
-            }
-        };
-
-        if !self.admit_reserved_player(Arc::clone(&player)) {
-            player.disconnect("You are already connected to this server");
-            return;
-        }
-
-        Self::apply_domain_player_state(&player, &state);
-        self.send_login_packet(&player, &state.world);
-
-        player.reset(Arc::clone(&state.world), ResetReason::InitialJoin);
-        Self::apply_domain_player_state(&player, &state);
-        let pos = player.position();
-        let rotation = player.rotation();
-        let admitted = player.spawn(pos, rotation, ResetReason::InitialJoin);
-        if !admitted {
-            self.remove_online_player_sync(&player);
-            return;
-        }
-        self.sync_tab_list(&player);
-        if player.mark_joined_world() {
-            player.send_inventory_to_remote();
-        }
-        self.schedule_root_vehicle_restore(&player, &state);
-        self.schedule_ender_pearl_restores(&player, &state);
-        if player.connection.closed() {
-            tokio::spawn(async move {
-                state.world.remove_player(player).await;
-            });
-        }
-    }
-
-    fn reserve_player_join(&self, player: &Player) -> bool {
-        let uuid = player.gameprofile.id;
-        let mut admissions = self.player_admissions.lock();
-        if admissions.contains_key(&uuid) {
-            return false;
-        }
-        if self.online_players.get_by_uuid(&uuid).is_some() {
-            return false;
-        }
-        admissions
-            .insert(uuid, PlayerAdmissionState::Joining)
-            .is_none()
-    }
-
-    fn admit_reserved_player(&self, player: Arc<Player>) -> bool {
-        let uuid = player.gameprofile.id;
-        let mut admissions = self.player_admissions.lock();
-        if admissions.get(&uuid) != Some(&PlayerAdmissionState::Joining) {
-            return false;
-        }
-
-        let admitted = self.online_players.insert(player);
-        let _ = admissions.remove(&uuid);
-        admitted
-    }
-
-    fn reserve_player_disconnect(&self, player: &Arc<Player>) -> bool {
-        let uuid = player.gameprofile.id;
-        let mut admissions = self.player_admissions.lock();
-        if admissions.contains_key(&uuid) {
-            return false;
-        }
-        if !self
-            .online_players
-            .get_by_uuid(&uuid)
-            .is_some_and(|current| Arc::ptr_eq(&current, player))
-        {
-            return false;
-        }
-        admissions
-            .insert(uuid, PlayerAdmissionState::Disconnecting)
-            .is_none()
-    }
-
-    fn release_player_admission(&self, uuid: Uuid, state: PlayerAdmissionState) {
-        let mut admissions = self.player_admissions.lock();
-        if admissions.get(&uuid) == Some(&state) {
-            let _ = admissions.remove(&uuid);
-        }
-    }
-
-    fn remove_online_player_sync(&self, player: &Arc<Player>) {
-        let _ = self.online_players.remove_player_sync(player);
-    }
-
-    pub(crate) async fn remove_online_player_after_disconnect(
-        &self,
-        player: Arc<Player>,
-        domain: String,
-        player_data: PersistentPlayerData,
-    ) {
-        let uuid = player.gameprofile.id;
-        if !self.reserve_player_disconnect(&player) {
-            return;
-        }
-
-        self.broadcast_to_online(CRemovePlayerInfo::single(uuid));
-        let player = self.online_players.remove_player_sync(&player);
-
-        let Some(player) = player else {
-            self.release_player_admission(uuid, PlayerAdmissionState::Disconnecting);
-            return;
-        };
-
-        if let Err(e) = self
-            .player_data_storage
-            .save_domain_data(&domain, uuid, &player_data)
-            .await
-        {
-            log::error!("Failed to save player domain data for {uuid}: {e}");
-        }
-        if let Err(e) = self
-            .player_data_storage
-            .save_global(
-                uuid,
-                &GlobalPlayerData {
-                    last_active_domain: domain,
-                },
-            )
-            .await
-        {
-            log::error!("Failed to save global player data for {uuid}: {e}");
-        }
-
-        player.cleanup();
-        self.release_player_admission(uuid, PlayerAdmissionState::Disconnecting);
-    }
-
-    /// Broadcasts a packet to every online player, regardless of world membership.
-    pub fn broadcast_to_online<P: ClientPacket>(&self, packet: P) {
-        let Ok(encoded) =
-            EncodedPacket::from_bare(packet, self.config.compression, ConnectionProtocol::Play)
-        else {
-            return;
-        };
-        self.online_players.iter_players(|_, player| {
-            player.connection.send_encoded(encoded.clone());
-            true
-        });
-    }
-
-    fn broadcast_to_online_with<P: ClientPacket, F: Fn(&Player) -> P>(&self, packet: F) {
-        self.online_players.iter_players(|_, player| {
-            player.send_packet(packet(player));
-            true
-        });
-    }
-
-    /// Sends full tab list synchronization for a newly joined player.
-    ///
-    /// Server membership mirrors vanilla `PlayerList`; world entity spawning remains
-    /// owned by the per-world entity tracker.
-    fn sync_tab_list(&self, player: &Arc<Player>) {
-        self.online_players.iter_players(|_, existing_player| {
-            if existing_player.gameprofile.id == player.gameprofile.id {
-                return true;
-            }
-
-            let add_existing = CPlayerInfoUpdate::create_player_initializing(
-                existing_player.gameprofile.id,
-                existing_player.gameprofile.name.clone(),
-                existing_player.gameprofile.properties.clone(),
-                existing_player.game_mode().into(),
-                existing_player.connection.latency(),
-                None,
-                true,
-            );
-            player.send_packet(add_existing);
-
-            if let Some(session) = existing_player.chat_session()
-                && let Ok(protocol_data) = session.as_data().to_protocol_data()
-            {
-                player.send_packet(CPlayerInfoUpdate::update_chat_session(
-                    existing_player.gameprofile.id,
-                    protocol_data,
-                ));
-            }
-
-            true
-        });
-
-        let player_info_packet = CPlayerInfoUpdate::create_player_initializing(
-            player.gameprofile.id,
-            player.gameprofile.name.clone(),
-            player.gameprofile.properties.clone(),
-            player.game_mode().into(),
-            player.connection.latency(),
-            None,
-            true,
-        );
-        self.broadcast_to_online(player_info_packet);
-    }
-
-    fn broadcast_player_latency_updates(&self) {
-        let mut latency_entries = Vec::new();
-        self.online_players.iter_players(|uuid, player| {
-            latency_entries.push((*uuid, player.connection.latency()));
-            true
-        });
-
-        if !latency_entries.is_empty() {
-            self.broadcast_to_online(CPlayerInfoUpdate::update_latency(latency_entries));
-        }
-    }
-
-    async fn load_join_domain(&self, player: &Player) -> Result<String, String> {
-        match self
-            .player_data_storage
-            .load_global(player.gameprofile.id)
-            .await
-        {
-            Ok(Some(global)) if self.worlds.has_domain(&global.last_active_domain) => {
-                Ok(global.last_active_domain)
-            }
-            Ok(Some(global)) => {
-                log::warn!(
-                    "Player {} last active domain {} no longer exists, using default domain",
-                    player.gameprofile.name,
-                    global.last_active_domain
-                );
-                Ok(self.worlds.default_domain().to_owned())
-            }
-            Ok(None) => Ok(self.worlds.default_domain().to_owned()),
-            Err(e) => Err(format!("failed to load global player data: {e}")),
-        }
-    }
-
-    async fn load_domain_player_state(
-        &self,
-        player: &Player,
-        target_domain: &str,
-        fallback_world: Option<Arc<World>>,
-        restore_saved_location: bool,
-    ) -> Result<DomainPlayerState, String> {
-        let explicit_target_world = fallback_world.is_some();
-        let mut world = self
-            .worlds
-            .default_world(target_domain)
-            .cloned()
-            .ok_or_else(|| format!("domain {target_domain} has no default world"))?;
-        if let Some(fallback_world) = fallback_world {
-            world = fallback_world;
-        }
-
-        match self
-            .player_data_storage
-            .load_domain(target_domain, player.gameprofile.id)
-            .await
-        {
-            Ok(Some(saved_data)) => {
-                let restore_location = restore_saved_location
-                    && self.resolve_saved_world(
-                        &saved_data.world,
-                        target_domain,
-                        &mut world,
-                        &player.gameprofile.name,
-                    );
-                let (data, spawn_position) = if restore_location {
-                    let spawn_position =
-                        DVec3::new(saved_data.pos[0], saved_data.pos[1], saved_data.pos[2]);
-                    (
-                        DomainPlayerData::SavedRestored {
-                            data: Box::new(saved_data),
-                        },
-                        spawn_position,
-                    )
-                } else {
-                    let (default_world, default_spawn) = self
-                        .prepare_domain_default_spawn(target_domain, explicit_target_world, &world)
-                        .await?;
-                    world = default_world;
-                    (
-                        DomainPlayerData::SavedWithoutLocation {
-                            data: Box::new(saved_data),
-                            default_spawn,
-                        },
-                        default_spawn.position,
-                    )
-                };
-                let spawn_chunk_request = world.prepare_player_spawn_chunks(spawn_position).await?;
-                log::info!("Loaded saved data for player {}", player.gameprofile.name);
-                Ok(DomainPlayerState {
-                    world,
-                    data,
-                    _spawn_chunk_request: spawn_chunk_request,
-                })
-            }
-            Ok(None) => {
-                log::debug!(
-                    "No saved data for player {} in domain {}, using defaults",
-                    player.gameprofile.name,
-                    target_domain
-                );
-                let (default_world, default_spawn) = self
-                    .prepare_domain_default_spawn(target_domain, explicit_target_world, &world)
-                    .await?;
-                world = default_world;
-                let spawn_chunk_request = world
-                    .prepare_player_spawn_chunks(default_spawn.position)
-                    .await?;
-                Ok(DomainPlayerState {
-                    world,
-                    data: DomainPlayerData::FirstVisit { default_spawn },
-                    _spawn_chunk_request: spawn_chunk_request,
-                })
-            }
-            Err(e) => Err(format!(
-                "failed to load domain player data for {} in domain {}: {e}",
-                player.gameprofile.name, target_domain
-            )),
-        }
-    }
-
-    async fn prepare_domain_default_spawn(
-        &self,
-        target_domain: &str,
-        explicit_target_world: bool,
-        world: &Arc<World>,
-    ) -> Result<(Arc<World>, PreparedSpawn), String> {
-        if explicit_target_world {
-            return Ok((world.clone(), Self::prepare_default_spawn(world).await?));
-        }
-
-        let (world, respawn_data) = self.respawn_world_and_data_for_domain(target_domain)?;
-        let spawn = Self::prepare_respawn_spawn(&world, &respawn_data).await?;
-        Ok((world, spawn))
-    }
-
-    async fn prepare_default_spawn(world: &Arc<World>) -> Result<PreparedSpawn, String> {
-        let (spawn, spawn_pos) = {
-            let level_data = world.level_data.read();
-            (
-                level_data.data().spawn.clone(),
-                level_data.data().spawn_pos(),
-            )
-        };
-        let position = world
-            .find_adjusted_shared_spawn_pos(spawn_pos, world.default_gamemode)
-            .await?;
-        Ok(PreparedSpawn {
-            position,
-            rotation: (spawn.angle, 0.0),
-        })
-    }
-
-    async fn prepare_respawn_spawn(
-        world: &Arc<World>,
-        respawn_data: &RespawnData,
-    ) -> Result<PreparedSpawn, String> {
-        let position = world
-            .find_adjusted_shared_spawn_pos(respawn_data.pos(), world.default_gamemode)
-            .await?;
-        Ok(PreparedSpawn {
-            position,
-            rotation: (respawn_data.yaw, respawn_data.pitch),
-        })
-    }
-
-    fn resolve_saved_world(
-        &self,
-        saved_world: &str,
-        target_domain: &str,
-        world: &mut Arc<World>,
-        player_name: &str,
-    ) -> bool {
-        let Ok(saved_world_key) = saved_world.parse::<Identifier>() else {
-            log::warn!(
-                "Saved world {saved_world} for player {player_name} is invalid, using domain default spawn"
-            );
-            return false;
-        };
-        if saved_world_key.namespace.as_ref() != target_domain {
-            log::warn!(
-                "Saved world {saved_world_key} for player {player_name} is outside target domain {target_domain}, using domain default spawn"
-            );
-            return false;
-        }
-        let Some(saved_world) = self.worlds.get(&saved_world_key) else {
-            log::warn!(
-                "Saved world {saved_world_key} for player {player_name} is missing, using domain default spawn"
-            );
-            return false;
-        };
-        *world = saved_world.clone();
-        true
-    }
-
-    fn apply_domain_player_state(player: &Arc<Player>, state: &DomainPlayerState) {
-        match &state.data {
-            DomainPlayerData::SavedRestored { data } => {
-                data.apply_to_player(player);
-            }
-            DomainPlayerData::SavedWithoutLocation {
-                data,
-                default_spawn,
-            } => {
-                apply_default_spawn(player, &state.world, *default_spawn);
-                data.apply_to_player_without_location(player);
-            }
-            DomainPlayerData::FirstVisit { default_spawn } => {
-                apply_default_spawn(player, &state.world, *default_spawn);
-            }
-        }
-    }
-
-    fn schedule_root_vehicle_restore(&self, player: &Arc<Player>, state: &DomainPlayerState) {
-        let Some(root_vehicle) = Self::root_vehicle_to_restore(state) else {
-            player.clear_pending_root_vehicle();
-            return;
-        };
-        player.set_pending_root_vehicle(&state.world, root_vehicle.clone());
-        let Some(job) =
-            RootVehicleRestoreJob::new(Arc::clone(player), Arc::clone(&state.world), &root_vehicle)
-        else {
-            player.clear_pending_root_vehicle();
-            return;
-        };
-        self.jobs.spawn(job);
-    }
-
-    fn root_vehicle_to_restore(state: &DomainPlayerState) -> Option<PersistentRootVehicle> {
-        match &state.data {
-            DomainPlayerData::SavedRestored { data } => data.root_vehicle.clone(),
-            DomainPlayerData::SavedWithoutLocation { .. } | DomainPlayerData::FirstVisit { .. } => {
-                None
-            }
-        }
-    }
-
-    /// Spawns a restore job per persisted ender pearl, each in its own world
-    /// (vanilla `ServerPlayer.loadAndSpawnEnderPearls`).
-    fn schedule_ender_pearl_restores(&self, player: &Arc<Player>, state: &DomainPlayerState) {
-        let pearls = Self::ender_pearls_to_restore(state);
-        if pearls.is_empty() {
-            player.clear_pending_ender_pearls();
-            return;
-        }
-        player.set_pending_ender_pearls(pearls.clone());
-        for pearl in pearls {
-            let pearl_uuid = Uuid::from_bytes(pearl.entity.uuid);
-            let Some(world) = self.resolve_pearl_world(&pearl.world, player) else {
-                player.remove_pending_ender_pearl(pearl_uuid);
-                continue;
-            };
-            if let Some(job) = EnderPearlRestoreJob::new(Arc::clone(player), world, pearl.entity) {
-                self.jobs.spawn(job);
-            } else {
-                player.remove_pending_ender_pearl(pearl_uuid);
-            }
-        }
-    }
-
-    fn ender_pearls_to_restore(state: &DomainPlayerState) -> Vec<PersistentEnderPearl> {
-        match &state.data {
-            DomainPlayerData::SavedRestored { data }
-            | DomainPlayerData::SavedWithoutLocation { data, .. } => data.ender_pearls.clone(),
-            DomainPlayerData::FirstVisit { .. } => Vec::new(),
-        }
-    }
-
-    fn resolve_pearl_world(&self, world_key: &str, player: &Player) -> Option<Arc<World>> {
-        let Ok(key) = world_key.parse::<Identifier>() else {
-            log::warn!(
-                "Saved ender pearl world {world_key} for player {} is invalid, skipping",
-                player.gameprofile.name
-            );
-            return None;
-        };
-        let Some(world) = self.worlds.get(&key) else {
-            log::warn!(
-                "Saved ender pearl world {key} for player {} is missing, skipping",
-                player.gameprofile.name
-            );
-            return None;
-        };
-        Some(world.clone())
-    }
-
-    fn send_login_packet(&self, player: &Player, world: &World) {
-        let reduced_debug_info =
-            world.get_game_rule(&REDUCED_DEBUG_INFO) == GameRuleValue::Bool(true);
-        let immediate_respawn =
-            world.get_game_rule(&IMMEDIATE_RESPAWN) == GameRuleValue::Bool(true);
-        let do_limited_crafting =
-            world.get_game_rule(&LIMITED_CRAFTING) == GameRuleValue::Bool(true);
-
-        // Get world data
-        let hashed_seed = world.obfuscated_seed();
-
-        player.send_packet(CLogin {
-            player_id: player.id(),
-            hardcore: false,
-            levels: self.worlds.keys().cloned().collect(),
-            max_players: self.config.max_players as i32,
-            chunk_radius: player.view_distance().into(),
-            simulation_distance: self.config.simulation_distance.into(),
-            reduced_debug_info,
-            show_death_screen: !immediate_respawn,
-            do_limited_crafting,
-            common_player_spawn_info: CommonPlayerSpawnInfo {
-                dimension_type: world.dimension_type.id() as i32,
-                dimension: world.key.clone(),
-                seed: hashed_seed,
-                game_type: player.game_mode(),
-                previous_game_type: player.previous_game_mode(),
-                is_debug: false,
-                is_flat: world.is_flat,
-                last_death_location: None,
-                portal_cooldown: 0,
-                sea_level: world.sea_level,
-            },
-            online_mode: self.config.online_mode,
-            enforces_secure_chat: self.config.enforce_secure_chat,
-        });
-    }
-
-    /// Gets all the players on the server
-    pub fn get_players(&self) -> Vec<Arc<Player>> {
-        let mut players = vec![];
-        self.online_players.iter_players(|_, p: &Arc<Player>| {
-            players.push(p.clone());
-            true
-        });
-        players
-    }
-
-    /// Returns the total number of players currently online across all worlds.
+    /// Returns whether secure chat can currently be enforced.
     #[must_use]
-    pub fn player_count(&self) -> usize {
-        self.online_players.len()
+    pub fn enforces_secure_chat(&self) -> bool {
+        self.config.enforce_secure_chat
+            && self.config.online_mode
+            && self.profile_key_signature_validator().is_some()
     }
 
-    /// Returns a sample of up to 12 online players for the server list ping.
-    #[must_use]
-    pub fn player_sample(&self) -> Vec<(String, String)> {
-        const MAX_SAMPLE: usize = 12;
-
-        let players = self.get_players();
-        if players.is_empty() {
-            return vec![];
-        }
-
-        let sample_size = players.len().min(MAX_SAMPLE);
-        // Random starting offset into the player list
-        let offset = if players.len() > sample_size {
-            (rand::random::<u64>() as usize) % (players.len() - sample_size + 1)
-        } else {
-            0
-        };
-
-        let mut sample: Vec<(String, String)> = players[offset..offset + sample_size]
-            .iter()
-            .map(|p| {
-                (
-                    p.gameprofile.name.clone(),
-                    p.gameprofile.id.hyphenated().to_string(),
-                )
-            })
-            .collect();
-
-        // Shuffle using Fisher-Yates with random indices
-        for i in (1..sample.len()).rev() {
-            let j = (rand::random::<u64>() as usize) % (i + 1);
-            sample.swap(i, j);
-        }
-
-        sample
+    /// Saves all dirty domain command storage through domain default worlds.
+    pub async fn save_command_storage(&self) -> io::Result<usize> {
+        self.command_storage.save(&self.worlds).await
     }
 
-    /// Returns the server default world or if not exists the first world.
-    /// # Panics
-    /// if no world exists on this server crisis is there!
-    pub fn overworld(&self) -> &Arc<World> {
-        self.worlds.server_default_world().unwrap_or_else(|| {
-            self.worlds
-                .values()
-                .next()
-                .expect("At least one world must exist")
+    /// Saves all command-owned persistent data while allowing each data set to fail independently.
+    pub async fn save_command_data(&self) -> CommandDataSaveResults {
+        CommandDataSaveResults {
+            scoreboards: self.scoreboards.save(&self.worlds).await,
+            storage: self.save_command_storage().await,
+        }
+    }
+
+    /// Queues a command for execution at the start of the next game tick.
+    pub fn submit_command(
+        &self,
+        sender: CommandSender,
+        command: String,
+    ) -> Result<(), CommandQueueFull> {
+        self.command_requests.submit(CommandRequest::Execute {
+            owner: CommandExecutionOwner::capture(sender, self),
+            command,
         })
     }
 
-    /// Resolves the default respawn world and data for a domain.
-    pub fn respawn_world_and_data_for_domain(
+    pub(crate) fn submit_command_suggestions(
         &self,
-        domain: &str,
-    ) -> Result<(Arc<World>, RespawnData), String> {
-        let default_world = self
-            .worlds
-            .default_world(domain)
-            .cloned()
-            .ok_or_else(|| format!("domain {domain} has no default world"))?;
-        let respawn_data = {
-            let level_data = default_world.level_data.read();
-            level_data.data().respawn_data_or_local(&default_world.key)
-        };
-
-        let Some(target_world) = self
-            .worlds
-            .get(respawn_data.dimension())
-            .filter(|world| world.domain() == domain)
-            .cloned()
-        else {
-            let respawn_data = default_world
-                .world_border_adjusted_respawn_data(local_respawn_data_for_world(&default_world));
-            return Ok((default_world.clone(), respawn_data));
-        };
-
-        let respawn_data = target_world.world_border_adjusted_respawn_data(respawn_data);
-        Ok((target_world, respawn_data))
-    }
-
-    /// Returns the default respawn data sent to clients in the given domain.
-    pub fn respawn_data_for_domain(&self, domain: &str) -> Result<RespawnData, String> {
-        self.respawn_world_and_data_for_domain(domain)
-            .map(|(_, respawn_data)| respawn_data)
-    }
-
-    /// Sets the default respawn data for the respawn data's domain and broadcasts it.
-    pub fn set_respawn_data(&self, respawn_data: RespawnData) -> Result<(), String> {
-        let domain = respawn_data.dimension().namespace.as_ref();
-        let default_world = self
-            .worlds
-            .default_world(domain)
-            .cloned()
-            .ok_or_else(|| format!("domain {domain} has no default world"))?;
-        let target_world = self
-            .worlds
-            .get(respawn_data.dimension())
-            .filter(|world| world.domain() == domain)
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "respawn dimension {} is not loaded in domain {domain}",
-                    respawn_data.dimension()
-                )
-            })?;
-
-        if Arc::ptr_eq(&default_world, &target_world) {
-            let mut level_data = default_world.level_data.write();
-            let data = level_data.data_mut();
-            data.set_spawn_pos(respawn_data.pos());
-            data.spawn.angle = respawn_data.yaw;
-            data.set_respawn_data(respawn_data.clone());
-        } else {
-            default_world
-                .level_data
-                .write()
-                .data_mut()
-                .set_respawn_data(respawn_data.clone());
-
-            let mut level_data = target_world.level_data.write();
-            let data = level_data.data_mut();
-            data.set_spawn_pos(respawn_data.pos());
-            data.spawn.angle = respawn_data.yaw;
-        }
-
-        let packet = CSetDefaultSpawnPosition {
-            global_pos: respawn_data.global_pos.clone(),
-            yaw: respawn_data.yaw,
-            pitch: respawn_data.pitch,
-        };
-        for world in self
-            .worlds
-            .values()
-            .filter(|world| world.domain() == domain)
-        {
-            world.broadcast_to_all(packet.clone());
-        }
-
-        Ok(())
-    }
-
-    /// Returns the default domain's conventional nether world, if present.
-    pub fn nether(&self) -> Option<&Arc<World>> {
-        let key = Identifier::new(self.worlds.default_domain().to_owned(), "the_nether");
-        self.worlds.get(&key)
-    }
-
-    /// Returns the default domain's conventional end world, if present.
-    pub fn the_end(&self) -> Option<&Arc<World>> {
-        let key = Identifier::new(self.worlds.default_domain().to_owned(), "the_end");
-        self.worlds.get(&key)
-    }
-
-    /// Runs the three independent tick loops concurrently.
-    pub async fn run(self: Arc<Self>, cancel_token: CancellationToken) {
-        let game_handle = {
-            let s = self.clone();
-            let t = cancel_token.clone();
-            tokio::spawn(async move { s.run_game_tick(t).await })
-        };
-        let chunk_send_handle = {
-            let s = self.clone();
-            let t = cancel_token.clone();
-            tokio::spawn(async move { s.run_chunk_sending_tick(t).await })
-        };
-        let chunk_sched_handle = {
-            let s = self.clone();
-            let t = cancel_token.clone();
-            tokio::spawn(async move { s.run_chunk_scheduling_tick(t).await })
-        };
-        let _ = tokio::join!(game_handle, chunk_send_handle, chunk_sched_handle);
-    }
-
-    /// The main game tick loop (20 TPS, governed by tick rate manager).
-    async fn run_game_tick(self: Arc<Self>, cancel_token: CancellationToken) {
-        let mut next_tick_time = Instant::now();
-        let mut player_info_ticks = 0_u64;
-
-        loop {
-            if cancel_token.is_cancelled() {
-                break;
-            }
-
-            let (nanoseconds_per_tick, should_sprint_this_tick) = {
-                let mut tick_manager = self.tick_rate_manager.write();
-                let nanoseconds_per_tick = tick_manager.nanoseconds_per_tick;
-                let (should_sprint, sprint_report) = tick_manager.check_should_sprint_this_tick();
-                drop(tick_manager);
-
-                if let Some(report) = sprint_report {
-                    self.broadcast_sprint_report(&report);
-                    self.broadcast_ticking_state();
-                }
-
-                (nanoseconds_per_tick, should_sprint)
-            };
-
-            if should_sprint_this_tick {
-                next_tick_time = Instant::now();
-            } else {
-                let now = Instant::now();
-                if now < next_tick_time {
-                    tokio::select! {
-                        () = cancel_token.cancelled() => break,
-                        () = sleep(next_tick_time - now) => {}
-                    }
-                }
-                next_tick_time += Duration::from_nanos(nanoseconds_per_tick);
-            }
-
-            if cancel_token.is_cancelled() {
-                break;
-            }
-
-            let tick_start = Instant::now();
-
-            let (tick_count, runs_normally) = {
-                let mut tick_manager = self.tick_rate_manager.write();
-                tick_manager.tick();
-                let runs_normally = tick_manager.runs_normally();
-                if runs_normally {
-                    tick_manager.increment_tick_count();
-                }
-                (tick_manager.tick_count, runs_normally)
-            };
-
-            self.tick_worlds_game(tick_count, runs_normally).await;
-            player_info_ticks += 1;
-            if player_info_ticks > SEND_PLAYER_INFO_INTERVAL {
-                let _span = tracing::trace_span!("broadcast_latency").entered();
-                self.broadcast_player_latency_updates();
-                player_info_ticks = 0;
-            }
-            self.tick_jobs(tick_count, runs_normally);
-            self.process_player_joins();
-
-            {
-                let server = self.clone();
-                let _ =
-                    spawn_blocking(move || server.process_world_changes(tick_count, runs_normally))
-                        .await;
-            }
-
-            self.process_domain_switches().await;
-
-            let (tps, mspt) = {
-                let tick_duration_nanos = tick_start.elapsed().as_nanos() as u64;
-                let mut tick_manager = self.tick_rate_manager.write();
-                tick_manager.record_tick_time(tick_duration_nanos);
-                (tick_manager.get_tps(), tick_manager.get_average_mspt())
-            };
-
-            if tick_count % TAB_LIST_UPDATE_INTERVAL == 0 {
-                self.broadcast_tab_list(tps, mspt);
-            }
-
-            if should_sprint_this_tick {
-                let mut tick_manager = self.tick_rate_manager.write();
-                tick_manager.end_tick_work();
-            }
-        }
-
-        self.jobs.cancel_all();
-    }
-
-    /// Chunk sending tick loop — encodes and sends chunks to players independently.
-    async fn run_chunk_sending_tick(self: Arc<Self>, cancel_token: CancellationToken) {
-        let nanos_per_tick = 1_000_000_000 / CHUNK_SENDING_TPS;
-        let mut next_tick_time = Instant::now();
-
-        loop {
-            if cancel_token.is_cancelled() {
-                break;
-            }
-
-            let now = Instant::now();
-            if now < next_tick_time {
-                tokio::select! {
-                    () = cancel_token.cancelled() => break,
-                    () = sleep(next_tick_time - now) => {}
-                }
-            }
-            next_tick_time += Duration::from_nanos(nanos_per_tick);
-
-            if cancel_token.is_cancelled() {
-                break;
-            }
-
-            let server = self.clone();
-            let _ = spawn_blocking(move || {
-                server.tick_chunk_sending();
-            })
-            .await;
-        }
-    }
-
-    /// Chunk scheduling tick loop — ticket updates, holder creation, generation, unloads.
-    async fn run_chunk_scheduling_tick(self: Arc<Self>, cancel_token: CancellationToken) {
-        let nanos_per_tick = 1_000_000_000 / CHUNK_SCHEDULING_TPS;
-        let mut next_tick_time = Instant::now();
-
-        loop {
-            if cancel_token.is_cancelled() {
-                break;
-            }
-
-            let now = Instant::now();
-            if now < next_tick_time {
-                tokio::select! {
-                    () = cancel_token.cancelled() => break,
-                    () = sleep(next_tick_time - now) => {}
-                }
-            }
-            next_tick_time += Duration::from_nanos(nanos_per_tick);
-
-            if cancel_token.is_cancelled() {
-                break;
-            }
-
-            let server = self.clone();
-            let _ = spawn_blocking(move || {
-                server.tick_chunk_scheduling();
-            })
-            .await;
-        }
-    }
-
-    /// Executes one chunk sending tick across all worlds and players.
-    ///
-    /// A per-world per-tick encode cache is used so overlapping view areas
-    /// don't re-encode the same chunk within a single tick.
-    fn tick_chunk_sending(&self) {
-        for world in self.worlds.values() {
-            let mut encode_cache = rustc_hash::FxHashMap::default();
-            world.players.iter_players(|_uuid, player| {
-                Self::send_chunks_for_player(player, world, &mut encode_cache);
-                true
-            });
-        }
-    }
-
-    /// Three-phase chunk send for a single player: prepare (lock briefly),
-    /// encode (no lock), commit (lock briefly + generation check).
-    fn send_chunks_for_player(
-        player: &Arc<Player>,
-        world: &Arc<World>,
-        encode_cache: &mut rustc_hash::FxHashMap<ChunkPos, EncodedChunk>,
-    ) {
-        let chunk_pos = *player.last_chunk_pos.lock();
-        let connection = &player.connection;
-
-        // Phase 1: prepare (brief lock)
-        let prepared = {
-            let mut sender = player.chunk_sender.lock();
-            sender.prepare_batch(world, chunk_pos, &player.chunk_send_epoch)
-        };
-
-        let Some(batch) = prepared else {
-            return;
-        };
-
-        // Phase 2: encode (no lock held — uses per-tick local cache)
-        let compression = connection.compression();
-        let encoded = ChunkSender::encode_batch(&batch, encode_cache, compression);
-
-        // Phase 3: commit (brief lock + generation check)
-        let sent_chunks = {
-            let mut sender = player.chunk_sender.lock();
-            sender.commit_batch(&batch, encoded, connection, &player.chunk_send_epoch)
-        };
-
-        if sent_chunks.is_empty() {
-            return;
-        }
-
-        let Some(view) = *player.last_tracking_view.lock() else {
-            return;
-        };
-        let sent_chunks = player.chunk_sender.lock().sent_chunks_snapshot();
-        world
-            .entity_tracker()
-            .update_player(player, &view, |chunk| sent_chunks.contains(&chunk));
-    }
-
-    /// Executes one chunk scheduling tick across all worlds.
-    fn tick_chunk_scheduling(&self) {
-        for (i, world) in self.worlds.values().enumerate() {
-            let timings = world.chunk_map.tick_scheduling();
-
-            let total = timings.ticket_updates
-                + timings.holder_creation
-                + timings.schedule_generation
-                + timings.run_generation
-                + timings.process_unloads;
-
-            if total.as_millis() >= 50 {
-                tracing::warn!(
-                    world = i,
-                    elapsed = ?total,
-                    ticket_updates = ?timings.ticket_updates,
-                    holder_creation = ?timings.holder_creation,
-                    schedule_generation = ?timings.schedule_generation,
-                    scheduled_count = timings.scheduled_count,
-                    run_generation = ?timings.run_generation,
-                    process_unloads = ?timings.process_unloads,
-                    "Chunk scheduling tick slow"
-                );
-            }
-        }
-    }
-
-    fn process_world_changes(self: &Arc<Self>, tick_count: u64, runs_normally: bool) {
-        let mut changes = mem::take(&mut *self.pending_world_changes.lock());
-        for world in self.worlds.values() {
-            changes.extend(world.drain_world_changes());
-        }
-
-        for (entity, request) in changes {
-            if entity.is_removed() {
-                continue;
-            }
-            match request {
-                WorldChangeRequest::Computed(transition) => {
-                    change_entity_world(entity, &transition);
-                }
-                WorldChangeRequest::WorldSpawn { target_world } => {
-                    let transition = world_spawn_transition(target_world);
-                    change_entity_world(entity, &transition);
-                }
-                WorldChangeRequest::Portal {
-                    portal: PortalKind::Nether,
-                    source_world,
-                    portal_pos,
-                    pending_token,
-                } => {
-                    self.queue_nether_portal_change(
-                        entity,
-                        source_world,
-                        portal_pos,
-                        pending_token,
-                        tick_count,
-                        runs_normally,
-                    );
-                }
-                WorldChangeRequest::Portal {
-                    portal: PortalKind::End,
-                    source_world,
-                    portal_pos: _,
-                    pending_token,
-                } => {
-                    self.queue_end_portal_change(
-                        entity,
-                        source_world,
-                        pending_token,
-                        tick_count,
-                        runs_normally,
-                    );
-                }
-                WorldChangeRequest::Portal {
-                    portal: PortalKind::EndGateway,
-                    source_world,
-                    portal_pos,
-                    pending_token,
-                } => {
-                    self.queue_end_gateway_change(
-                        entity,
-                        source_world,
-                        portal_pos,
-                        pending_token,
-                        tick_count,
-                        runs_normally,
-                    );
-                }
-            }
-        }
-    }
-
-    fn queue_nether_portal_change(
-        self: &Arc<Self>,
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        portal_pos: BlockPos,
-        pending_token: PendingWorldChangeToken,
-        tick_count: u64,
-        runs_normally: bool,
-    ) {
-        if !portal_entity_still_valid(&entity, &source_world, pending_token) {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        let Some(target_world) = self.worlds.resolve_nether_portal_target(&source_world) else {
-            log::warn!(
-                "No Nether portal target world loaded for source world {}",
-                source_world.key
-            );
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        };
-        if !is_allowed_to_enter_portal(&source_world, &target_world)
-            || !self.can_teleport_between_worlds(entity.as_ref(), &source_world, &target_world)
-        {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        let to_nether = is_nether_dimension_type(&target_world);
-        let approximate_exit_pos = nether_portal::approximate_exit_position(
-            &source_world,
-            &target_world,
-            entity.position(),
-        );
-        self.jobs.poll_now_or_spawn(
-            Arc::downgrade(self),
-            tick_count,
-            runs_normally,
-            NetherPortalTeleportJob::new(
-                entity,
-                source_world,
-                target_world,
-                portal_pos,
-                approximate_exit_pos,
-                to_nether,
-                pending_token,
-            ),
-        );
-    }
-
-    fn queue_end_portal_change(
-        self: &Arc<Self>,
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        pending_token: PendingWorldChangeToken,
-        tick_count: u64,
-        runs_normally: bool,
-    ) {
-        if !portal_entity_still_valid(&entity, &source_world, pending_token) {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        if !is_end_dimension_type(&source_world) {
-            self.queue_end_entry_portal_change(
-                entity,
-                source_world,
-                pending_token,
-                tick_count,
-                runs_normally,
-            );
-            return;
-        }
-
-        if entity.as_player().is_some() {
-            self.queue_end_portal_player_return_change(
-                entity,
-                source_world,
-                pending_token,
-                tick_count,
-                runs_normally,
-            );
-            return;
-        }
-
-        self.queue_end_portal_entity_return_change(
-            entity,
-            source_world,
-            pending_token,
-            tick_count,
-            runs_normally,
-        );
-    }
-
-    fn queue_end_entry_portal_change(
-        self: &Arc<Self>,
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        pending_token: PendingWorldChangeToken,
-        tick_count: u64,
-        runs_normally: bool,
-    ) {
-        let Some(target_world) = self.worlds.resolve_end_entry_portal_target(&source_world) else {
-            log::warn!(
-                "No End portal target world loaded for source world {}",
-                source_world.key
-            );
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        };
-        if !is_allowed_to_enter_portal(&source_world, &target_world)
-            || !self.can_teleport_between_worlds(entity.as_ref(), &source_world, &target_world)
-        {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        self.jobs.poll_now_or_spawn(
-            Arc::downgrade(self),
-            tick_count,
-            runs_normally,
-            EndPortalTeleportJob::entry_to_end(entity, source_world, target_world, pending_token),
-        );
-    }
-
-    fn queue_end_portal_player_return_change(
-        self: &Arc<Self>,
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        pending_token: PendingWorldChangeToken,
-        tick_count: u64,
-        runs_normally: bool,
-    ) {
-        let (target_world, respawn_data) =
-            match self.strict_respawn_world_and_data_for_domain(source_world.domain()) {
-                Ok(resolved) => resolved,
-                Err(error) => {
-                    log::warn!(
-                        "No End portal return target world loaded for source world {}: {error}",
-                        source_world.key
-                    );
-                    clear_pending_world_change(&entity, pending_token);
-                    return;
-                }
-            };
-        if !is_allowed_to_enter_portal(&source_world, &target_world)
-            || !self.can_teleport_between_worlds(entity.as_ref(), &source_world, &target_world)
-        {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        match EndPortalTeleportJob::returning_player(
-            Arc::clone(&entity),
-            source_world,
-            target_world,
-            respawn_data,
-            pending_token,
-        ) {
-            Ok(job) => {
-                self.jobs
-                    .poll_now_or_spawn(Arc::downgrade(self), tick_count, runs_normally, job);
-            }
-            Err(error) => {
-                clear_pending_world_change(&entity, pending_token);
-                log::error!("Failed to schedule End portal player return: {error}");
-            }
-        }
-    }
-
-    fn queue_end_portal_entity_return_change(
-        self: &Arc<Self>,
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        pending_token: PendingWorldChangeToken,
-        tick_count: u64,
-        runs_normally: bool,
-    ) {
-        let (target_world, respawn_data) =
-            match self.strict_respawn_world_and_data_for_domain(source_world.domain()) {
-                Ok(resolved) => resolved,
-                Err(error) => {
-                    log::warn!(
-                        "No End portal return target world loaded for source world {}: {error}",
-                        source_world.key
-                    );
-                    clear_pending_world_change(&entity, pending_token);
-                    return;
-                }
-            };
-        if !is_allowed_to_enter_portal(&source_world, &target_world)
-            || !self.can_teleport_between_worlds(entity.as_ref(), &source_world, &target_world)
-        {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        self.jobs.poll_now_or_spawn(
-            Arc::downgrade(self),
-            tick_count,
-            runs_normally,
-            EndPortalTeleportJob::returning_entity(
-                entity,
-                source_world,
-                target_world,
-                respawn_data,
-                pending_token,
-            ),
-        );
-    }
-
-    fn queue_end_gateway_change(
-        self: &Arc<Self>,
-        entity: SharedEntity,
-        source_world: Arc<World>,
-        portal_pos: BlockPos,
-        pending_token: PendingWorldChangeToken,
-        tick_count: u64,
-        runs_normally: bool,
-    ) {
-        if !portal_entity_still_valid(&entity, &source_world, pending_token) {
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        }
-        let source_is_end = is_end_dimension_type(&source_world);
-        let Some(job) = EndGatewayTeleportJob::new(
-            Arc::clone(&entity),
-            source_world,
-            portal_pos,
-            source_is_end,
-            pending_token,
-        ) else {
-            tracing::debug!("End gateway world change ignored because no destination is available");
-            clear_pending_world_change(&entity, pending_token);
-            return;
-        };
-        self.jobs
-            .poll_now_or_spawn(Arc::downgrade(self), tick_count, runs_normally, job);
-    }
-
-    fn can_teleport_between_worlds(
-        &self,
-        entity: &dyn Entity,
-        source_world: &World,
-        target_world: &World,
-    ) -> bool {
-        can_teleport_between_worlds(entity, source_world, target_world, |uuid| {
-            self.projectile_owner_seen_credits_in_domain(source_world.domain(), uuid)
+        player: Arc<Player>,
+        transaction_id: i32,
+        input: String,
+    ) -> Result<(), CommandQueueFull> {
+        self.command_requests.submit(CommandRequest::Suggestions {
+            owner: CommandExecutionOwner::capture(CommandSender::Player(player), self),
+            transaction_id,
+            input,
         })
     }
 
-    fn projectile_owner_seen_credits_in_domain(
-        &self,
-        domain: &str,
-        uuid: &uuid::Uuid,
-    ) -> Option<bool> {
-        self.worlds
-            .values()
-            .filter(|world| world.domain() == domain)
-            .find_map(|world| {
-                world.get_entity_by_uuid(uuid).and_then(|entity| {
-                    entity
-                        .as_player()
-                        .map(super::player::Player::has_seen_credits)
-                })
-            })
-    }
-
-    fn strict_respawn_world_and_data_for_domain(
-        &self,
-        domain: &str,
-    ) -> Result<(Arc<World>, RespawnData), String> {
-        let default_world = self
-            .worlds
-            .default_world(domain)
-            .cloned()
-            .ok_or_else(|| format!("domain {domain} has no default world"))?;
-        let respawn_data = {
-            let level_data = default_world.level_data.read();
-            level_data.data().respawn_data_or_local(&default_world.key)
-        };
-        let target_world = self
-            .worlds
-            .get(respawn_data.dimension())
-            .filter(|world| world.domain() == domain)
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "respawn dimension {} is not loaded in domain {domain}",
-                    respawn_data.dimension()
-                )
-            })?;
-        Ok((target_world, respawn_data))
-    }
-
-    /// Queues a player domain switch for processing at the server tick safe point.
-    pub fn queue_domain_switch(
+    /// Schedules a decoded play packet for the inter-tick packet phase.
+    pub(crate) fn schedule_play_packet(
         &self,
         player: Arc<Player>,
-        target_domain: String,
-    ) -> Result<(), String> {
-        if !self.worlds.has_domain(&target_domain) {
-            return Err(format!("unknown domain {target_domain}"));
-        }
-
-        let current_domain = player.get_world().domain().to_owned();
-        if current_domain == target_domain {
-            return Err(format!("already in domain {target_domain}"));
-        }
-        if player.connection.closed() {
-            return Err("player is disconnecting".to_owned());
-        }
-        if !player.begin_domain_switch() {
-            return Err("domain switch already in progress".to_owned());
-        }
-
-        self.pending_domain_switches
-            .lock()
-            .push(DomainSwitchRequest {
-                player,
-                target_domain,
-                target_world: None,
-                restore_saved_location: true,
-            });
-        Ok(())
+        packet: ScheduledPlayPacket,
+        payload_bytes: usize,
+    ) {
+        self.packet_processor
+            .schedule(player, packet, payload_bytes);
     }
 
-    /// Queues a cross-domain teleport using saved target-domain location or target-world spawn.
-    pub fn queue_domain_switch_to_world(
-        &self,
-        player: Arc<Player>,
-        target_world: Arc<World>,
-    ) -> Result<(), String> {
-        let target_domain = target_world.domain().to_owned();
-        if player.connection.closed() {
-            return Err("player is disconnecting".to_owned());
+    /// Returns Brigadier completions visible to a command sender.
+    pub fn command_completions(
+        self: &Arc<Self>,
+        sender: CommandSender,
+        input: &str,
+    ) -> Vec<CommandCompletion> {
+        if !CommandExecutionOwner::capture(sender.clone(), self).is_current(self) {
+            return Vec::new();
         }
-        if !player.begin_domain_switch() {
-            return Err("domain switch already in progress".to_owned());
-        }
-
-        self.pending_domain_switches
-            .lock()
-            .push(DomainSwitchRequest {
-                player,
-                target_domain,
-                target_world: Some(target_world),
-                restore_saved_location: true,
-            });
-        Ok(())
-    }
-
-    async fn process_domain_switches(&self) {
-        let switches = mem::take(&mut *self.pending_domain_switches.lock());
-
-        for request in switches {
-            let player = request.player.clone();
-            let player_name = player.gameprofile.name.clone();
-            let result = self.process_domain_switch(request).await;
-            player.finish_domain_switch();
-
-            if let Err(error) = result {
-                log::error!("Failed to switch {player_name} domain: {error}");
-                if !player.connection.closed() {
-                    player.disconnect("Failed to switch domain");
-                }
+        match self.build_command_suggestions(sender, input) {
+            Ok(suggestions) => {
+                let range = suggestions.range();
+                suggestions
+                    .list()
+                    .iter()
+                    .map(|suggestion| {
+                        CommandCompletion::new(
+                            range.start(),
+                            range.len(),
+                            suggestion.text().to_owned(),
+                        )
+                    })
+                    .collect()
             }
-        }
-    }
-
-    async fn process_domain_switch(&self, request: DomainSwitchRequest) -> Result<(), String> {
-        let DomainSwitchRequest {
-            player,
-            target_domain,
-            target_world,
-            restore_saved_location,
-        } = request;
-        if player.connection.closed() {
-            return Ok(());
-        }
-        if !self.worlds.has_domain(&target_domain) {
-            return Err(format!("unknown domain {target_domain}"));
-        }
-
-        let current_domain = player.get_world().domain().to_owned();
-        if current_domain == target_domain {
-            return Ok(());
-        }
-
-        let current_data = PersistentPlayerData::from_player(&player);
-        if let Err(e) = self
-            .player_data_storage
-            .save_domain_data(&current_domain, player.gameprofile.id, &current_data)
-            .await
-        {
-            return Err(format!("failed to save current domain data: {e}"));
-        }
-
-        if player.connection.closed() {
-            return Ok(());
-        }
-
-        let target_state = match self
-            .load_domain_player_state(
-                &player,
-                &target_domain,
-                target_world.clone(),
-                restore_saved_location,
-            )
-            .await
-        {
-            Ok(state) => state,
             Err(error) => {
-                return Err(error);
-            }
-        };
-
-        if player.connection.closed() {
-            return Ok(());
-        }
-
-        let restore_player = Arc::clone(&player);
-        player.reset_after_domain_save_and_restore(target_state.world.clone(), || {
-            Self::apply_domain_player_state(&restore_player, &target_state);
-        });
-        let pos = player.position();
-        let rotation = player.rotation();
-        if !player.spawn(pos, rotation, ResetReason::WorldChange) {
-            return Err("failed to add player to target world".to_owned());
-        }
-        self.schedule_root_vehicle_restore(&player, &target_state);
-        self.schedule_ender_pearl_restores(&player, &target_state);
-
-        if let Err(e) = self
-            .player_data_storage
-            .save_global(
-                player.gameprofile.id,
-                &GlobalPlayerData {
-                    last_active_domain: target_domain,
-                },
-            )
-            .await
-        {
-            log::error!(
-                "Failed to save global player data for {} after domain switch: {e}",
-                player.gameprofile.name
-            );
-        }
-
-        Ok(())
-    }
-
-    #[tracing::instrument(level = "trace", skip(self), name = "tick_worlds")]
-    async fn tick_worlds_game(&self, tick_count: u64, runs_normally: bool) {
-        let mut tasks = Vec::with_capacity(self.worlds.len());
-        for world in self.worlds.values() {
-            let world_clone = world.clone();
-            tasks.push(spawn_blocking(move || {
-                if runs_normally {
-                    world_clone.chunk_map.tick_timed_tickets();
-                }
-                world_clone.tick_game(tick_count, runs_normally)
-            }));
-        }
-        let mut all_timings: Vec<WorldGameTickTimings> = Vec::with_capacity(tasks.len());
-        for task in tasks {
-            if let Ok(timings) = task.await {
-                all_timings.push(timings);
+                tracing::warn!(%error, "failed to build command suggestions");
+                Vec::new()
             }
         }
-        for (i, timings) in all_timings.iter().enumerate() {
-            if timings.elapsed.as_millis() < 50 {
-                continue;
-            }
-            let cm = &timings.chunk_map;
-            tracing::warn!(
-                world = i,
-                elapsed = ?timings.elapsed,
-                tick_count,
-                entity_tick = ?timings.entity_tick,
-                broadcast_changes = ?cm.broadcast_changes,
-                collect_tickable = ?cm.collect_tickable,
-                tick_chunks = ?cm.tick_chunks,
-                tick_block_entities = ?cm.tick_block_entities,
-                tickable_count = cm.tickable_count,
-                total_chunks = cm.total_chunks,
-                "Game tick slow"
-            );
-        }
-    }
-
-    fn tick_jobs(self: &Arc<Self>, tick_count: u64, runs_normally: bool) {
-        let stats = self
-            .jobs
-            .tick(Arc::downgrade(self), tick_count, runs_normally);
-        if stats.polled > 0 && stats.pending > 0 && tick_count.is_multiple_of(100) {
-            tracing::debug!(
-                polled = stats.polled,
-                finished = stats.finished,
-                pending = stats.pending,
-                "Server jobs pending"
-            );
-        }
-    }
-
-    /// Broadcasts the tab list header/footer with current TPS and MSPT values.
-    fn broadcast_tab_list(&self, tps: f32, mspt: f32) {
-        // Color TPS based on value
-        let tps_color = if tps >= 19.5 {
-            Color::Green
-        } else if tps >= 15.0 {
-            Color::Yellow
-        } else {
-            Color::Red
-        };
-
-        // Color MSPT based on value (under 50ms is good)
-        let mspt_color = if mspt <= 50.0 {
-            Color::Aqua
-        } else {
-            Color::Red
-        };
-
-        let header = TextComponent::plain("\n").add_children(vec![
-            TextComponent::plain("Steel Dev Build").color(Color::Yellow),
-            TextComponent::plain("\n"),
-        ]);
-        let footer = TextComponent::plain("\n").add_children(vec![
-            TextComponent::plain("TPS: ").color(Color::Gray),
-            TextComponent::plain(format!("{tps:.1}")).color(tps_color),
-            TextComponent::plain(" | ").color(Color::DarkGray),
-            TextComponent::plain("MSPT: ").color(Color::Gray),
-            TextComponent::plain(format!("{mspt:.2}")).color(mspt_color),
-            TextComponent::plain("\n"),
-        ]);
-
-        self.broadcast_to_online_with(|player| CTabList::new(&header, &footer, player));
-    }
-
-    /// Broadcasts a sprint completion report to all players.
-    fn broadcast_sprint_report(&self, report: &SprintReport) {
-        use steel_utils::translations;
-
-        let message: TextComponent = translations::COMMANDS_TICK_SPRINT_REPORT
-            .message([
-                TextComponent::from(format!("{}", report.ticks_per_second)),
-                TextComponent::from(format!("{:.2}", report.ms_per_tick)),
-            ])
-            .into();
-
-        self.broadcast_to_online_with(|player| CSystemChat::new(&message, false, player));
-    }
-
-    /// Broadcasts the current tick rate and frozen state to all clients.
-    /// This should be called whenever the tick rate or frozen state changes.
-    pub fn broadcast_ticking_state(&self) {
-        let tick_manager = self.tick_rate_manager.read();
-        let packet = CTickingState::new(tick_manager.tick_rate(), tick_manager.is_frozen());
-        drop(tick_manager);
-
-        self.broadcast_to_online(packet);
-    }
-
-    /// Broadcasts the current step tick count to all clients.
-    /// This should be called whenever the step tick count changes.
-    pub fn broadcast_ticking_step(&self) {
-        let tick_manager = self.tick_rate_manager.read();
-        let packet = CTickingStep::new(tick_manager.frozen_ticks_to_run());
-        drop(tick_manager);
-
-        self.broadcast_to_online(packet);
-    }
-
-    /// Sends the current ticking state and step packets to a joining player.
-    /// This should be called when a player joins the server.
-    pub fn send_ticking_state_to_player(&self, player: &Player) {
-        let tick_manager = self.tick_rate_manager.read();
-        let state_packet = CTickingState::new(tick_manager.tick_rate(), tick_manager.is_frozen());
-        let step_packet = CTickingStep::new(tick_manager.frozen_ticks_to_run());
-        drop(tick_manager);
-
-        player.send_packet(state_packet);
-        player.send_packet(step_packet);
-    }
-
-    /// Resends client state that is not fully covered by `CRespawn`.
-    pub fn resend_player_context(&self, player: &Player) {
-        player.send_difficulty();
-        player.send_inventory_to_remote();
-
-        let commands = self.command_dispatcher.read().get_commands();
-        player.send_packet(commands);
-
-        // TODO: Set permissions level to match player's level.
-        player.send_packet(CEntityEvent {
-            entity_id: player.id(),
-            event: EntityStatus::PermissionLevelOwners,
-        });
-
-        self.send_ticking_state_to_player(player);
-
-        player.send_packet(CGameEvent {
-            event: GameEventType::ChangeGameMode,
-            data: player.game_mode().into(),
-        });
-    }
-    /// Queues a world change to be processed after the current tick.
-    pub fn queue_world_change(&self, entity: SharedEntity, request: WorldChangeRequest) {
-        self.pending_world_changes.lock().push((entity, request));
     }
 }

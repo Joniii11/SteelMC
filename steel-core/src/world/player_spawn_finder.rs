@@ -2,15 +2,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use glam::DVec3;
-use steel_registry::game_rules::GameRuleValue;
 use steel_registry::vanilla_entities;
 use steel_registry::vanilla_game_rules::RESPAWN_RADIUS;
 use steel_utils::{BlockPos, ChunkPos, SectionPos, WorldAabb, types::GameType};
 use tokio::time::sleep;
 
 use crate::behavior::BlockCollisionContext;
-use crate::chunk::chunk_access::ChunkStatus;
 use crate::chunk::chunk_request::{ChunkRequestHandle, ChunkRequestState, ChunkTicketKind};
+use crate::chunk::status::ChunkStatus;
 use crate::fluid::get_fluid_state;
 use crate::physics::{CollisionWorld as _, WorldCollisionProvider};
 use crate::world::World;
@@ -66,15 +65,7 @@ impl PlayerSpawnSearch {
             });
         }
 
-        let mut radius = match world.get_game_rule(&RESPAWN_RADIUS) {
-            GameRuleValue::Int(radius) => radius.max(0),
-            value @ GameRuleValue::Bool(_) => {
-                return Err(format!(
-                    "gamerule {} should be an integer, got {value:?}",
-                    RESPAWN_RADIUS.key
-                ));
-            }
-        };
+        let mut radius = world.get_game_rule(&RESPAWN_RADIUS).max(0);
         let border_distance = world
             .world_border_snapshot()
             .distance_to_border(

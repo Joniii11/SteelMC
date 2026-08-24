@@ -4,19 +4,23 @@
 
 use rustc_hash::FxHashSet;
 use steel_registry::item_stack::ItemStack;
+use steel_registry::stat::Stat;
 use steel_utils::types::GameType;
 
+use super::{
+    Player, PlayerRespawnConfig, abilities::Abilities, experience::Experience, food_data::FoodData,
+    player_inventory::PlayerInventory,
+};
+use crate::player::stats_counter::StatState;
 use crate::{
     chunk_saver::{ChunkStorage, PersistentEntity},
     entity::{Entity, EntityFireFreezeState, LivingEntity},
     inventory::container::Container,
 };
 
-use super::{Player, abilities::Abilities};
-
 /// Current data version for player saves.
 /// Increment when making breaking changes to the format.
-pub const PLAYER_DATA_VERSION: i32 = 5;
+pub const PLAYER_DATA_VERSION: i32 = 6;
 
 /// Persistent player data saved by Steel's storage backend.
 ///
@@ -93,15 +97,13 @@ pub struct PersistentPlayerData {
     /// Current experience level
     pub experience_level: i32,
 
-    /// To progress to the next experience level
+    /// Vanilla progress toward the next experience level.
     pub experience_progress: f32,
 
-    /// The checked value of the Score, cannot decrease below 0 (???)
-    /// TODO: what exactly is experienceTotal
+    /// Vanilla `Player.totalExperience`, updated by point grants but independent of level/progress.
     pub experience_total: i32,
 
-    /// A non decreasing value of the experience orbs added (/xp add, picking up orbs and advancements)
-    /// this value can be negative by using (/xp add ... -x)
+    /// Vanilla death-screen score. Point grants change it with Java `int` wrapping.
     pub score: i32,
 
     /// Vanilla `ServerPlayer.seenCredits`.
@@ -110,8 +112,14 @@ pub struct PersistentPlayerData {
     /// Vanilla one-player root vehicle tree stored with the player instead of chunk data.
     pub root_vehicle: Option<PersistentRootVehicle>,
 
+    /// Vanilla per-player respawn configuration set by beds and respawn anchors.
+    pub respawn_config: Option<PlayerRespawnConfig>,
+
     /// Vanilla in-flight ender pearls stored with the player (`ServerPlayer.enderPearls`).
     pub ender_pearls: Vec<PersistentEnderPearl>,
+
+    /// The tracked statistics of the player with their counters.
+    pub stats: Vec<PersistentStat>,
 }
 
 /// A vanilla `RootVehicle` tree persisted with player data.
@@ -163,6 +171,15 @@ pub struct PersistentSlot {
     pub item: ItemStack,
 }
 
+/// Represents a tracked stat with its counter.
+#[derive(Debug, Clone)]
+pub struct PersistentStat {
+    /// The stat being tracked.
+    pub stat: Stat,
+    /// The current count of this stat.
+    pub count: i32,
+}
+
 impl PersistentPlayerData {
     /// Extracts persistent data from a live player.
     #[must_use]
@@ -180,7 +197,7 @@ impl PersistentPlayerData {
         // Collect non-empty inventory slots
         let mut slots = Vec::new();
         // Main inventory (0-35) and equipment (36-42)
-        for slot in 0..43 {
+        for slot in 0..PlayerInventory::CONTAINER_SIZE {
             let item = inventory.get_item(slot);
             if !item.is_empty() {
                 slots.push(PersistentSlot {
@@ -190,18 +207,15 @@ impl PersistentPlayerData {
             }
         }
 
-        let (experience_level, experience_progress, experience_total, score) = {
+        let (experience_level, experience_progress, experience_total) = {
             let lock = player.experience.lock();
-            (
-                lock.level(),
-                lock.progress() as f32,
-                lock.total_points(),
-                lock.score,
-            )
+            (lock.level(), lock.progress(), lock.total_points())
         };
+        let score = player.score();
         let root_vehicle = Self::root_vehicle_from_player(player)
             .or_else(|| player.pending_root_vehicle_for_current_world());
         let ender_pearls = Self::ender_pearls_from_player(player);
+        let stats = Self::stats_from_player(player);
 
         Self {
             pos: [pos.x, pos.y, pos.z],
@@ -242,7 +256,10 @@ impl PersistentPlayerData {
             score,
             seen_credits: player.has_seen_credits(),
             root_vehicle,
+            respawn_config: player.respawn_config(),
+
             ender_pearls,
+            stats,
         }
     }
 
@@ -268,6 +285,15 @@ impl PersistentPlayerData {
         pearls
     }
 
+    /// Snapshots the player's tracked stats and their counters for persistence.
+    fn stats_from_player(player: &Player) -> Vec<PersistentStat> {
+        player
+            .stats()
+            .into_iter()
+            .map(|(stat, count)| PersistentStat { stat, count })
+            .collect()
+    }
+
     fn root_vehicle_from_player(player: &Player) -> Option<PersistentRootVehicle> {
         let vehicle = player.vehicle()?;
         let root_vehicle = player.root_vehicle()?;
@@ -280,6 +306,32 @@ impl PersistentPlayerData {
             attach: *vehicle.uuid().as_bytes(),
             entity,
         })
+    }
+}
+
+impl Player {
+    /// Resets domain-scoped gameplay data to the defaults used for a new player.
+    pub(crate) fn reset_domain_data_for_first_visit(&self) {
+        use glam::DVec3;
+
+        self.set_velocity(DVec3::ZERO);
+        self.set_on_ground(false);
+        self.set_fall_flying(false);
+        self.base()
+            .set_fire_freeze_state(EntityFireFreezeState::new());
+        self.sync_base_fire_freeze_entity_data();
+        self.set_health(self.get_max_health());
+        *self.abilities.lock() = Abilities::default();
+        *self.inventory.lock() = PlayerInventory::new();
+        *self.food_data.lock() = FoodData::new();
+        self.stats.lock().reset();
+
+        let mut experience = Experience::default();
+        experience.dirty = true;
+        *self.experience.lock() = experience;
+
+        self.set_score(0);
+        self.set_seen_credits(false);
     }
 }
 
@@ -335,8 +387,8 @@ impl PersistentPlayerData {
 
     /// Applies saved gameplay state without restoring world-local location data.
     ///
-    /// Used when the saved world no longer exists and the player must spawn at
-    /// the target world's default spawn instead of stale coordinates.
+    /// Used when the saved world is unavailable or differs from an explicitly
+    /// selected world, which must use the target spawn instead.
     pub fn apply_to_player_without_location(&self, player: &Player) {
         self.apply_to_player_inner(player, false);
     }
@@ -371,6 +423,7 @@ impl PersistentPlayerData {
                 self.has_visual_fire,
             ));
         player.sync_base_fire_freeze_entity_data();
+        player.set_respawn_position(self.respawn_config.clone(), false);
 
         // Health
         player.set_health(self.health);
@@ -388,13 +441,13 @@ impl PersistentPlayerData {
         {
             let mut inventory = player.inventory.lock();
             // Clear existing inventory first
-            for slot in 0..43 {
+            for slot in 0..PlayerInventory::CONTAINER_SIZE {
                 inventory.set_item(slot, ItemStack::empty());
             }
             // Restore saved items
             for slot_data in &self.inventory {
                 let slot_index = slot_data.slot as usize;
-                if slot_index < 43 {
+                if slot_index < PlayerInventory::CONTAINER_SIZE {
                     inventory.set_item(slot_index, slot_data.item.clone());
                 }
             }
@@ -414,10 +467,28 @@ impl PersistentPlayerData {
 
         {
             let mut experience = player.experience.lock();
-            experience.set_levels(self.experience_level);
-            experience.set_progress(f64::from(self.experience_progress));
-            experience.score = self.score;
+            *experience = Experience::from_parts(
+                self.experience_level,
+                self.experience_progress,
+                self.experience_total,
+            );
         }
+        player.set_score(self.score);
         player.set_seen_credits(self.seen_credits);
+
+        // Statistics
+        {
+            let mut stats = player.stats.lock();
+
+            // This resets all counters to zero, but also marks them as non-persistent. However, they still need
+            // to be sent to the client the next time they are queried.
+            // This is important so that stale data from the previous domain doesn't stay in the client's cache.
+            // We then populate the counter with all the serialized stat counters from the new domain.
+            stats.reset();
+
+            for PersistentStat { stat, count } in &self.stats {
+                stats.stats.insert(*stat, (*count, StatState::Dirty));
+            }
+        }
     }
 }
