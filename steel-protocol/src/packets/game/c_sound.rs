@@ -164,10 +164,10 @@ impl WriteTo for CSound {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, sync::Once};
+    use std::io::Cursor;
 
     use steel_registry::{
-        REGISTRY, Registry, RegistryEntry, sound_event::SoundEventHolder, sound_events,
+        RegistryEntry, init_vanilla_registry, sound_event::SoundEventHolder, sound_events,
     };
     use steel_utils::{
         BlockPos, Identifier,
