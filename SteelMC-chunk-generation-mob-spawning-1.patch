@@ -1,0 +1,1134 @@
+diff --git a/steel-core/src/entity/mod.rs b/steel-core/src/entity/mod.rs
+index 7a2766b..cc34522 100644
+--- a/steel-core/src/entity/mod.rs
++++ b/steel-core/src/entity/mod.rs
+@@ -758,6 +758,7 @@ mod movement_sync;
+ pub mod projectile;
+ mod registry;
+ mod spawn;
++pub(crate) mod spawn_placements;
+ mod storage;
+ mod synced_data;
+ mod ticking;
+diff --git a/steel-core/src/entity/registry.rs b/steel-core/src/entity/registry.rs
+index 4b43c8f..f8ade33 100644
+--- a/steel-core/src/entity/registry.rs
++++ b/steel-core/src/entity/registry.rs
+@@ -170,6 +170,23 @@ impl EntityRegistry {
+             .map(|f| f(entity_type, entity_id, pos, world))
+     }
+ 
++    /// Creates a fresh entity, preserving its type through a raw fallback when no factory exists.
++    #[must_use]
++    pub fn create_or_raw(
++        &self,
++        entity_type: EntityTypeRef,
++        entity_id: i32,
++        pos: DVec3,
++        world: Weak<World>,
++    ) -> SharedEntity {
++        let id = entity_type.id();
++        if let Some(factory) = self.entries.get(id).and_then(|entry| entry.factory) {
++            return factory(entity_type, entity_id, pos, world);
++        }
++
++        Arc::new(RawEntity::new(entity_id, pos, world, entity_type))
++    }
++
+     /// Creates an entity from persisted data, falling back to raw NBT preservation.
+     #[must_use]
+     pub fn create_and_load_or_raw(
+@@ -361,4 +378,17 @@ mod tests {
+ 
+         assert_eq!(entity.entity_type(), &vanilla_entities::OAK_BOAT);
+     }
++
++    #[test]
++    fn create_or_raw_preserves_unregistered_entity_type_and_position() {
++        init_vanilla_registry();
++        let registry = EntityRegistry::new();
++        let position = DVec3::new(2.5, 64.0, -3.5);
++
++        let entity = registry.create_or_raw(&vanilla_entities::PARROT, 7, position, Weak::new());
++
++        assert_eq!(entity.entity_type(), &vanilla_entities::PARROT);
++        assert_eq!(entity.position(), position);
++        assert!(entity.as_mob().is_none());
++    }
+ }
+diff --git a/steel-core/src/entity/spawn_placements.rs b/steel-core/src/entity/spawn_placements.rs
+new file mode 100644
+index 0000000..71766a8
+--- /dev/null
++++ b/steel-core/src/entity/spawn_placements.rs
+@@ -0,0 +1,484 @@
++//! Spawn placement metadata and predicates used by chunk-generation spawning.
++
++use steel_registry::{
++    blocks::{
++        block_state_ext::BlockStateExt as _, properties::Direction,
++        shapes::{OffsetVoxelShape, SupportType, is_offset_shape_full_block},
++    },
++    entity_type::EntityTypeRef,
++    vanilla_biome_tags::BiomeTag,
++    vanilla_block_tags::BlockTag,
++    vanilla_blocks, vanilla_entities,
++    vanilla_fluid_tags::FluidTag,
++};
++use steel_utils::{BlockPos, WorldAabb, types::Difficulty};
++
++use crate::{
++    behavior::{
++        BLOCK_BEHAVIORS, BlockBehavior as _, BlockCollisionContext,
++        BlockStateBehaviorExt as _,
++    },
++    chunk::heightmap::HeightmapType,
++    entity::{EntitySpawnReason, ai::path::PathComputationType, ai::walk::WalkPathEvaluator},
++    world::SignalQueryContext,
++    worldgen::region::WorldGenRegion,
++};
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++enum SpawnPlacementType {
++    NoRestrictions,
++    InLava,
++    OnGround,
++}
++
++#[derive(Clone, Copy)]
++enum SpawnPredicate {
++    Animal,
++    Armadillo,
++    Camel,
++    Fox,
++    Frog,
++    Goat,
++    Mooshroom,
++    Panda,
++    Parrot,
++    PolarBear,
++    Rabbit,
++    Strider,
++    Turtle,
++    Wolf,
++}
++
++#[derive(Clone, Copy)]
++struct SpawnPlacementData {
++    heightmap: HeightmapType,
++    placement: SpawnPlacementType,
++    predicate: SpawnPredicate,
++}
++
++const DEFAULT_HEIGHTMAP: HeightmapType = HeightmapType::MotionBlockingNoLeaves;
++
++const fn is_type(actual: EntityTypeRef, expected: EntityTypeRef) -> bool {
++    std::ptr::eq(actual, expected)
++}
++
++fn data_for(entity_type: EntityTypeRef) -> Option<SpawnPlacementData> {
++    let on_ground = |predicate| SpawnPlacementData {
++        heightmap: DEFAULT_HEIGHTMAP,
++        placement: SpawnPlacementType::OnGround,
++        predicate,
++    };
++
++    if is_type(entity_type, &vanilla_entities::ARMADILLO) {
++        Some(on_ground(SpawnPredicate::Armadillo))
++    } else if is_type(entity_type, &vanilla_entities::CAMEL) {
++        Some(on_ground(SpawnPredicate::Camel))
++    } else if is_type(entity_type, &vanilla_entities::FOX) {
++        Some(SpawnPlacementData {
++            heightmap: DEFAULT_HEIGHTMAP,
++            placement: SpawnPlacementType::NoRestrictions,
++            predicate: SpawnPredicate::Fox,
++        })
++    } else if is_type(entity_type, &vanilla_entities::FROG) {
++        Some(on_ground(SpawnPredicate::Frog))
++    } else if is_type(entity_type, &vanilla_entities::GOAT) {
++        Some(on_ground(SpawnPredicate::Goat))
++    } else if is_type(entity_type, &vanilla_entities::MOOSHROOM) {
++        Some(on_ground(SpawnPredicate::Mooshroom))
++    } else if is_type(entity_type, &vanilla_entities::PANDA) {
++        Some(SpawnPlacementData {
++            heightmap: DEFAULT_HEIGHTMAP,
++            placement: SpawnPlacementType::NoRestrictions,
++            predicate: SpawnPredicate::Panda,
++        })
++    } else if is_type(entity_type, &vanilla_entities::PARROT) {
++        Some(SpawnPlacementData {
++            heightmap: HeightmapType::MotionBlocking,
++            placement: SpawnPlacementType::OnGround,
++            predicate: SpawnPredicate::Parrot,
++        })
++    } else if is_type(entity_type, &vanilla_entities::POLAR_BEAR) {
++        Some(on_ground(SpawnPredicate::PolarBear))
++    } else if is_type(entity_type, &vanilla_entities::RABBIT) {
++        Some(on_ground(SpawnPredicate::Rabbit))
++    } else if is_type(entity_type, &vanilla_entities::STRIDER) {
++        Some(SpawnPlacementData {
++            heightmap: DEFAULT_HEIGHTMAP,
++            placement: SpawnPlacementType::InLava,
++            predicate: SpawnPredicate::Strider,
++        })
++    } else if is_type(entity_type, &vanilla_entities::TURTLE) {
++        Some(on_ground(SpawnPredicate::Turtle))
++    } else if is_type(entity_type, &vanilla_entities::WOLF) {
++        Some(on_ground(SpawnPredicate::Wolf))
++    } else if [
++        &vanilla_entities::CHICKEN,
++        &vanilla_entities::COW,
++        &vanilla_entities::DONKEY,
++        &vanilla_entities::HORSE,
++        &vanilla_entities::LLAMA,
++        &vanilla_entities::PIG,
++        &vanilla_entities::SHEEP,
++    ]
++    .into_iter()
++    .any(|expected| is_type(entity_type, expected))
++    {
++        Some(on_ground(SpawnPredicate::Animal))
++    } else {
++        None
++    }
++}
++
++#[must_use]
++pub(crate) fn heightmap_type(entity_type: EntityTypeRef) -> HeightmapType {
++    data_for(entity_type).map_or(DEFAULT_HEIGHTMAP, |data| data.heightmap)
++}
++
++#[must_use]
++pub(crate) fn top_non_colliding_pos(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    x: i32,
++    z: i32,
++) -> BlockPos {
++    let mut pos = BlockPos::new(x, region.height_at(heightmap_type(entity_type), x, z), z);
++    if region.world().dimension_type.has_ceiling {
++        loop {
++            pos = pos.below();
++            if region.block_state(pos).is_air() {
++                break;
++            }
++        }
++
++        while region.block_state(pos).is_air() && pos.y() > region.min_y() {
++            pos = pos.below();
++        }
++    }
++
++    adjust_spawn_position(region, entity_type, pos)
++}
++
++fn adjust_spawn_position(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    candidate: BlockPos,
++) -> BlockPos {
++    let placement = data_for(entity_type)
++        .map_or(SpawnPlacementType::NoRestrictions, |data| data.placement);
++    if placement != SpawnPlacementType::OnGround {
++        return candidate;
++    }
++
++    let below = candidate.below();
++    if region
++        .block_state(below)
++        .is_pathfindable(PathComputationType::Land)
++    {
++        below
++    } else {
++        candidate
++    }
++}
++
++#[must_use]
++pub(crate) fn is_spawn_position_ok(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    pos: BlockPos,
++) -> bool {
++    let placement = data_for(entity_type)
++        .map_or(SpawnPlacementType::NoRestrictions, |data| data.placement);
++    match placement {
++        SpawnPlacementType::NoRestrictions => true,
++        SpawnPlacementType::InLava => {
++            region.world().is_block_within_world_border(pos)
++                && region
++                    .block_state(pos)
++                    .get_fluid_state()
++                    .fluid_id
++                    .has_tag(&FluidTag::LAVA)
++        }
++        SpawnPlacementType::OnGround => {
++            if !region.world().is_block_within_world_border(pos) {
++                return false;
++            }
++            let below = pos.below();
++            is_valid_spawn_surface(region, entity_type, below)
++                && is_valid_empty_spawn_block(region, entity_type, pos)
++                && is_valid_empty_spawn_block(region, entity_type, pos.above())
++        }
++    }
++}
++
++fn is_valid_spawn_surface(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    pos: BlockPos,
++) -> bool {
++    let state = region.block_state(pos);
++    let block = state.get_block();
++
++    if block == &vanilla_blocks::BEDROCK {
++        return false;
++    }
++    if block.has_tag(&BlockTag::LEAVES) {
++        return is_type(entity_type, &vanilla_entities::PARROT);
++    }
++    if block == &vanilla_blocks::ICE {
++        return is_type(entity_type, &vanilla_entities::POLAR_BEAR);
++    }
++    if block == &vanilla_blocks::PACKED_ICE {
++        return true;
++    }
++    if block == &vanilla_blocks::MAGMA_BLOCK {
++        return entity_type.fire_immune;
++    }
++
++    state.get_light_emission() < 14
++        && BLOCK_BEHAVIORS
++            .get_behavior(block)
++            .is_face_sturdy(state, region, pos, Direction::Up, SupportType::Full)
++}
++
++fn is_valid_empty_spawn_block(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    pos: BlockPos,
++) -> bool {
++    let state = region.block_state(pos);
++    let behavior = BLOCK_BEHAVIORS.get_behavior(state.get_block());
++    let shape = behavior.get_collision_shape(
++        state,
++        region,
++        pos,
++        BlockCollisionContext::empty(),
++    );
++    let offset = behavior.get_collision_shape_offset(
++        state,
++        region,
++        pos,
++        BlockCollisionContext::empty(),
++    );
++    if is_offset_shape_full_block(OffsetVoxelShape::new(shape, offset))
++        || behavior.is_signal_source(state, SignalQueryContext::DEFAULT)
++        || !state.get_fluid_state().is_empty()
++        || state
++            .get_block()
++            .has_tag(&BlockTag::PREVENT_MOB_SPAWNING_INSIDE)
++    {
++        return false;
++    }
++
++    !is_block_dangerous(entity_type, state)
++}
++
++fn is_block_dangerous(
++    entity_type: EntityTypeRef,
++    state: steel_utils::BlockStateId,
++) -> bool {
++    let block = state.get_block();
++    if (is_type(entity_type, &vanilla_entities::FOX)
++        && block.has_tag(&BlockTag::FOX_IMMUNE_TO))
++        || (is_type(entity_type, &vanilla_entities::POLAR_BEAR)
++            && block.has_tag(&BlockTag::POLAR_BEAR_IMMUNE_TO))
++    {
++        return false;
++    }
++    if !entity_type.fire_immune && WalkPathEvaluator::is_burning_block(state) {
++        return true;
++    }
++
++    block == &vanilla_blocks::WITHER_ROSE
++        || block == &vanilla_blocks::SWEET_BERRY_BUSH
++        || block == &vanilla_blocks::CACTUS
++        || block == &vanilla_blocks::POWDER_SNOW
++}
++
++#[must_use]
++pub(crate) fn check_spawn_rules(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    spawn_reason: EntitySpawnReason,
++    pos: BlockPos,
++) -> bool {
++    if !entity_type.allowed_in_peaceful && region.world().difficulty() == Difficulty::Peaceful {
++        return false;
++    }
++
++    let Some(data) = data_for(entity_type) else {
++        return true;
++    };
++    check_predicate(region, data.predicate, spawn_reason, pos)
++}
++
++fn check_predicate(
++    region: &WorldGenRegion<'_>,
++    predicate: SpawnPredicate,
++    spawn_reason: EntitySpawnReason,
++    pos: BlockPos,
++) -> bool {
++    let below_block = region.block_state(pos.below()).get_block();
++    let bright_enough = || region.spawn_raw_brightness(pos, 0) > 8;
++    match predicate {
++        SpawnPredicate::Animal | SpawnPredicate::Panda => {
++            below_block.has_tag(&BlockTag::ANIMALS_SPAWNABLE_ON)
++                && (spawn_reason.ignores_light_requirements() || bright_enough())
++        }
++        SpawnPredicate::Armadillo => {
++            below_block.has_tag(&BlockTag::ARMADILLO_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Camel => {
++            below_block.has_tag(&BlockTag::CAMELS_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Fox => {
++            below_block.has_tag(&BlockTag::FOXES_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Frog => {
++            below_block.has_tag(&BlockTag::FROGS_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Goat => {
++            below_block.has_tag(&BlockTag::GOATS_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Mooshroom => {
++            below_block.has_tag(&BlockTag::MOOSHROOMS_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Parrot => {
++            below_block.has_tag(&BlockTag::PARROTS_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::PolarBear => {
++            let alternate = region.biome_at(pos).is_some_and(|biome| {
++                biome.has_tag(&BiomeTag::POLAR_BEARS_SPAWN_ON_ALTERNATE_BLOCKS)
++            });
++            if alternate {
++                below_block.has_tag(&BlockTag::POLAR_BEARS_SPAWNABLE_ON_ALTERNATE)
++                    && bright_enough()
++            } else {
++                below_block.has_tag(&BlockTag::ANIMALS_SPAWNABLE_ON)
++                    && (spawn_reason.ignores_light_requirements() || bright_enough())
++            }
++        }
++        SpawnPredicate::Rabbit => {
++            below_block.has_tag(&BlockTag::RABBITS_SPAWNABLE_ON) && bright_enough()
++        }
++        SpawnPredicate::Strider => {
++            let mut check_pos = pos;
++            loop {
++                check_pos = check_pos.above();
++                let fluid = region.block_state(check_pos).get_fluid_state();
++                if !fluid.fluid_id.has_tag(&FluidTag::LAVA) {
++                    break region.block_state(check_pos).is_air();
++                }
++            }
++        }
++        SpawnPredicate::Turtle => {
++            pos.y() < region.sea_level() + 4
++                && below_block.has_tag(&BlockTag::SAND)
++                && bright_enough()
++        }
++        SpawnPredicate::Wolf => {
++            below_block.has_tag(&BlockTag::WOLVES_SPAWNABLE_ON) && bright_enough()
++        }
++    }
++}
++
++#[must_use]
++pub(crate) fn no_collision(region: &WorldGenRegion<'_>, aabb: WorldAabb) -> bool {
++    const EPSILON: f64 = 1.0e-7;
++    let min_x = (aabb.min_x() - EPSILON).floor() as i32 - 1;
++    let min_y = (aabb.min_y() - EPSILON).floor() as i32 - 1;
++    let min_z = (aabb.min_z() - EPSILON).floor() as i32 - 1;
++    let max_x = (aabb.max_x() + EPSILON).floor() as i32 + 1;
++    let max_y = (aabb.max_y() + EPSILON).floor() as i32 + 1;
++    let max_z = (aabb.max_z() + EPSILON).floor() as i32 + 1;
++
++    for y in min_y..=max_y {
++        for z in min_z..=max_z {
++            for x in min_x..=max_x {
++                let pos = BlockPos::new(x, y, z);
++                let state = region.block_state(pos);
++                if state.is_air() {
++                    continue;
++                }
++                let behavior = BLOCK_BEHAVIORS.get_behavior(state.get_block());
++                let boxes = behavior.get_collision_boxes(
++                    state,
++                    region,
++                    pos,
++                    BlockCollisionContext::empty(),
++                );
++                if boxes
++                    .iter()
++                    .any(|shape| aabb.intersects(shape.at_block(pos)))
++                {
++                    return false;
++                }
++            }
++        }
++    }
++
++    true
++}
++
++#[must_use]
++pub(crate) fn check_spawn_obstruction(
++    region: &WorldGenRegion<'_>,
++    entity_type: EntityTypeRef,
++    aabb: WorldAabb,
++) -> bool {
++    if is_type(entity_type, &vanilla_entities::STRIDER) {
++        return true;
++    }
++
++    let min_x = aabb.min_x().floor() as i32;
++    let min_y = aabb.min_y().floor() as i32;
++    let min_z = aabb.min_z().floor() as i32;
++    let max_x = aabb.max_x().ceil() as i32;
++    let max_y = aabb.max_y().ceil() as i32;
++    let max_z = aabb.max_z().ceil() as i32;
++    for y in min_y..max_y {
++        for z in min_z..max_z {
++            for x in min_x..max_x {
++                if !region
++                    .block_state(BlockPos::new(x, y, z))
++                    .get_fluid_state()
++                    .is_empty()
++                {
++                    return false;
++                }
++            }
++        }
++    }
++
++    true
++}
++
++#[cfg(test)]
++mod tests {
++    use steel_registry::{REGISTRY, RegistryExt as _, init_vanilla_registry};
++
++    use super::data_for;
++
++    #[test]
++    fn bundled_chunk_generation_creatures_have_placement_data() {
++        init_vanilla_registry();
++        let mut missing = Vec::new();
++        for (_, biome) in REGISTRY.biomes.iter() {
++            let Some(spawners) = biome.spawners.get("creature") else {
++                continue;
++            };
++            for spawner in spawners {
++                let Some(entity_type) = REGISTRY.entity_types.by_key(&spawner.entity_type) else {
++                    missing.push(spawner.entity_type.to_string());
++                    continue;
++                };
++                if data_for(entity_type).is_none() {
++                    missing.push(entity_type.key.to_string());
++                }
++            }
++        }
++        missing.sort_unstable();
++        missing.dedup();
++
++        assert!(missing.is_empty(), "missing spawn placement data: {missing:?}");
++    }
++}
+diff --git a/steel-core/src/worldgen/generator/empty.rs b/steel-core/src/worldgen/generator/empty.rs
+index 3eb973f..69b92a0 100644
+--- a/steel-core/src/worldgen/generator/empty.rs
++++ b/steel-core/src/worldgen/generator/empty.rs
+@@ -60,4 +60,6 @@ impl ChunkGenerator for EmptyChunkGenerator {
+     }
+ 
+     fn apply_biome_decorations(&self, _region: &mut WorldGenRegion<'_>) {}
++
++    fn spawn_original_mobs(&self, _region: &WorldGenRegion<'_>) {}
+ }
+diff --git a/steel-core/src/worldgen/generator/flat.rs b/steel-core/src/worldgen/generator/flat.rs
+index 0655177..377065d 100644
+--- a/steel-core/src/worldgen/generator/flat.rs
++++ b/steel-core/src/worldgen/generator/flat.rs
+@@ -313,4 +313,6 @@ impl ChunkGenerator for FlatChunkGenerator {
+     }
+ 
+     fn apply_biome_decorations(&self, _region: &mut WorldGenRegion<'_>) {}
++
++    fn spawn_original_mobs(&self, _region: &WorldGenRegion<'_>) {}
+ }
+diff --git a/steel-core/src/worldgen/generator/mod.rs b/steel-core/src/worldgen/generator/mod.rs
+index 038a2e0..57bee9e 100644
+--- a/steel-core/src/worldgen/generator/mod.rs
++++ b/steel-core/src/worldgen/generator/mod.rs
+@@ -95,6 +95,9 @@ pub trait ChunkGenerator: Send + Sync {
+ 
+     /// Applies structure piece placement and biome feature decorations.
+     fn apply_biome_decorations(&self, region: &mut WorldGenRegion<'_>);
++
++    /// Spawns the generator's original mobs while the center chunk reaches Spawn status.
++    fn spawn_original_mobs(&self, region: &WorldGenRegion<'_>);
+ }
+ 
+ pub(crate) fn worldgen_region_random_from_splitter(
+diff --git a/steel-core/src/worldgen/generator/vanilla.rs b/steel-core/src/worldgen/generator/vanilla.rs
+index ea1177c..a3578df 100644
+--- a/steel-core/src/worldgen/generator/vanilla.rs
++++ b/steel-core/src/worldgen/generator/vanilla.rs
+@@ -892,6 +892,29 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
+         self.feature_runner
+             .decorate(region, &REGISTRY, self.seed, self.biome_zoom_seed);
+     }
++
++    fn spawn_original_mobs(&self, region: &WorldGenRegion<'_>) {
++        if N::Settings::DISABLE_MOB_GENERATION {
++            return;
++        }
++
++        let center = region.center();
++        let min_x = center.0.x * 16;
++        let min_z = center.0.y * 16;
++        let biome_pos = BlockPos::new(min_x, region.max_y_exclusive() - 1, min_z);
++        let Some(biome) = region.biome_at(biome_pos) else {
++            return;
++        };
++
++        let mut random = LegacyRandom::from_seed(0);
++        random.set_decoration_seed(region.seed(), min_x, min_z);
++        crate::worldgen::natural_spawner::spawn_mobs_for_chunk_generation(
++            region,
++            biome,
++            center,
++            &mut random,
++        );
++    }
+ }
+ 
+ impl<N, F> CarveRun<'_, '_, N, F>
+diff --git a/steel-core/src/worldgen/mod.rs b/steel-core/src/worldgen/mod.rs
+index fe738db..c9f611e 100644
+--- a/steel-core/src/worldgen/mod.rs
++++ b/steel-core/src/worldgen/mod.rs
+@@ -9,6 +9,7 @@ pub mod carver;
+ mod chunk_stage_hashes;
+ pub(crate) mod feature;
+ pub mod generator;
++pub(crate) mod natural_spawner;
+ pub mod region;
+ pub(crate) mod stages;
+ pub(crate) mod structure;
+diff --git a/steel-core/src/worldgen/natural_spawner.rs b/steel-core/src/worldgen/natural_spawner.rs
+new file mode 100644
+index 0000000..3c421f5
+--- /dev/null
++++ b/steel-core/src/worldgen/natural_spawner.rs
+@@ -0,0 +1,233 @@
++//! Vanilla's original-mob path used while a chunk reaches `ChunkStatus::Spawn`.
++
++use glam::DVec3;
++use steel_registry::{
++    REGISTRY, RegistryExt as _,
++    biome::{BiomeRef, SpawnerData},
++    entity_type::{EntityTypeRef, MobCategory},
++    vanilla_game_rules::SPAWN_MOBS,
++};
++use steel_utils::{
++    BlockPos, ChunkPos, WorldAabb,
++    random::{Random as _, legacy_random::LegacyRandom},
++};
++
++use crate::{
++    entity::{
++        ENTITIES, EntitySpawnReason, SpawnGroupData, next_entity_id,
++        spawn_placements,
++    },
++    worldgen::region::WorldGenRegion,
++};
++
++pub(crate) fn spawn_mobs_for_chunk_generation(
++    region: &WorldGenRegion<'_>,
++    biome: BiomeRef,
++    chunk_pos: ChunkPos,
++    random: &mut LegacyRandom,
++) {
++    let Some(spawners) = biome
++        .spawners
++        .get(MobCategory::Creature.serialized_name())
++    else {
++        return;
++    };
++    let world = region.world();
++    if spawners.is_empty() || !world.get_game_rule(&SPAWN_MOBS) {
++        return;
++    }
++
++    let origin_x = chunk_pos.0.x * 16;
++    let origin_z = chunk_pos.0.y * 16;
++    while random.next_f32() < biome.creature_spawn_probability {
++        let Some(spawner_data) = select_weighted_spawner(spawners, random) else {
++            continue;
++        };
++        let Some(entity_type) = REGISTRY.entity_types.by_key(&spawner_data.entity_type) else {
++            continue;
++        };
++
++        let count = spawner_data.min_count
++            + random.next_i32_bounded(1 + spawner_data.max_count - spawner_data.min_count);
++        let mut group_spawn_data: Option<SpawnGroupData> = None;
++        let mut x = origin_x + random.next_i32_bounded(16);
++        let mut z = origin_z + random.next_i32_bounded(16);
++        let start_x = x;
++        let start_z = z;
++
++        for _ in 0..count {
++            let mut success = false;
++            for _ in 0..4 {
++                if success {
++                    break;
++                }
++
++                let pos = spawn_placements::top_non_colliding_pos(region, entity_type, x, z);
++                if entity_type.summonable
++                    && spawn_placements::is_spawn_position_ok(region, entity_type, pos)
++                {
++                    let width = f64::from(entity_type.dimensions.width);
++                    let spawn_x = f64::from(x)
++                        .clamp(f64::from(origin_x) + width, f64::from(origin_x + 16) - width);
++                    let spawn_z = f64::from(z)
++                        .clamp(f64::from(origin_z) + width, f64::from(origin_z + 16) - width);
++                    let spawn_pos = DVec3::new(spawn_x, f64::from(pos.y()), spawn_z);
++                    let spawn_aabb = spawn_aabb(entity_type, spawn_pos);
++                    let rule_pos = BlockPos::from(spawn_pos);
++                    if !spawn_placements::no_collision(region, spawn_aabb)
++                        || !spawn_placements::check_spawn_rules(
++                            region,
++                            entity_type,
++                            EntitySpawnReason::ChunkGeneration,
++                            rule_pos,
++                        )
++                    {
++                        continue;
++                    }
++
++                    let uses_raw_fallback = !ENTITIES.has_factory(entity_type);
++                    let entity = ENTITIES.create_or_raw(
++                        entity_type,
++                        next_entity_id(),
++                        spawn_pos,
++                        region.weak_world(),
++                    );
++                    let yaw = random.next_f32() * 360.0;
++                    if entity.try_set_position(spawn_pos).is_err() {
++                        continue;
++                    }
++                    entity.set_rotation((yaw, 0.0));
++                    entity.set_old_position_to_current();
++                    entity.base().set_old_rotation_to_current();
++                    if spawn_placements::check_spawn_obstruction(
++                        region,
++                        entity_type,
++                        spawn_aabb,
++                    ) {
++                        let can_add = if let Some(mob) = entity.as_mob() {
++                            group_spawn_data = mob.finalize_spawn(
++                                &world,
++                                EntitySpawnReason::ChunkGeneration,
++                                group_spawn_data,
++                            );
++                            true
++                        } else {
++                            uses_raw_fallback
++                        };
++                        if can_add {
++                            let _ = region.add_fresh_entity_with_passengers(entity);
++                            success = true;
++                        }
++                    }
++                }
++
++                // Vanilla's explicit failure `continue`s above skip this walk; placement and
++                // obstruction failures, as well as successful spawns, still consume it.
++                move_to_next_pack_position(
++                    random,
++                    origin_x,
++                    origin_z,
++                    start_x,
++                    start_z,
++                    &mut x,
++                    &mut z,
++                );
++            }
++        }
++    }
++}
++
++fn spawn_aabb(entity_type: EntityTypeRef, pos: DVec3) -> WorldAabb {
++    WorldAabb::entity_box(
++        pos.x,
++        pos.y,
++        pos.z,
++        f64::from(entity_type.dimensions.half_width()),
++        f64::from(entity_type.dimensions.height),
++    )
++}
++
++fn select_weighted_spawner<'a>(
++    spawners: &'a [SpawnerData],
++    random: &mut LegacyRandom,
++) -> Option<&'a SpawnerData> {
++    let total_weight = spawners
++        .iter()
++        .fold(0_i32, |total, spawner| total.wrapping_add(spawner.weight));
++    if total_weight <= 0 {
++        return None;
++    }
++
++    let mut selected_weight = random.next_i32_bounded(total_weight);
++    for spawner in spawners {
++        selected_weight -= spawner.weight;
++        if selected_weight < 0 {
++            return Some(spawner);
++        }
++    }
++    None
++}
++
++fn move_to_next_pack_position(
++    random: &mut LegacyRandom,
++    origin_x: i32,
++    origin_z: i32,
++    start_x: i32,
++    start_z: i32,
++    x: &mut i32,
++    z: &mut i32,
++) {
++    *x += random.next_i32_bounded(5) - random.next_i32_bounded(5);
++    *z += random.next_i32_bounded(5) - random.next_i32_bounded(5);
++    while *x < origin_x || *x >= origin_x + 16 || *z < origin_z || *z >= origin_z + 16 {
++        *x = start_x + random.next_i32_bounded(5) - random.next_i32_bounded(5);
++        *z = start_z + random.next_i32_bounded(5) - random.next_i32_bounded(5);
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use steel_registry::biome::SpawnerData;
++    use steel_utils::{
++        Identifier,
++        random::{Random as _, legacy_random::LegacyRandom},
++    };
++
++    use super::{move_to_next_pack_position, select_weighted_spawner};
++
++    fn spawner(path: &'static str, weight: i32) -> SpawnerData {
++        SpawnerData {
++            entity_type: Identifier::vanilla_static(path),
++            weight,
++            min_count: 1,
++            max_count: 1,
++        }
++    }
++
++    #[test]
++    fn weighted_selection_uses_vanilla_list_order() {
++        let spawners = [
++            spawner("sheep", 12),
++            spawner("pig", 10),
++            spawner("chicken", 10),
++            spawner("cow", 8),
++        ];
++        let mut random = LegacyRandom::from_seed(0);
++        let selected: Vec<_> = (0..6)
++            .filter_map(|_| select_weighted_spawner(&spawners, &mut random))
++            .map(|entry| entry.entity_type.path.as_str())
++            .collect();
++
++        assert_eq!(selected, ["sheep", "chicken", "chicken", "sheep", "cow", "pig"]);
++    }
++
++    #[test]
++    fn pack_position_retry_consumes_legacy_random_in_vanilla_order() {
++        let mut random = LegacyRandom::from_seed(42);
++        let _ = random.next_f32();
++        let mut x = 15;
++        let mut z = 15;
++        move_to_next_pack_position(&mut random, 0, 0, 15, 15, &mut x, &mut z);
++        assert_eq!((x, z), (15, 14));
++    }
++}
+diff --git a/steel-core/src/worldgen/region.rs b/steel-core/src/worldgen/region.rs
+index 3dc7da8..f4f6854 100644
+--- a/steel-core/src/worldgen/region.rs
++++ b/steel-core/src/worldgen/region.rs
+@@ -13,7 +13,8 @@ use std::{
+ use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+ use simdnbt::owned::NbtCompound;
+ use steel_registry::{
+-    REGISTRY, block_entity_type::BlockEntityTypeRef, blocks::BlockRef,
++    REGISTRY, RegistryExt as _, biome::BiomeRef, block_entity_type::BlockEntityTypeRef,
++    blocks::BlockRef,
+     blocks::block_state_ext::BlockStateExt as _, blocks::properties::Direction,
+     blocks::shapes::SupportType, fluid::FluidRef, vanilla_blocks,
+ };
+@@ -21,7 +22,10 @@ use steel_utils::random::RandomSource;
+ use steel_utils::{
+     BlockPos, BlockStateId, ChunkPos, PackedSectionBlockPos, SectionPos, types::UpdateFlags,
+ };
+-use steel_worldgen::structure::{StructureReferenceMap, StructureStartMap};
++use steel_worldgen::{
++    biomes::obfuscate_biome_seed,
++    structure::{StructureReferenceMap, StructureStartMap},
++};
+ 
+ use crate::behavior::{BLOCK_BEHAVIORS, FLUID_BEHAVIORS};
+ use crate::block_entity::{BLOCK_ENTITIES, SharedBlockEntity};
+@@ -32,6 +36,7 @@ use crate::chunk::{
+     chunk_pyramid::ChunkStep,
+     full_chunk::FullChunkRef,
+     heightmap::{Heightmap, HeightmapType},
++    light::LightLayer,
+     section::{ChunkSection, SectionHolder, SectionWriteGuard, Sections},
+     status::ChunkStatus,
+ };
+@@ -40,6 +45,7 @@ use crate::world::tick_scheduler::TickPriority;
+ use crate::world::{LevelAccessor, LevelReader, ScheduledTickAccess, World};
+ use crate::worldgen::feature::instrumentation::OreFeatureStats;
+ use crate::worldgen::generator::context::WorldGenContext;
++use crate::worldgen::generator::vanilla::fuzzed_biome_at_block;
+ 
+ /// Chunk-cache backed worldgen view for the current generation step.
+ ///
+@@ -271,6 +277,12 @@ impl<'a> WorldGenRegion<'a> {
+         self.context.world().seed()
+     }
+ 
++    /// Returns the live world backing this generation region.
++    #[must_use]
++    pub(crate) fn world(&self) -> Arc<World> {
++        self.context.world()
++    }
++
+     /// Returns the weak world reference used by generated chunks and entities.
+     #[must_use]
+     pub fn weak_world(&self) -> Weak<World> {
+@@ -291,6 +303,26 @@ impl<'a> WorldGenRegion<'a> {
+         0
+     }
+ 
++    /// Returns committed post-light-stage brightness for chunk-generation spawning.
++    #[must_use]
++    pub(crate) fn spawn_raw_brightness(&self, pos: BlockPos, sky_darkening: u8) -> u8 {
++        let sky_light = if self.context.world().dimension_type.has_skylight {
++            self.light_value_at(LightLayer::Sky, pos)
++                .saturating_sub(sky_darkening)
++        } else {
++            0
++        };
++        sky_light.max(self.light_value_at(LightLayer::Block, pos))
++    }
++
++    fn light_value_at(&self, layer: LightLayer, pos: BlockPos) -> u8 {
++        let chunk_x = SectionPos::block_to_section_coord(pos.x());
++        let chunk_z = SectionPos::block_to_section_coord(pos.z());
++        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk| {
++            chunk.chunk.light().get_light_value(layer, pos)
++        })
++    }
++
+     /// Returns the exclusive maximum build height.
+     #[must_use]
+     pub const fn max_y_exclusive(&self) -> i32 {
+@@ -491,6 +523,16 @@ impl<'a> WorldGenRegion<'a> {
+         })
+     }
+ 
++    /// Gets the biome at a block position through vanilla biome-zoom fuzzing.
++    #[must_use]
++    pub(crate) fn biome_at(&self, pos: BlockPos) -> Option<BiomeRef> {
++        let biome_zoom_seed = obfuscate_biome_seed(self.seed());
++        let biome_id = fuzzed_biome_at_block(biome_zoom_seed, pos, |quart| {
++            self.noise_biome_id(quart.x, quart.y, quart.z)
++        });
++        REGISTRY.biomes.by_id(usize::from(biome_id))
++    }
++
+     /// Sets a block state if the position is inside the step's write radius.
+     ///
+     /// Returns whether the write was accepted by the region. Positions outside the write
+@@ -629,6 +671,17 @@ impl<'a> WorldGenRegion<'a> {
+         })
+     }
+ 
++    /// Adds an entity and its complete passenger tree to proto-chunk storage.
++    #[must_use]
++    pub fn add_fresh_entity_with_passengers(&self, entity: SharedEntity) -> bool {
++        let passengers = entity.passengers();
++        let mut added = self.add_fresh_entity(entity);
++        for passenger in passengers {
++            added = self.add_fresh_entity_with_passengers(passenger) && added;
++        }
++        added
++    }
++
+     /// Schedules a block tick in the chunk that owns the target position.
+     ///
+     /// Vanilla `WorldGenTickAccess` resolves the owning chunk directly and does not apply
+diff --git a/steel-core/src/worldgen/stages/spawn.rs b/steel-core/src/worldgen/stages/spawn.rs
+index 7e6b2b6..2704449 100644
+--- a/steel-core/src/worldgen/stages/spawn.rs
++++ b/steel-core/src/worldgen/stages/spawn.rs
+@@ -3,12 +3,21 @@ use std::sync::Arc;
+ use crate::chunk::{
+     chunk_generation_task::StaticCache2D, chunk_holder::ChunkHolder, chunk_pyramid::ChunkStep,
+ };
++use crate::worldgen::generator::ChunkGenerator as _;
+ use crate::worldgen::generator::context::WorldGenContext;
++use crate::worldgen::region::WorldGenRegion;
+ 
+ pub(crate) fn generate(
+-    _context: Arc<WorldGenContext>,
+-    _step: &ChunkStep,
+-    _cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
+-    _holder: Arc<ChunkHolder>,
++    context: Arc<WorldGenContext>,
++    step: &ChunkStep,
++    cache: &Arc<StaticCache2D<Arc<ChunkHolder>>>,
++    holder: Arc<ChunkHolder>,
+ ) {
++    let center = holder.get_pos();
++    let world_seed = context.world().seed();
++    let region_random = context
++        .generator
++        .create_worldgen_region_random(world_seed, center);
++    let region = WorldGenRegion::new(context.as_ref(), step, cache, center, region_random);
++    context.generator.spawn_original_mobs(&region);
+ }
+diff --git a/steel-registry/src/entity_type.rs b/steel-registry/src/entity_type.rs
+index f4223dd..bd3a39c 100644
+--- a/steel-registry/src/entity_type.rs
++++ b/steel-registry/src/entity_type.rs
+@@ -18,6 +18,21 @@ pub enum MobCategory {
+ }
+ 
+ impl MobCategory {
++    /// Returns the serialized biome spawner key for this category.
++    #[must_use]
++    pub const fn serialized_name(self) -> &'static str {
++        match self {
++            Self::Monster => "monster",
++            Self::Creature => "creature",
++            Self::Ambient => "ambient",
++            Self::Axolotls => "axolotls",
++            Self::UndergroundWaterCreature => "underground_water_creature",
++            Self::WaterCreature => "water_creature",
++            Self::WaterAmbient => "water_ambient",
++            Self::Misc => "misc",
++        }
++    }
++
+     #[must_use]
+     pub const fn despawn_distance(self) -> i32 {
+         match self {
+diff --git a/steel-utils/src/random/legacy_random.rs b/steel-utils/src/random/legacy_random.rs
+index b80b54f..5caa724 100644
+--- a/steel-utils/src/random/legacy_random.rs
++++ b/steel-utils/src/random/legacy_random.rs
+@@ -57,6 +57,19 @@ impl LegacyRandom {
+         );
+     }
+ 
++    /// Matches vanilla's `WorldgenRandom.setDecorationSeed` with a legacy source.
++    pub fn set_decoration_seed(&mut self, seed: i64, block_x: i32, block_z: i32) -> i64 {
++        self.set_seed(seed);
++        let x_scale = self.next_i64() | 1;
++        let z_scale = self.next_i64() | 1;
++        let decoration_seed = i64::from(block_x)
++            .wrapping_mul(x_scale)
++            .wrapping_add(i64::from(block_z).wrapping_mul(z_scale))
++            ^ seed;
++        self.set_seed(decoration_seed);
++        decoration_seed
++    }
++
+     /// Matches vanilla's `WorldgenRandom.setLargeFeatureWithSalt`.
+     pub fn set_large_feature_with_salt(&mut self, seed: i64, x: i32, z: i32, salt: i32) {
+         self.set_seed(
+@@ -265,6 +278,17 @@ mod test {
+         }
+     }
+ 
++    #[test]
++    fn decoration_seed_matches_legacy_worldgen_random_trace() {
++        let mut random = LegacyRandom::from_seed(0);
++        assert_eq!(
++            random.set_decoration_seed(13_579, -6_695_392, 5_868_656),
++            -6_680_026_146_791_983_013,
++        );
++        assert_eq!(random.next_i32_bounded(16), 7);
++        assert_eq!(random.next_i32_bounded(16), 6);
++    }
++
+     #[test]
+     fn test_next_i32_between() {
+         let mut rand = LegacyRandom::from_seed(0);
+diff --git a/steel-worldgen/build/density/functions.rs b/steel-worldgen/build/density/functions.rs
+index ed72ecd..1ab4c8f 100644
+--- a/steel-worldgen/build/density/functions.rs
++++ b/steel-worldgen/build/density/functions.rs
+@@ -261,6 +261,7 @@ struct NoiseSettingsJson {
+     sea_level: i32,
+     ore_veins_enabled: bool,
+     aquifers_enabled: bool,
++    disable_mob_generation: bool,
+     #[serde(default)]
+     legacy_random_source: bool,
+     default_block: BlockStateJson,
+@@ -792,6 +793,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
+     let sea_level = settings.sea_level;
+     let aquifers_enabled = settings.aquifers_enabled;
+     let ore_veins_enabled = settings.ore_veins_enabled;
++    let disable_mob_generation = settings.disable_mob_generation;
+     let legacy_random_source = settings.legacy_random_source;
+ 
+     // Cell dimensions: size_horizontal * 4 for XZ, size_vertical * 4 for Y
+@@ -835,6 +837,8 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
+             pub const AQUIFERS_ENABLED: bool = #aquifers_enabled;
+             /// Whether ore veins are enabled.
+             pub const ORE_VEINS_ENABLED: bool = #ore_veins_enabled;
++            /// Whether original mob generation is disabled.
++            pub const DISABLE_MOB_GENERATION: bool = #disable_mob_generation;
+             /// Whether this dimension uses Java's LCG random (true) or Xoroshiro (false).
+             pub const LEGACY_RANDOM_SOURCE: bool = #legacy_random_source;
+ 
+@@ -859,6 +863,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
+             const CELL_HEIGHT: i32 = #cell_height;
+             const AQUIFERS_ENABLED: bool = #aquifers_enabled;
+             const ORE_VEINS_ENABLED: bool = #ore_veins_enabled;
++            const DISABLE_MOB_GENERATION: bool = #disable_mob_generation;
+             const LEGACY_RANDOM_SOURCE: bool = #legacy_random_source;
+ 
+             #[inline]
+diff --git a/steel-worldgen/src/density/traits.rs b/steel-worldgen/src/density/traits.rs
+index 3f14b1d..cbf51d8 100644
+--- a/steel-worldgen/src/density/traits.rs
++++ b/steel-worldgen/src/density/traits.rs
+@@ -31,6 +31,8 @@ pub trait NoiseSettings: Send + Sync {
+     const AQUIFERS_ENABLED: bool;
+     /// Whether ore veins are enabled for this dimension.
+     const ORE_VEINS_ENABLED: bool;
++    /// Whether original mob generation is disabled for this dimension.
++    const DISABLE_MOB_GENERATION: bool;
+     /// Whether this dimension uses Java's LCG random (true) or Xoroshiro (false).
+     const LEGACY_RANDOM_SOURCE: bool;
+ 
