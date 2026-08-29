@@ -261,6 +261,7 @@ struct NoiseSettingsJson {
     sea_level: i32,
     ore_veins_enabled: bool,
     aquifers_enabled: bool,
+    disable_mob_generation: bool,
     #[serde(default)]
     legacy_random_source: bool,
     default_block: BlockStateJson,
@@ -792,6 +793,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
     let sea_level = settings.sea_level;
     let aquifers_enabled = settings.aquifers_enabled;
     let ore_veins_enabled = settings.ore_veins_enabled;
+    let disable_mob_generation = settings.disable_mob_generation;
     let legacy_random_source = settings.legacy_random_source;
 
     // Cell dimensions: size_horizontal * 4 for XZ, size_vertical * 4 for Y
@@ -835,6 +837,8 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
             pub const AQUIFERS_ENABLED: bool = #aquifers_enabled;
             /// Whether ore veins are enabled.
             pub const ORE_VEINS_ENABLED: bool = #ore_veins_enabled;
+            /// Whether original mob generation is disabled.
+            pub const DISABLE_MOB_GENERATION: bool = #disable_mob_generation;
             /// Whether this dimension uses Java's LCG random (true) or Xoroshiro (false).
             pub const LEGACY_RANDOM_SOURCE: bool = #legacy_random_source;
 
@@ -859,6 +863,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
             const CELL_HEIGHT: i32 = #cell_height;
             const AQUIFERS_ENABLED: bool = #aquifers_enabled;
             const ORE_VEINS_ENABLED: bool = #ore_veins_enabled;
+            const DISABLE_MOB_GENERATION: bool = #disable_mob_generation;
             const LEGACY_RANDOM_SOURCE: bool = #legacy_random_source;
 
             #[inline]

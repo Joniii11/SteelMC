@@ -18,6 +18,21 @@ pub enum MobCategory {
 }
 
 impl MobCategory {
+    /// Returns the serialized biome spawner key for this category.
+    #[must_use]
+    pub const fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Monster => "monster",
+            Self::Creature => "creature",
+            Self::Ambient => "ambient",
+            Self::Axolotls => "axolotls",
+            Self::UndergroundWaterCreature => "underground_water_creature",
+            Self::WaterCreature => "water_creature",
+            Self::WaterAmbient => "water_ambient",
+            Self::Misc => "misc",
+        }
+    }
+
     #[must_use]
     pub const fn despawn_distance(self) -> i32 {
         match self {

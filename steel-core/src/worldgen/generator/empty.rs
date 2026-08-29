@@ -60,4 +60,6 @@ impl ChunkGenerator for EmptyChunkGenerator {
     }
 
     fn apply_biome_decorations(&self, _region: &mut WorldGenRegion<'_>) {}
+
+    fn spawn_original_mobs(&self, _region: &WorldGenRegion<'_>) {}
 }

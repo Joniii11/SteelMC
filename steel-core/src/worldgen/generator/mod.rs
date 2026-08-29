@@ -95,6 +95,9 @@ pub trait ChunkGenerator: Send + Sync {
 
     /// Applies structure piece placement and biome feature decorations.
     fn apply_biome_decorations(&self, region: &mut WorldGenRegion<'_>);
+
+    /// Spawns the generator's original mobs while the center chunk reaches Spawn status.
+    fn spawn_original_mobs(&self, region: &WorldGenRegion<'_>);
 }
 
 pub(crate) fn worldgen_region_random_from_splitter(

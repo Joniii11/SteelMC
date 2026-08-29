@@ -57,6 +57,19 @@ impl LegacyRandom {
         );
     }
 
+    /// Matches vanilla's `WorldgenRandom.setDecorationSeed` with a legacy source.
+    pub fn set_decoration_seed(&mut self, seed: i64, block_x: i32, block_z: i32) -> i64 {
+        self.set_seed(seed);
+        let x_scale = self.next_i64() | 1;
+        let z_scale = self.next_i64() | 1;
+        let decoration_seed = i64::from(block_x)
+            .wrapping_mul(x_scale)
+            .wrapping_add(i64::from(block_z).wrapping_mul(z_scale))
+            ^ seed;
+        self.set_seed(decoration_seed);
+        decoration_seed
+    }
+
     /// Matches vanilla's `WorldgenRandom.setLargeFeatureWithSalt`.
     pub fn set_large_feature_with_salt(&mut self, seed: i64, x: i32, z: i32, salt: i32) {
         self.set_seed(
@@ -263,6 +276,17 @@ mod test {
         for value in values {
             assert_eq!(rand.next_i32_bounded(2), value);
         }
+    }
+
+    #[test]
+    fn decoration_seed_matches_legacy_worldgen_random_trace() {
+        let mut random = LegacyRandom::from_seed(0);
+        assert_eq!(
+            random.set_decoration_seed(13_579, -6_695_392, 5_868_656),
+            -6_680_026_146_791_983_013,
+        );
+        assert_eq!(random.next_i32_bounded(16), 7);
+        assert_eq!(random.next_i32_bounded(16), 6);
     }
 
     #[test]

@@ -892,6 +892,29 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         self.feature_runner
             .decorate(region, &REGISTRY, self.seed, self.biome_zoom_seed);
     }
+
+    fn spawn_original_mobs(&self, region: &WorldGenRegion<'_>) {
+        if N::Settings::DISABLE_MOB_GENERATION {
+            return;
+        }
+
+        let center = region.center();
+        let min_x = center.0.x * 16;
+        let min_z = center.0.y * 16;
+        let biome_pos = BlockPos::new(min_x, region.max_y_exclusive() - 1, min_z);
+        let Some(biome) = region.biome_at(biome_pos) else {
+            return;
+        };
+
+        let mut random = LegacyRandom::from_seed(0);
+        random.set_decoration_seed(region.seed(), min_x, min_z);
+        crate::worldgen::natural_spawner::spawn_mobs_for_chunk_generation(
+            region,
+            biome,
+            center,
+            &mut random,
+        );
+    }
 }
 
 impl<N, F> CarveRun<'_, '_, N, F>

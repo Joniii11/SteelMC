@@ -13,7 +13,8 @@ use std::{
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use simdnbt::owned::NbtCompound;
 use steel_registry::{
-    REGISTRY, block_entity_type::BlockEntityTypeRef, blocks::BlockRef,
+    REGISTRY, RegistryExt as _, biome::BiomeRef, block_entity_type::BlockEntityTypeRef,
+    blocks::BlockRef,
     blocks::block_state_ext::BlockStateExt as _, blocks::properties::Direction,
     blocks::shapes::SupportType, fluid::FluidRef, vanilla_blocks,
 };
@@ -21,7 +22,10 @@ use steel_utils::random::RandomSource;
 use steel_utils::{
     BlockPos, BlockStateId, ChunkPos, PackedSectionBlockPos, SectionPos, types::UpdateFlags,
 };
-use steel_worldgen::structure::{StructureReferenceMap, StructureStartMap};
+use steel_worldgen::{
+    biomes::obfuscate_biome_seed,
+    structure::{StructureReferenceMap, StructureStartMap},
+};
 
 use crate::behavior::{BLOCK_BEHAVIORS, FLUID_BEHAVIORS};
 use crate::block_entity::{BLOCK_ENTITIES, SharedBlockEntity};
@@ -32,6 +36,7 @@ use crate::chunk::{
     chunk_pyramid::ChunkStep,
     full_chunk::FullChunkRef,
     heightmap::{Heightmap, HeightmapType},
+    light::LightLayer,
     section::{ChunkSection, SectionHolder, SectionWriteGuard, Sections},
     status::ChunkStatus,
 };
@@ -40,6 +45,7 @@ use crate::world::tick_scheduler::TickPriority;
 use crate::world::{LevelAccessor, LevelReader, ScheduledTickAccess, World};
 use crate::worldgen::feature::instrumentation::OreFeatureStats;
 use crate::worldgen::generator::context::WorldGenContext;
+use crate::worldgen::generator::vanilla::fuzzed_biome_at_block;
 
 /// Chunk-cache backed worldgen view for the current generation step.
 ///
@@ -271,6 +277,12 @@ impl<'a> WorldGenRegion<'a> {
         self.context.world().seed()
     }
 
+    /// Returns the live world backing this generation region.
+    #[must_use]
+    pub(crate) fn world(&self) -> Arc<World> {
+        self.context.world()
+    }
+
     /// Returns the weak world reference used by generated chunks and entities.
     #[must_use]
     pub fn weak_world(&self) -> Weak<World> {
@@ -289,6 +301,26 @@ impl<'a> WorldGenRegion<'a> {
     )]
     pub const fn block_light_at(&self, _pos: BlockPos) -> u8 {
         0
+    }
+
+    /// Returns committed post-light-stage brightness for chunk-generation spawning.
+    #[must_use]
+    pub(crate) fn spawn_raw_brightness(&self, pos: BlockPos, sky_darkening: u8) -> u8 {
+        let sky_light = if self.context.world().dimension_type.has_skylight {
+            self.light_value_at(LightLayer::Sky, pos)
+                .saturating_sub(sky_darkening)
+        } else {
+            0
+        };
+        sky_light.max(self.light_value_at(LightLayer::Block, pos))
+    }
+
+    fn light_value_at(&self, layer: LightLayer, pos: BlockPos) -> u8 {
+        let chunk_x = SectionPos::block_to_section_coord(pos.x());
+        let chunk_z = SectionPos::block_to_section_coord(pos.z());
+        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk| {
+            chunk.chunk.light().get_light_value(layer, pos)
+        })
     }
 
     /// Returns the exclusive maximum build height.
@@ -491,6 +523,16 @@ impl<'a> WorldGenRegion<'a> {
         })
     }
 
+    /// Gets the biome at a block position through vanilla biome-zoom fuzzing.
+    #[must_use]
+    pub(crate) fn biome_at(&self, pos: BlockPos) -> Option<BiomeRef> {
+        let biome_zoom_seed = obfuscate_biome_seed(self.seed());
+        let biome_id = fuzzed_biome_at_block(biome_zoom_seed, pos, |quart| {
+            self.noise_biome_id(quart.x, quart.y, quart.z)
+        });
+        REGISTRY.biomes.by_id(usize::from(biome_id))
+    }
+
     /// Sets a block state if the position is inside the step's write radius.
     ///
     /// Returns whether the write was accepted by the region. Positions outside the write
@@ -627,6 +669,17 @@ impl<'a> WorldGenRegion<'a> {
                 true
             }
         })
+    }
+
+    /// Adds an entity and its complete passenger tree to proto-chunk storage.
+    #[must_use]
+    pub fn add_fresh_entity_with_passengers(&self, entity: SharedEntity) -> bool {
+        let passengers = entity.passengers();
+        let mut added = self.add_fresh_entity(entity);
+        for passenger in passengers {
+            added = self.add_fresh_entity_with_passengers(passenger) && added;
+        }
+        added
     }
 
     /// Schedules a block tick in the chunk that owns the target position.

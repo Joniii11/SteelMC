@@ -170,6 +170,23 @@ impl EntityRegistry {
             .map(|f| f(entity_type, entity_id, pos, world))
     }
 
+    /// Creates a fresh entity, preserving its type through a raw fallback when no factory exists.
+    #[must_use]
+    pub fn create_or_raw(
+        &self,
+        entity_type: EntityTypeRef,
+        entity_id: i32,
+        pos: DVec3,
+        world: Weak<World>,
+    ) -> SharedEntity {
+        let id = entity_type.id();
+        if let Some(factory) = self.entries.get(id).and_then(|entry| entry.factory) {
+            return factory(entity_type, entity_id, pos, world);
+        }
+
+        Arc::new(RawEntity::new(entity_id, pos, world, entity_type))
+    }
+
     /// Creates an entity from persisted data, falling back to raw NBT preservation.
     #[must_use]
     pub fn create_and_load_or_raw(
@@ -360,5 +377,18 @@ mod tests {
         };
 
         assert_eq!(entity.entity_type(), &vanilla_entities::OAK_BOAT);
+    }
+
+    #[test]
+    fn create_or_raw_preserves_unregistered_entity_type_and_position() {
+        init_vanilla_registry();
+        let registry = EntityRegistry::new();
+        let position = DVec3::new(2.5, 64.0, -3.5);
+
+        let entity = registry.create_or_raw(&vanilla_entities::PARROT, 7, position, Weak::new());
+
+        assert_eq!(entity.entity_type(), &vanilla_entities::PARROT);
+        assert_eq!(entity.position(), position);
+        assert!(entity.as_mob().is_none());
     }
 }

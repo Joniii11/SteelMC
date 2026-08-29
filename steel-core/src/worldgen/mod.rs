@@ -9,6 +9,7 @@ pub mod carver;
 mod chunk_stage_hashes;
 pub(crate) mod feature;
 pub mod generator;
+pub(crate) mod natural_spawner;
 pub mod region;
 pub(crate) mod stages;
 pub(crate) mod structure;
