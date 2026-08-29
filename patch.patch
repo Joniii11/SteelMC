@@ -1,0 +1,47 @@
+diff --git a/steel-registry/build/biomes.rs b/steel-registry/build/biomes.rs
+index 8150660..c3a44c1 100644
+--- a/steel-registry/build/biomes.rs
++++ b/steel-registry/build/biomes.rs
+@@ -16,6 +16,12 @@ use serde::{Deserialize, Serialize};
+ use serde_json::Value;
+ use steel_utils::Identifier;
+ 
++const DEFAULT_CREATURE_SPAWN_PROBABILITY: f32 = 0.1;
++
++const fn default_creature_spawn_probability() -> f32 {
++    DEFAULT_CREATURE_SPAWN_PROBABILITY
++}
++
+ #[derive(Serialize, Deserialize, Debug, Clone)]
+ #[serde(untagged)]
+ enum VecOrSingle<T>
+@@ -71,7 +77,7 @@ pub struct BiomeJson {
+ 
+     effects: BiomeEffects,
+ 
+-    #[serde(default)]
++    #[serde(default = "default_creature_spawn_probability")]
+     creature_spawn_probability: f32,
+     #[serde(default)]
+     spawners: FxHashMap<String, Vec<SpawnerData>>,
+diff --git a/steel-registry/src/biome.rs b/steel-registry/src/biome.rs
+index 426ab18..1990937 100644
+--- a/steel-registry/src/biome.rs
++++ b/steel-registry/src/biome.rs
+@@ -117,6 +117,16 @@ pub struct ParticleOptions {
+     pub particle_type: Identifier,
+ }
+ 
++#[cfg(test)]
++mod tests {
++    use crate::vanilla_biomes;
++
++    #[test]
++    fn omitted_creature_spawn_probability_uses_vanilla_default() {
++        assert_eq!(vanilla_biomes::PLAINS.creature_spawn_probability, 0.1);
++    }
++}
++
+ impl ToNbtTag for &Biome {
+     fn to_nbt_tag(self) -> NbtTag {
+         use simdnbt::owned::{NbtCompound, NbtList};
