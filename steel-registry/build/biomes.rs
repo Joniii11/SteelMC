@@ -16,6 +16,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use steel_utils::Identifier;
 
+const DEFAULT_CREATURE_SPAWN_PROBABILITY: f32 = 0.1;
+
+const fn default_creature_spawn_probability() -> f32 {
+    DEFAULT_CREATURE_SPAWN_PROBABILITY
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum VecOrSingle<T>
@@ -71,7 +77,7 @@ pub struct BiomeJson {
 
     effects: BiomeEffects,
 
-    #[serde(default)]
+    #[serde(default = "default_creature_spawn_probability")]
     creature_spawn_probability: f32,
     #[serde(default)]
     spawners: FxHashMap<String, Vec<SpawnerData>>,

@@ -117,6 +117,16 @@ pub struct ParticleOptions {
     pub particle_type: Identifier,
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::vanilla_biomes;
+
+    #[test]
+    fn omitted_creature_spawn_probability_uses_vanilla_default() {
+        assert_eq!(vanilla_biomes::PLAINS.creature_spawn_probability, 0.1);
+    }
+}
+
 impl ToNbtTag for &Biome {
     fn to_nbt_tag(self) -> NbtTag {
         use simdnbt::owned::{NbtCompound, NbtList};
