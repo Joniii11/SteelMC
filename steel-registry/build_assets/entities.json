@@ -227,7 +227,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -466,7 +466,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -774,7 +774,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -968,7 +968,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
@@ -1305,7 +1305,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -1642,7 +1642,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": true
@@ -1860,7 +1860,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -2214,7 +2214,7 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
@@ -2456,7 +2456,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -2687,7 +2687,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -2985,7 +2985,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -3335,7 +3335,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -3569,7 +3569,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -3808,7 +3808,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -4115,7 +4115,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": true,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -4439,7 +4439,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
@@ -4754,7 +4754,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
@@ -5050,7 +5050,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -5232,7 +5232,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -5599,7 +5599,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -5977,7 +5977,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
@@ -6382,7 +6382,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -6700,7 +6700,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -6934,7 +6934,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -7173,7 +7173,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -7406,7 +7406,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -7751,7 +7751,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -8076,7 +8076,7 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
@@ -8393,7 +8393,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
@@ -8643,7 +8643,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
@@ -8996,7 +8996,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -9332,7 +9332,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -9658,7 +9658,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
@@ -9666,6 +9666,182 @@
   },
   {
     "id": 33,
+    "name": "cushion",
+    "width": 1.0,
+    "height": 0.25,
+    "eye_height": 0.2125,
+    "fixed": false,
+    "attachments": {
+      "passenger": [
+        {
+          "x": 0.0,
+          "y": 0.25,
+          "z": 0.0
+        }
+      ],
+      "vehicle": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      ],
+      "name_tag": [
+        {
+          "x": 0.0,
+          "y": 0.25,
+          "z": 0.0
+        }
+      ],
+      "warden_chest": [
+        {
+          "x": 0.0,
+          "y": 0.125,
+          "z": 0.0
+        }
+      ]
+    },
+    "java_class": "net.minecraft.world.entity.decoration.Cushion",
+    "class_hierarchy": [
+      {
+        "java_class": "net.minecraft.world.entity.Entity",
+        "simple_name": "Entity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.decoration.BlockAttachedEntity",
+        "simple_name": "BlockAttachedEntity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.decoration.Cushion",
+        "simple_name": "Cushion"
+      }
+    ],
+    "mob_category": "MISC",
+    "client_tracking_range": 10,
+    "update_interval": 2147483647,
+    "fire_immune": false,
+    "summonable": true,
+    "allowed_in_peaceful": true,
+    "can_serialize": true,
+    "can_spawn_far_from_player": true,
+    "synched_data": {
+      "java_class": "net.minecraft.world.entity.decoration.Cushion",
+      "class_hierarchy": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.decoration.BlockAttachedEntity",
+          "simple_name": "BlockAttachedEntity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.decoration.Cushion",
+          "simple_name": "Cushion"
+        }
+      ],
+      "layers": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity",
+          "fields": [
+            {
+              "index": 0,
+              "name": "shared_flags_id",
+              "accessor_field": "DATA_SHARED_FLAGS_ID",
+              "serializer_id": 0,
+              "serializer": "byte",
+              "default_value": 0
+            },
+            {
+              "index": 1,
+              "name": "air_supply_id",
+              "accessor_field": "DATA_AIR_SUPPLY_ID",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 300
+            },
+            {
+              "index": 2,
+              "name": "custom_name",
+              "accessor_field": "DATA_CUSTOM_NAME",
+              "serializer_id": 6,
+              "serializer": "optional_component",
+              "default_value": {
+                "present": false
+              }
+            },
+            {
+              "index": 3,
+              "name": "custom_name_visible",
+              "accessor_field": "DATA_CUSTOM_NAME_VISIBLE",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 4,
+              "name": "silent",
+              "accessor_field": "DATA_SILENT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 5,
+              "name": "no_gravity",
+              "accessor_field": "DATA_NO_GRAVITY",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 6,
+              "name": "pose",
+              "accessor_field": "DATA_POSE",
+              "serializer_id": 20,
+              "serializer": "pose",
+              "default_value": "STANDING"
+            },
+            {
+              "index": 7,
+              "name": "ticks_frozen",
+              "accessor_field": "DATA_TICKS_FROZEN",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.decoration.Cushion",
+          "simple_name": "Cushion",
+          "fields": [
+            {
+              "index": 8,
+              "name": "color",
+              "accessor_field": "DATA_COLOR",
+              "serializer_id": 43,
+              "serializer": "dye_color",
+              "default_value": "WHITE"
+            }
+          ]
+        }
+      ]
+    },
+    "flags": {
+      "is_pushable": false,
+      "is_attackable": true,
+      "is_pickable": true,
+      "can_be_collided_with": false,
+      "is_pushed_by_fluid": true,
+      "can_freeze": true,
+      "can_be_hit_by_projectile": false,
+      "piston_push_reaction": "PUSH_PULL"
+    }
+  },
+  {
+    "id": 34,
     "name": "dark_oak_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -9892,11 +10068,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 34,
+    "id": 35,
     "name": "dark_oak_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -10131,11 +10307,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 35,
+    "id": 36,
     "name": "dolphin",
     "width": 0.9,
     "height": 0.6,
@@ -10476,14 +10652,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 36,
+    "id": 37,
     "name": "donkey",
     "width": 1.3964844,
     "height": 1.5,
@@ -10846,14 +11022,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 37,
+    "id": 38,
     "name": "dragon_fireball",
     "width": 1.0,
     "height": 1.0,
@@ -11020,11 +11196,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 38,
+    "id": 39,
     "name": "drowned",
     "width": 0.6,
     "height": 1.95,
@@ -11352,14 +11528,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 39,
+    "id": 40,
     "name": "egg",
     "width": 0.25,
     "height": 0.25,
@@ -11551,11 +11727,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 40,
+    "id": 41,
     "name": "elder_guardian",
     "width": 1.9975,
     "height": 1.9975,
@@ -11874,14 +12050,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 41,
+    "id": 42,
     "name": "enderman",
     "width": 0.6,
     "height": 2.9,
@@ -11917,7 +12093,7 @@
         }
       ]
     },
-    "java_class": "net.minecraft.world.entity.monster.EnderMan",
+    "java_class": "net.minecraft.world.entity.monster.Enderman",
     "class_hierarchy": [
       {
         "java_class": "net.minecraft.world.entity.Entity",
@@ -11940,8 +12116,8 @@
         "simple_name": "Monster"
       },
       {
-        "java_class": "net.minecraft.world.entity.monster.EnderMan",
-        "simple_name": "EnderMan"
+        "java_class": "net.minecraft.world.entity.monster.Enderman",
+        "simple_name": "Enderman"
       }
     ],
     "baby_dimensions": {
@@ -11959,7 +12135,7 @@
     "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
     "synched_data": {
-      "java_class": "net.minecraft.world.entity.monster.EnderMan",
+      "java_class": "net.minecraft.world.entity.monster.Enderman",
       "class_hierarchy": [
         {
           "java_class": "net.minecraft.world.entity.Entity",
@@ -11982,8 +12158,8 @@
           "simple_name": "Monster"
         },
         {
-          "java_class": "net.minecraft.world.entity.monster.EnderMan",
-          "simple_name": "EnderMan"
+          "java_class": "net.minecraft.world.entity.monster.Enderman",
+          "simple_name": "Enderman"
         }
       ],
       "layers": [
@@ -12138,8 +12314,8 @@
           ]
         },
         {
-          "java_class": "net.minecraft.world.entity.monster.EnderMan",
-          "simple_name": "EnderMan",
+          "java_class": "net.minecraft.world.entity.monster.Enderman",
+          "simple_name": "Enderman",
           "fields": [
             {
               "index": 16,
@@ -12202,14 +12378,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": true,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 42,
+    "id": 43,
     "name": "endermite",
     "width": 0.4,
     "height": 0.3,
@@ -12498,14 +12674,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 43,
+    "id": 44,
     "name": "ender_dragon",
     "width": 16.0,
     "height": 8.0,
@@ -12833,14 +13009,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 44,
+    "id": 45,
     "name": "ender_pearl",
     "width": 0.25,
     "height": 0.25,
@@ -13032,11 +13208,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 45,
+    "id": 46,
     "name": "end_crystal",
     "width": 2.0,
     "height": 2.0,
@@ -13211,11 +13387,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 46,
+    "id": 47,
     "name": "evoker",
     "width": 0.6,
     "height": 1.95,
@@ -13564,14 +13740,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 47,
+    "id": 48,
     "name": "evoker_fangs",
     "width": 0.5,
     "height": 0.8,
@@ -13722,11 +13898,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 48,
+    "id": 49,
     "name": "experience_bottle",
     "width": 0.25,
     "height": 0.25,
@@ -13918,11 +14094,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 49,
+    "id": 50,
     "name": "experience_orb",
     "width": 0.5,
     "height": 0.5,
@@ -14087,11 +14263,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 50,
+    "id": 51,
     "name": "eye_of_ender",
     "width": 0.25,
     "height": 0.25,
@@ -14259,11 +14435,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 51,
+    "id": 52,
     "name": "falling_block",
     "width": 0.98,
     "height": 0.98,
@@ -14432,11 +14608,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 52,
+    "id": 53,
     "name": "fireball",
     "width": 1.0,
     "height": 1.0,
@@ -14628,11 +14804,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 53,
+    "id": 54,
     "name": "firework_rocket",
     "width": 0.25,
     "height": 0.25,
@@ -14826,11 +15002,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 54,
+    "id": 55,
     "name": "fox",
     "width": 0.6,
     "height": 0.7,
@@ -15192,14 +15368,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 55,
+    "id": 56,
     "name": "frog",
     "width": 0.5,
     "height": 0.5,
@@ -15543,14 +15719,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 56,
+    "id": 57,
     "name": "furnace_minecart",
     "width": 0.98,
     "height": 0.7,
@@ -15785,11 +15961,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 57,
+    "id": 58,
     "name": "ghast",
     "width": 4.0,
     "height": 4.0,
@@ -16076,14 +16252,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 58,
+    "id": 59,
     "name": "happy_ghast",
     "width": 4.0,
     "height": 4.0,
@@ -16440,14 +16616,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 59,
+    "id": 60,
     "name": "giant",
     "width": 3.6,
     "height": 12.0,
@@ -16736,14 +16912,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 60,
+    "id": 61,
     "name": "glow_item_frame",
     "width": 0.5,
     "height": 0.5,
@@ -16954,11 +17130,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 61,
+    "id": 62,
     "name": "glow_squid",
     "width": 0.8,
     "height": 0.8,
@@ -17298,14 +17474,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 62,
+    "id": 63,
     "name": "goat",
     "width": 0.9,
     "height": 1.3,
@@ -17655,14 +17831,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 63,
+    "id": 64,
     "name": "guardian",
     "width": 0.85,
     "height": 0.85,
@@ -17973,14 +18149,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 64,
+    "id": 65,
     "name": "hoglin",
     "width": 1.3964844,
     "height": 1.4,
@@ -18313,14 +18489,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 65,
+    "id": 66,
     "name": "hopper_minecart",
     "width": 0.98,
     "height": 0.7,
@@ -18549,11 +18725,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 66,
+    "id": 67,
     "name": "horse",
     "width": 1.3964844,
     "height": 1.6,
@@ -18908,14 +19084,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 67,
+    "id": 68,
     "name": "husk",
     "width": 0.6,
     "height": 1.95,
@@ -19243,14 +19419,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 68,
+    "id": 69,
     "name": "illusioner",
     "width": 0.6,
     "height": 1.95,
@@ -19599,14 +19775,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 69,
+    "id": 70,
     "name": "interaction",
     "width": 0.0,
     "height": 0.0,
@@ -19787,11 +19963,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
-    "id": 70,
+    "id": 71,
     "name": "iron_golem",
     "width": 1.4,
     "height": 2.7,
@@ -20094,14 +20270,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 71,
+    "id": 72,
     "name": "item",
     "width": 0.25,
     "height": 0.25,
@@ -20266,11 +20442,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 72,
+    "id": 73,
     "name": "item_display",
     "width": 0.0,
     "height": 0.0,
@@ -20595,11 +20771,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
-    "id": 73,
+    "id": 74,
     "name": "item_frame",
     "width": 0.5,
     "height": 0.5,
@@ -20802,11 +20978,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 74,
+    "id": 75,
     "name": "jungle_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -21033,11 +21209,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 75,
+    "id": 76,
     "name": "jungle_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -21272,11 +21448,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 76,
+    "id": 77,
     "name": "leash_knot",
     "width": 0.375,
     "height": 0.5,
@@ -21435,11 +21611,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 77,
+    "id": 78,
     "name": "lightning_bolt",
     "width": 0.0,
     "height": 0.0,
@@ -21590,11 +21766,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 78,
+    "id": 79,
     "name": "llama",
     "width": 0.9,
     "height": 1.87,
@@ -21979,14 +22155,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 79,
+    "id": 80,
     "name": "llama_spit",
     "width": 0.25,
     "height": 0.25,
@@ -22145,11 +22321,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 80,
+    "id": 81,
     "name": "magma_cube",
     "width": 0.52,
     "height": 0.52,
@@ -22482,14 +22658,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 81,
+    "id": 82,
     "name": "mangrove_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -22716,11 +22892,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 82,
+    "id": 83,
     "name": "mangrove_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -22955,11 +23131,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 83,
+    "id": 84,
     "name": "mannequin",
     "width": 0.6,
     "height": 1.8,
@@ -23266,14 +23442,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 84,
+    "id": 85,
     "name": "marker",
     "width": 0.0,
     "height": 0.0,
@@ -23424,11 +23600,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
-    "id": 85,
+    "id": 86,
     "name": "minecart",
     "width": 0.98,
     "height": 0.7,
@@ -23649,11 +23825,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 86,
+    "id": 87,
     "name": "mooshroom",
     "width": 0.9,
     "height": 1.4,
@@ -23994,14 +24170,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 87,
+    "id": 88,
     "name": "mule",
     "width": 1.3964844,
     "height": 1.6,
@@ -24364,14 +24540,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 88,
+    "id": 89,
     "name": "nautilus",
     "width": 0.875,
     "height": 0.95,
@@ -24745,14 +24921,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 89,
+    "id": 90,
     "name": "oak_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -24979,11 +25155,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 90,
+    "id": 91,
     "name": "oak_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -25218,11 +25394,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 91,
+    "id": 92,
     "name": "ocelot",
     "width": 0.6,
     "height": 0.7,
@@ -25556,14 +25732,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 92,
+    "id": 93,
     "name": "ominous_item_spawner",
     "width": 0.25,
     "height": 0.25,
@@ -25728,11 +25904,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
-    "id": 93,
+    "id": 94,
     "name": "painting",
     "width": 0.5,
     "height": 0.5,
@@ -25927,11 +26103,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 94,
+    "id": 95,
     "name": "pale_oak_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -26158,11 +26334,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 95,
+    "id": 96,
     "name": "pale_oak_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -26397,11 +26573,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 96,
+    "id": 97,
     "name": "panda",
     "width": 1.3,
     "height": 1.25,
@@ -26775,14 +26951,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 97,
+    "id": 98,
     "name": "parched",
     "width": 0.6,
     "height": 1.99,
@@ -27079,14 +27255,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 98,
+    "id": 99,
     "name": "parrot",
     "width": 0.5,
     "height": 0.9,
@@ -27461,14 +27637,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 99,
+    "id": 100,
     "name": "phantom",
     "width": 0.9,
     "height": 0.5,
@@ -27755,14 +27931,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 100,
+    "id": 101,
     "name": "pig",
     "width": 0.9,
     "height": 0.9,
@@ -28111,14 +28287,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 101,
+    "id": 102,
     "name": "piglin",
     "width": 0.6,
     "height": 1.95,
@@ -28459,14 +28635,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 102,
+    "id": 103,
     "name": "piglin_brute",
     "width": 0.6,
     "height": 1.95,
@@ -28777,14 +28953,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 103,
+    "id": 104,
     "name": "pillager",
     "width": 0.6,
     "height": 1.95,
@@ -29125,14 +29301,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 104,
+    "id": 105,
     "name": "polar_bear",
     "width": 1.4,
     "height": 1.4,
@@ -29466,14 +29642,482 @@
       "is_pushed_by_fluid": true,
       "can_freeze": false,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 105,
+    "id": 106,
+    "name": "poplar_boat",
+    "width": 1.375,
+    "height": 0.5625,
+    "eye_height": 0.5625,
+    "fixed": false,
+    "attachments": {
+      "passenger": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "vehicle": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      ],
+      "name_tag": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "warden_chest": [
+        {
+          "x": 0.0,
+          "y": 0.28125,
+          "z": 0.0
+        }
+      ]
+    },
+    "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+    "class_hierarchy": [
+      {
+        "java_class": "net.minecraft.world.entity.Entity",
+        "simple_name": "Entity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+        "simple_name": "VehicleEntity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+        "simple_name": "AbstractBoat"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+        "simple_name": "Boat"
+      }
+    ],
+    "mob_category": "MISC",
+    "client_tracking_range": 10,
+    "update_interval": 3,
+    "fire_immune": false,
+    "summonable": true,
+    "allowed_in_peaceful": true,
+    "can_serialize": true,
+    "can_spawn_far_from_player": true,
+    "synched_data": {
+      "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+      "class_hierarchy": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
+          "simple_name": "Boat"
+        }
+      ],
+      "layers": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity",
+          "fields": [
+            {
+              "index": 0,
+              "name": "shared_flags_id",
+              "accessor_field": "DATA_SHARED_FLAGS_ID",
+              "serializer_id": 0,
+              "serializer": "byte",
+              "default_value": 0
+            },
+            {
+              "index": 1,
+              "name": "air_supply_id",
+              "accessor_field": "DATA_AIR_SUPPLY_ID",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 300
+            },
+            {
+              "index": 2,
+              "name": "custom_name",
+              "accessor_field": "DATA_CUSTOM_NAME",
+              "serializer_id": 6,
+              "serializer": "optional_component",
+              "default_value": {
+                "present": false
+              }
+            },
+            {
+              "index": 3,
+              "name": "custom_name_visible",
+              "accessor_field": "DATA_CUSTOM_NAME_VISIBLE",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 4,
+              "name": "silent",
+              "accessor_field": "DATA_SILENT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 5,
+              "name": "no_gravity",
+              "accessor_field": "DATA_NO_GRAVITY",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 6,
+              "name": "pose",
+              "accessor_field": "DATA_POSE",
+              "serializer_id": 20,
+              "serializer": "pose",
+              "default_value": "STANDING"
+            },
+            {
+              "index": 7,
+              "name": "ticks_frozen",
+              "accessor_field": "DATA_TICKS_FROZEN",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity",
+          "fields": [
+            {
+              "index": 8,
+              "name": "id_hurt",
+              "accessor_field": "DATA_ID_HURT",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            },
+            {
+              "index": 9,
+              "name": "id_hurtdir",
+              "accessor_field": "DATA_ID_HURTDIR",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 1
+            },
+            {
+              "index": 10,
+              "name": "id_damage",
+              "accessor_field": "DATA_ID_DAMAGE",
+              "serializer_id": 3,
+              "serializer": "float",
+              "default_value": 0.0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat",
+          "fields": [
+            {
+              "index": 11,
+              "name": "id_paddle_left",
+              "accessor_field": "DATA_ID_PADDLE_LEFT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 12,
+              "name": "id_paddle_right",
+              "accessor_field": "DATA_ID_PADDLE_RIGHT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 13,
+              "name": "id_bubble_time",
+              "accessor_field": "DATA_ID_BUBBLE_TIME",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        }
+      ]
+    },
+    "flags": {
+      "is_pushable": true,
+      "is_attackable": true,
+      "is_pickable": false,
+      "can_be_collided_with": true,
+      "is_pushed_by_fluid": true,
+      "can_freeze": true,
+      "can_be_hit_by_projectile": false,
+      "piston_push_reaction": "PUSH_PULL"
+    }
+  },
+  {
+    "id": 107,
+    "name": "poplar_chest_boat",
+    "width": 1.375,
+    "height": 0.5625,
+    "eye_height": 0.5625,
+    "fixed": false,
+    "attachments": {
+      "passenger": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "vehicle": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      ],
+      "name_tag": [
+        {
+          "x": 0.0,
+          "y": 0.5625,
+          "z": 0.0
+        }
+      ],
+      "warden_chest": [
+        {
+          "x": 0.0,
+          "y": 0.28125,
+          "z": 0.0
+        }
+      ]
+    },
+    "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+    "class_hierarchy": [
+      {
+        "java_class": "net.minecraft.world.entity.Entity",
+        "simple_name": "Entity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+        "simple_name": "VehicleEntity"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+        "simple_name": "AbstractBoat"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractChestBoat",
+        "simple_name": "AbstractChestBoat"
+      },
+      {
+        "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+        "simple_name": "ChestBoat"
+      }
+    ],
+    "mob_category": "MISC",
+    "client_tracking_range": 10,
+    "update_interval": 3,
+    "fire_immune": false,
+    "summonable": true,
+    "allowed_in_peaceful": true,
+    "can_serialize": true,
+    "can_spawn_far_from_player": true,
+    "synched_data": {
+      "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+      "class_hierarchy": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractChestBoat",
+          "simple_name": "AbstractChestBoat"
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
+          "simple_name": "ChestBoat"
+        }
+      ],
+      "layers": [
+        {
+          "java_class": "net.minecraft.world.entity.Entity",
+          "simple_name": "Entity",
+          "fields": [
+            {
+              "index": 0,
+              "name": "shared_flags_id",
+              "accessor_field": "DATA_SHARED_FLAGS_ID",
+              "serializer_id": 0,
+              "serializer": "byte",
+              "default_value": 0
+            },
+            {
+              "index": 1,
+              "name": "air_supply_id",
+              "accessor_field": "DATA_AIR_SUPPLY_ID",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 300
+            },
+            {
+              "index": 2,
+              "name": "custom_name",
+              "accessor_field": "DATA_CUSTOM_NAME",
+              "serializer_id": 6,
+              "serializer": "optional_component",
+              "default_value": {
+                "present": false
+              }
+            },
+            {
+              "index": 3,
+              "name": "custom_name_visible",
+              "accessor_field": "DATA_CUSTOM_NAME_VISIBLE",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 4,
+              "name": "silent",
+              "accessor_field": "DATA_SILENT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 5,
+              "name": "no_gravity",
+              "accessor_field": "DATA_NO_GRAVITY",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 6,
+              "name": "pose",
+              "accessor_field": "DATA_POSE",
+              "serializer_id": 20,
+              "serializer": "pose",
+              "default_value": "STANDING"
+            },
+            {
+              "index": 7,
+              "name": "ticks_frozen",
+              "accessor_field": "DATA_TICKS_FROZEN",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.VehicleEntity",
+          "simple_name": "VehicleEntity",
+          "fields": [
+            {
+              "index": 8,
+              "name": "id_hurt",
+              "accessor_field": "DATA_ID_HURT",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            },
+            {
+              "index": 9,
+              "name": "id_hurtdir",
+              "accessor_field": "DATA_ID_HURTDIR",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 1
+            },
+            {
+              "index": 10,
+              "name": "id_damage",
+              "accessor_field": "DATA_ID_DAMAGE",
+              "serializer_id": 3,
+              "serializer": "float",
+              "default_value": 0.0
+            }
+          ]
+        },
+        {
+          "java_class": "net.minecraft.world.entity.vehicle.boat.AbstractBoat",
+          "simple_name": "AbstractBoat",
+          "fields": [
+            {
+              "index": 11,
+              "name": "id_paddle_left",
+              "accessor_field": "DATA_ID_PADDLE_LEFT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 12,
+              "name": "id_paddle_right",
+              "accessor_field": "DATA_ID_PADDLE_RIGHT",
+              "serializer_id": 8,
+              "serializer": "boolean",
+              "default_value": false
+            },
+            {
+              "index": 13,
+              "name": "id_bubble_time",
+              "accessor_field": "DATA_ID_BUBBLE_TIME",
+              "serializer_id": 1,
+              "serializer": "int",
+              "default_value": 0
+            }
+          ]
+        }
+      ]
+    },
+    "flags": {
+      "is_pushable": true,
+      "is_attackable": true,
+      "is_pickable": false,
+      "can_be_collided_with": true,
+      "is_pushed_by_fluid": true,
+      "can_freeze": true,
+      "can_be_hit_by_projectile": false,
+      "piston_push_reaction": "PUSH_PULL"
+    }
+  },
+  {
+    "id": 108,
     "name": "splash_potion",
     "width": 0.25,
     "height": 0.25,
@@ -29673,11 +30317,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 106,
+    "id": 109,
     "name": "lingering_potion",
     "width": 0.25,
     "height": 0.25,
@@ -29877,11 +30521,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 107,
+    "id": 110,
     "name": "pufferfish",
     "width": 0.7,
     "height": 0.7,
@@ -30205,14 +30849,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 108,
+    "id": 111,
     "name": "rabbit",
     "width": 0.49,
     "height": 0.6,
@@ -30546,14 +31190,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 109,
+    "id": 112,
     "name": "ravager",
     "width": 1.95,
     "height": 2.2,
@@ -30872,14 +31516,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 110,
+    "id": 113,
     "name": "salmon",
     "width": 0.7,
     "height": 0.4,
@@ -31211,14 +31855,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 111,
+    "id": 114,
     "name": "sheep",
     "width": 0.9,
     "height": 1.3,
@@ -31551,14 +32195,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 112,
+    "id": 115,
     "name": "shulker",
     "width": 1.0,
     "height": 1.0,
@@ -31876,14 +32520,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 113,
+    "id": 116,
     "name": "shulker_bullet",
     "width": 0.3125,
     "height": 0.3125,
@@ -32042,11 +32686,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 114,
+    "id": 117,
     "name": "silverfish",
     "width": 0.4,
     "height": 0.3,
@@ -32335,14 +32979,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 115,
+    "id": 118,
     "name": "skeleton",
     "width": 0.6,
     "height": 1.99,
@@ -32653,14 +33297,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": false,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 116,
+    "id": 119,
     "name": "skeleton_horse",
     "width": 1.3964844,
     "height": 1.6,
@@ -33001,14 +33645,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 117,
+    "id": 120,
     "name": "slime",
     "width": 0.52,
     "height": 0.52,
@@ -33341,14 +33985,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 118,
+    "id": 121,
     "name": "small_fireball",
     "width": 0.3125,
     "height": 0.3125,
@@ -33540,11 +34184,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 119,
+    "id": 122,
     "name": "sniffer",
     "width": 1.9,
     "height": 1.75,
@@ -33885,14 +34529,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 120,
+    "id": 123,
     "name": "snowball",
     "width": 0.25,
     "height": 0.25,
@@ -34084,11 +34728,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 121,
+    "id": 124,
     "name": "snow_golem",
     "width": 0.7,
     "height": 1.9,
@@ -34390,14 +35034,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": false,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": true,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 122,
+    "id": 125,
     "name": "spawner_minecart",
     "width": 0.98,
     "height": 0.7,
@@ -34618,11 +35262,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 123,
+    "id": 126,
     "name": "spectral_arrow",
     "width": 0.5,
     "height": 0.5,
@@ -34819,11 +35463,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 124,
+    "id": 127,
     "name": "spider",
     "width": 1.4,
     "height": 0.9,
@@ -35126,14 +35770,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 125,
+    "id": 128,
     "name": "spruce_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -35360,11 +36004,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 126,
+    "id": 129,
     "name": "spruce_chest_boat",
     "width": 1.375,
     "height": 0.5625,
@@ -35599,11 +36243,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 127,
+    "id": 130,
     "name": "squid",
     "width": 0.8,
     "height": 0.8,
@@ -35921,14 +36565,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 128,
+    "id": 131,
     "name": "stray",
     "width": 0.6,
     "height": 1.99,
@@ -36225,14 +36869,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": false,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 129,
+    "id": 132,
     "name": "strider",
     "width": 0.9,
     "height": 1.7,
@@ -36573,14 +37217,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": true,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 130,
+    "id": 133,
     "name": "sulfur_cube",
     "width": 0.49,
     "height": 0.49,
@@ -36935,14 +37579,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 131,
+    "id": 134,
     "name": "tadpole",
     "width": 0.4,
     "height": 0.3,
@@ -37267,14 +37911,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 132,
+    "id": 135,
     "name": "text_display",
     "width": 0.0,
     "height": 0.0,
@@ -37623,11 +38267,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "IGNORE"
+      "piston_push_reaction": "IGNORE_ENTITY"
     }
   },
   {
-    "id": 133,
+    "id": 136,
     "name": "tnt",
     "width": 0.98,
     "height": 0.98,
@@ -37800,11 +38444,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 134,
+    "id": 137,
     "name": "tnt_minecart",
     "width": 0.98,
     "height": 0.7,
@@ -38025,11 +38669,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 135,
+    "id": 138,
     "name": "trader_llama",
     "width": 0.9,
     "height": 1.87,
@@ -38422,14 +39066,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 136,
+    "id": 139,
     "name": "trident",
     "width": 0.5,
     "height": 0.5,
@@ -38648,11 +39292,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 137,
+    "id": 140,
     "name": "tropical_fish",
     "width": 0.5,
     "height": 0.4,
@@ -38984,14 +39628,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 138,
+    "id": 141,
     "name": "turtle",
     "width": 1.2,
     "height": 0.4,
@@ -39332,14 +39976,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 139,
+    "id": 142,
     "name": "vex",
     "width": 0.4,
     "height": 0.8,
@@ -39642,14 +40286,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 140,
+    "id": 143,
     "name": "villager",
     "width": 0.6,
     "height": 1.95,
@@ -40007,14 +40651,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 141,
+    "id": 144,
     "name": "vindicator",
     "width": 0.6,
     "height": 1.95,
@@ -40341,14 +40985,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 142,
+    "id": 145,
     "name": "wandering_trader",
     "width": 0.6,
     "height": 1.95,
@@ -40680,14 +41324,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 143,
+    "id": 146,
     "name": "warden",
     "width": 0.9,
     "height": 2.9,
@@ -40990,14 +41634,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 144,
+    "id": 147,
     "name": "wind_charge",
     "width": 0.3125,
     "height": 0.3125,
@@ -41172,11 +41816,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 145,
+    "id": 148,
     "name": "witch",
     "width": 0.6,
     "height": 1.95,
@@ -41509,14 +42153,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 146,
+    "id": 149,
     "name": "wither",
     "width": 0.9,
     "height": 3.5,
@@ -41844,14 +42488,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": false,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 147,
+    "id": 150,
     "name": "wither_skeleton",
     "width": 0.7,
     "height": 2.4,
@@ -42148,14 +42792,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 148,
+    "id": 151,
     "name": "wither_skull",
     "width": 0.3125,
     "height": 0.3125,
@@ -42336,11 +42980,11 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   },
   {
-    "id": 149,
+    "id": 152,
     "name": "wolf",
     "width": 0.6,
     "height": 0.85,
@@ -42738,14 +43382,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": false,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 150,
+    "id": 153,
     "name": "zoglin",
     "width": 1.3964844,
     "height": 1.4,
@@ -43048,14 +43692,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 151,
+    "id": 154,
     "name": "zombie",
     "width": 0.6,
     "height": 1.95,
@@ -43375,14 +44019,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 152,
+    "id": 155,
     "name": "zombie_horse",
     "width": 1.3964844,
     "height": 1.6,
@@ -43723,14 +44367,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 153,
+    "id": 156,
     "name": "zombie_nautilus",
     "width": 0.875,
     "height": 0.95,
@@ -44118,14 +44762,14 @@
       "is_pushed_by_fluid": false,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 154,
+    "id": 157,
     "name": "zombie_villager",
     "width": 0.6,
     "height": 1.95,
@@ -44488,14 +45132,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 155,
+    "id": 158,
     "name": "zombified_piglin",
     "width": 0.6,
     "height": 1.95,
@@ -44823,14 +45467,14 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL",
+      "piston_push_reaction": "PUSH_PULL",
       "is_sensitive_to_water": false,
       "can_breathe_underwater": true,
       "can_be_seen_as_enemy": false
     }
   },
   {
-    "id": 156,
+    "id": 159,
     "name": "player",
     "width": 0.6,
     "height": 1.8,
@@ -45149,7 +45793,7 @@
     }
   },
   {
-    "id": 157,
+    "id": 160,
     "name": "fishing_bobber",
     "width": 0.25,
     "height": 0.25,
@@ -45330,7 +45974,7 @@
       "is_pushed_by_fluid": true,
       "can_freeze": true,
       "can_be_hit_by_projectile": false,
-      "piston_push_reaction": "NORMAL"
+      "piston_push_reaction": "PUSH_PULL"
     }
   }
 ]
