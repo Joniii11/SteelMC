@@ -535,6 +535,7 @@ fn json_data_to_df(data: &DensityFunctionData) -> DensityFunction {
         DensityFunctionData::Cache { input } => {
             json_marker(MarkerType::CacheAllInCell, input, 0, 0)
         }
+        DensityFunctionData::Cache { input } => json_marker(MarkerType::CacheAllInCell, input),
 
         DensityFunctionData::BlendOffset {} => DensityFunction::BlendOffset(BlendOffset),
         DensityFunctionData::BlendAlpha {} => DensityFunction::BlendAlpha(BlendAlpha),
