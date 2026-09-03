@@ -236,7 +236,8 @@ impl FeatureDecorationRunner {
             | TrunkPlacer::DarkOak(_)
             | TrunkPlacer::MegaJungle(_)
             | TrunkPlacer::Bending(_)
-            | TrunkPlacer::Cherry(_) => Self::tree_valid_pos(region, pos),
+            | TrunkPlacer::Cherry(_)
+            | TrunkPlacer::Poplar(_) => Self::tree_valid_pos(region, pos),
         }
     }
 
