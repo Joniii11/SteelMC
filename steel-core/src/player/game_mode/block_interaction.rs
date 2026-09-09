@@ -112,6 +112,16 @@ impl Player {
                 );
                 self.ack_block_changes_up_to(packet.sequence);
             }
+            PlayerAction::ChangeDestroyDirection => {
+                self.block_breaking.lock().handle_block_break_action(
+                    self,
+                    &world,
+                    packet.pos,
+                    BlockBreakAction::ChangeDirection,
+                    packet.direction,
+                );
+                self.ack_block_changes_up_to(packet.sequence);
+            }
             PlayerAction::StopDestroyBlock => {
                 self.block_breaking.lock().handle_block_break_action(
                     self,

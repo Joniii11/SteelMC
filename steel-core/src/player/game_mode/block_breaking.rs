@@ -256,6 +256,10 @@ impl BlockBreakingManager {
         }
 
         match action {
+            BlockBreakAction::ChangeDirection => {
+                self.destroy_direction = direction;
+            }
+
             BlockBreakAction::Start => {
                 // Check may_interact permission
                 if !world.may_interact(player, pos) {
@@ -515,6 +519,8 @@ impl BlockBreakingManager {
 pub enum BlockBreakAction {
     /// Player started breaking a block.
     Start,
+    /// Player redirected the block-break raycast without resetting progress.
+    ChangeDirection,
     /// Player stopped breaking a block (finished or released).
     Stop,
     /// Player aborted breaking a block.

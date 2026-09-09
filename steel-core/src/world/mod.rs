@@ -32,7 +32,8 @@ use steel_protocol::packets::game::{
     CBlockDestruction, CChangeDifficulty, CGameEvent, CInitializeBorder, CLevelEvent,
     CLevelParticles, CPlayerChat, CSetBorderCenter, CSetBorderLerpSize, CSetBorderSize,
     CSetBorderWarningDelay, CSetBorderWarningDistance, CSetEntityData, CSetEntityLink,
-    CSetEquipment, CSound, CSystemChat, CUpdateAttributes, GameEventType, SoundSource,
+    CSetEquipment, CSound, CSystemChat, CUpdateAttributes, GameEventType, RandomizationType,
+    SoundSource,
 };
 use steel_protocol::utils::ConnectionProtocol;
 use steel_protocol::{

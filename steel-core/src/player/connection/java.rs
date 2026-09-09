@@ -185,6 +185,7 @@ impl ScheduledPlayPacket {
                     ScheduledPacketExecution::PlayerLocal
                 }
                 PlayerAction::StartDestroyBlock
+                | PlayerAction::ChangeDestroyDirection
                 | PlayerAction::StopDestroyBlock
                 | PlayerAction::DropAllItems
                 | PlayerAction::DropItem => ScheduledPacketExecution::Serialized,
