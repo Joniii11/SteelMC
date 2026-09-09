@@ -9724,6 +9724,7 @@
     "allowed_in_peaceful": true,
     "can_serialize": true,
     "can_spawn_far_from_player": true,
+    "only_op_can_set_nbt": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.Cushion",
       "class_hierarchy": [
@@ -29712,6 +29713,7 @@
     "allowed_in_peaceful": true,
     "can_serialize": true,
     "can_spawn_far_from_player": true,
+    "only_op_can_set_nbt": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -29946,6 +29948,7 @@
     "allowed_in_peaceful": true,
     "can_serialize": true,
     "can_spawn_far_from_player": true,
+    "only_op_can_set_nbt": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
