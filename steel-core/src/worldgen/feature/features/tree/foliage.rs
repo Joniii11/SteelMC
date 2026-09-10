@@ -197,7 +197,7 @@ impl FeatureDecorationRunner {
     }
 
     fn create_poplar_tree_foliage(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         config: &TreeConfiguration,
@@ -316,7 +316,7 @@ impl FeatureDecorationRunner {
     }
 
     fn place_poplar_tree_leaves_row(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         config: &TreeConfiguration,
@@ -355,7 +355,7 @@ impl FeatureDecorationRunner {
         reason = "the names mirror Vanilla's x/z offsets"
     )]
     fn replace_poplar_leaves_with_logs(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         config: &TreeConfiguration,
@@ -399,7 +399,7 @@ impl FeatureDecorationRunner {
                     &config.foliage_provider,
                     pos,
                 );
-                if region.block_state(pos) != foliage_state {
+                if region.get_block_state(pos) != foliage_state {
                     continue;
                 }
 

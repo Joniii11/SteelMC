@@ -226,6 +226,10 @@ mod tests {
         fn height(&self) -> i32 {
             384
         }
+
+        fn sea_level(&self) -> i32 {
+            63
+        }
     }
 
     fn assert_f32_close(left: f32, right: f32) {

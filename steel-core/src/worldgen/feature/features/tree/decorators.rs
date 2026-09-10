@@ -439,7 +439,7 @@ impl FeatureDecorationRunner {
     }
 
     fn place_shelf_mushroom_tree_decorator(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         probability: f32,
@@ -467,7 +467,7 @@ impl FeatureDecorationRunner {
     }
 
     fn place_shelf_mushrooms_on_standing_tree(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         logs: &[BlockPos],
@@ -496,7 +496,7 @@ impl FeatureDecorationRunner {
     }
 
     fn place_shelf_mushrooms_on_fallen_log(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         logs: &[BlockPos],
@@ -523,7 +523,7 @@ impl FeatureDecorationRunner {
     }
 
     fn try_place_shelf_mushroom_on_standing_tree(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         log_pos: BlockPos,
@@ -542,7 +542,7 @@ impl FeatureDecorationRunner {
     }
 
     fn try_place_shelf_mushroom_on_fallen_log(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         log_pos: BlockPos,
@@ -561,7 +561,7 @@ impl FeatureDecorationRunner {
     }
 
     fn place_shelf_mushroom(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         pos: BlockPos,
@@ -579,11 +579,11 @@ impl FeatureDecorationRunner {
         placement.set_decoration(region, pos, state);
     }
 
-    fn is_replaceable_with_shelf_mushroom(region: &WorldGenRegion<'_>, pos: BlockPos) -> bool {
-        region.block_state(pos).is_replaceable() && !Self::is_water_or_water_nearby(region, pos)
+    fn is_replaceable_with_shelf_mushroom(region: &impl LevelReader, pos: BlockPos) -> bool {
+        region.get_block_state(pos).is_replaceable() && !Self::is_water_or_water_nearby(region, pos)
     }
 
-    fn is_water_or_water_nearby(region: &WorldGenRegion<'_>, pos: BlockPos) -> bool {
+    fn is_water_or_water_nearby(region: &impl LevelReader, pos: BlockPos) -> bool {
         [
             Direction::North,
             Direction::East,
@@ -592,18 +592,15 @@ impl FeatureDecorationRunner {
         ]
         .into_iter()
         .any(|direction| {
-            region.block_state(pos.relative(direction)).get_block() == &vanilla_blocks::WATER
-        }) || region.block_state(pos).get_block() == &vanilla_blocks::WATER
+            region.get_block_state(pos.relative(direction)).get_block() == &vanilla_blocks::WATER
+        }) || region.get_block_state(pos).get_block() == &vanilla_blocks::WATER
     }
 
-    fn has_shelf_mushroom_at(region: &WorldGenRegion<'_>, pos: BlockPos) -> bool {
-        region.block_state(pos).get_block() == &vanilla_blocks::SHELF_MUSHROOM
+    fn has_shelf_mushroom_at(region: &impl LevelReader, pos: BlockPos) -> bool {
+        region.get_block_state(pos).get_block() == &vanilla_blocks::SHELF_MUSHROOM
     }
 
-    fn has_horizontally_adjacent_shelf_mushroom(
-        region: &WorldGenRegion<'_>,
-        pos: BlockPos,
-    ) -> bool {
+    fn has_horizontally_adjacent_shelf_mushroom(region: &impl LevelReader, pos: BlockPos) -> bool {
         Self::VANILLA_HORIZONTAL_DIRECTIONS
             .into_iter()
             .any(|direction| Self::has_shelf_mushroom_at(region, pos.relative(direction)))

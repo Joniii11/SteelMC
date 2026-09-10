@@ -198,7 +198,7 @@ impl FeatureDecorationRunner {
     }
 
     fn place_poplar_tree_trunk(
-        region: &mut WorldGenRegion<'_>,
+        region: &mut impl LevelAccessor,
         registry: &Registry,
         random: &mut WorldgenRandom,
         tree_height: i32,

@@ -331,6 +331,10 @@ impl<L: LevelAccessor + ?Sized> LevelReader for TreeWritePreflight<'_, L> {
     fn height(&self) -> i32 {
         self.level.height()
     }
+
+    fn sea_level(&self) -> i32 {
+        self.level.sea_level()
+    }
 }
 
 impl<L: LevelAccessor + ?Sized> ScheduledTickAccess for TreeWritePreflight<'_, L> {
@@ -505,6 +509,10 @@ mod tests {
 
         fn height(&self) -> i32 {
             384
+        }
+
+        fn sea_level(&self) -> i32 {
+            63
         }
     }
 
