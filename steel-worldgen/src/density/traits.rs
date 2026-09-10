@@ -5,6 +5,7 @@
 //! density functions.
 
 use crate::BlockStateId;
+use crate::noise::OreVeinifier;
 use crate::random::RandomSplitter;
 use crate::surface::SurfaceRuleContext;
 use rustc_hash::FxHashMap;
@@ -267,10 +268,14 @@ pub trait DimensionNoises: Sized + Send + Sync {
     ///
     /// `out` is ordered by the material-rule tree's depth-first traversal, so
     /// generated rule code can preserve vanilla's sequence ordering.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors the generated Vanilla material-rule call"
+    )]
     fn fill_prefilled_material_ore_vein_results(
         &self,
         cache: &mut Self::ColumnCache,
-        ore_veinifier: &crate::noise::OreVeinifier,
+        ore_veinifier: &OreVeinifier,
         values: &[f32],
         x: i32,
         y: i32,

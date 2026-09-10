@@ -350,6 +350,10 @@ impl FeatureDecorationRunner {
         }
     }
 
+    #[expect(
+        clippy::similar_names,
+        reason = "the names mirror Vanilla's x/z offsets"
+    )]
     fn replace_poplar_leaves_with_logs(
         region: &mut WorldGenRegion<'_>,
         registry: &Registry,
@@ -413,6 +417,10 @@ impl FeatureDecorationRunner {
         }
     }
 
+    #[expect(
+        clippy::similar_names,
+        reason = "the names mirror Vanilla's x/z offsets"
+    )]
     fn poplar_foliage_should_skip_location(
         random: &mut WorldgenRandom,
         dx: i32,
@@ -472,6 +480,10 @@ impl FeatureDecorationRunner {
         }
     }
 
+    #[expect(
+        clippy::similar_names,
+        reason = "the names mirror Vanilla's x/z offsets"
+    )]
     const fn poplar_is_within_rhombus(
         current_radius: i32,
         abs_dx: i32,

@@ -158,7 +158,7 @@ fn place_end_podium(
     FeatureDecorationRunner::place_end_podium_feature(context.region, context.origin, *active)
 }
 
-fn place_no_op(
+const fn place_no_op(
     _context: &mut ConfiguredFeaturePlaceContext<'_, '_>,
     _kind: &ConfiguredFeatureKind,
 ) -> bool {

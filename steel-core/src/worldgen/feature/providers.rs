@@ -8,16 +8,14 @@ pub(super) trait NoiseScale: Copy {
 }
 
 impl NoiseScale for f32 {
-    #[inline(always)]
     fn scale_coord(self, coord: i32) -> f64 {
-        (coord as f32 * self) as f64
+        f64::from(coord as f32 * self)
     }
 }
 
 impl NoiseScale for f64 {
-    #[inline(always)]
     fn scale_coord(self, coord: i32) -> f64 {
-        coord as f64 * self
+        f64::from(coord) * self
     }
 }
 
@@ -41,12 +39,12 @@ impl FeatureDecorationRunner {
             }
             BlockStateProviderKind::RuleBased { fallback, rules } => {
                 for rule in rules {
-                    if Self::test_block_predicate(level, registry, &rule.if_true, pos) {
-                        if let Some(state) = Self::sample_block_state_provider_optional(
+                    if Self::test_block_predicate(level, registry, &rule.if_true, pos)
+                        && let Some(state) = Self::sample_block_state_provider_optional(
                             level, registry, random, &rule.then, pos,
-                        ) {
-                            return Some(state);
-                        }
+                        )
+                    {
+                        return Some(state);
                     }
                 }
 
@@ -62,6 +60,10 @@ impl FeatureDecorationRunner {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keeps the Vanilla provider dispatch together"
+    )]
     pub(super) fn sample_block_state_provider(
         level: &dyn LevelReader,
         registry: &Registry,
@@ -334,7 +336,7 @@ impl FeatureDecorationRunner {
     }
 
     pub(super) fn noise_state_index(state_count: usize, noise_value: f64) -> usize {
-        let placement_value = ((1.0_f32 + noise_value as f32) / 2.0).clamp(0.0, 0.9999);
+        let placement_value = f32::midpoint(1.0_f32, noise_value as f32).clamp(0.0, 0.9999);
         (placement_value * state_count as f32) as usize
     }
 

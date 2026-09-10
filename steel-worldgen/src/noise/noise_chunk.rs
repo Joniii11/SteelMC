@@ -114,10 +114,6 @@ impl<N: DimensionNoises> NoiseChunk<N> {
         let mut slices = Vec::with_capacity(n_slices);
         for _ in 0..n_slices {
             // This is a per-chunk constructor, so the stack temporary is fine.
-            #[expect(
-                clippy::large_stack_arrays,
-                reason = "fixed-size boxed array is a cold per-chunk allocation"
-            )]
             slices.push(Box::new([0.0_f32; MAX_INTERP * MAX_SLICE_LEN]));
         }
 
@@ -198,10 +194,6 @@ impl<N: DimensionNoises> NoiseChunk<N> {
     #[expect(
         clippy::too_many_lines,
         reason = "single SIMD trilinear-interpolation kernel; splitting the loop nest would scatter the per-corner SAFETY invariants"
-    )]
-    #[expect(
-        clippy::similar_names,
-        reason = "factor_{x,y,z}_v vector splats deliberately mirror their scalar factor_{x,y,z} sources"
     )]
     pub fn fill<F>(
         &mut self,
@@ -358,10 +350,6 @@ impl<N: DimensionNoises> NoiseChunk<N> {
     /// the complete chunk volume before the surface scan begins. Keeping the
     /// compact `f32` results instead of the full interpolation channels avoids
     /// retaining the noise chunk across generation stages.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the scalar traversal mirrors the fill kernel while retaining only material-rule values"
-    )]
     #[must_use]
     pub fn prefill_material_ore_vein_values(
         &self,

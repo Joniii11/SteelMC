@@ -6,6 +6,14 @@ use crate::{
 };
 
 #[inline]
+#[expect(
+    clippy::similar_names,
+    reason = "the names mirror Vanilla's interpolation corners"
+)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the scalar interpolation helper mirrors Vanilla's eight corners"
+)]
 fn interpolate_cell_value(
     factor_x: f32,
     factor_z: f32,

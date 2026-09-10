@@ -25,7 +25,6 @@ pub use steel_worldgen::density_functions::overworld::OverworldColumnCache;
 pub use steel_worldgen::noise::EndIslands;
 
 /// Compatibility path for the per-chunk carving bitset.
-
 /// Compatibility path for generator context types.
 pub mod context {
     pub use super::generator::context::*;

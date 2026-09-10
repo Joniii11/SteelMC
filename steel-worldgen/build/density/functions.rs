@@ -687,8 +687,9 @@ fn json_data_to_df(data: &DensityFunctionData) -> DensityFunction {
         // TODO: Implement Beardifier for structure terrain adaptation.
         // Constant(0.0) is correct when structures are not yet generated.
         DensityFunctionData::Beardifier {} => DensityFunction::Constant(Constant { value: 0.0 }),
-        DensityFunctionData::EndIslands {} => DensityFunction::EndIslands,
-        DensityFunctionData::EndOuterIslands {} => DensityFunction::EndIslands,
+        DensityFunctionData::EndIslands {} | DensityFunctionData::EndOuterIslands {} => {
+            DensityFunction::EndIslands
+        }
 
         DensityFunctionData::Slice {
             axis,
@@ -1037,7 +1038,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
             uses_preliminary_surface,
             uses_surface_secondary,
             uses_steep,
-        ) = generate_surface_rule_function(&rule, settings.noise.min_y, settings.noise.height);
+        ) = generate_surface_rule_function(rule, settings.noise.min_y, settings.noise.height);
         let noise_id_literals: Vec<_> = noise_ids.iter().map(String::as_str).collect();
         let gradient_id_literals: Vec<_> = gradient_ids.iter().map(String::as_str).collect();
         let block_state_idents: Vec<_> = block_state_names

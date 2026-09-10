@@ -16,6 +16,10 @@ use super::functions::DensityFunctionJson;
 /// Surface rule source (top-level rule node).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "build-time representation mirrors extracted Vanilla JSON"
+)]
 pub enum SurfaceRuleJson {
     #[serde(rename = "minecraft:block")]
     Block { result_state: ResultStateJson },

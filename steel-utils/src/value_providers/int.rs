@@ -285,10 +285,6 @@ impl IntProvider {
 }
 
 impl<'de> Deserialize<'de> for IntProvider {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "keeps the vanilla int-provider schema variants in one deserialization table"
-    )]
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         #[serde(tag = "type", deny_unknown_fields)]

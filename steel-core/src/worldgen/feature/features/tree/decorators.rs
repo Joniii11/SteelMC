@@ -505,10 +505,10 @@ impl FeatureDecorationRunner {
         let Some(last_log) = logs.last() else {
             return;
         };
-        let directions = if logs[0].x() != last_log.x() {
-            [Direction::North, Direction::South]
-        } else {
+        let directions = if logs[0].x() == last_log.x() {
             [Direction::East, Direction::West]
+        } else {
+            [Direction::North, Direction::South]
         };
 
         for &log_pos in logs {

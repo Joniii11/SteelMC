@@ -30,7 +30,7 @@ pub struct EndIslands {
 impl EndIslands {
     /// Create a new `EndIslands` with the given world seed.
     ///
-    /// Matches `EndIslandFunction.compileSampler` and RandomState's compile context.
+    /// Matches `EndIslandFunction.compileSampler` and `RandomState`'s compile context.
     #[must_use]
     pub fn new(seed: u64) -> Self {
         let mut rng = LegacyRandom::from_seed(seed);

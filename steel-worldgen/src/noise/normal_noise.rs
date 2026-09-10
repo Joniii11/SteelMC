@@ -1,11 +1,12 @@
+use std::array::from_fn;
 use std::simd::{Simd, f64x4};
 
 use crate::noise::ImprovedNoise;
 use crate::random::{PositionalRandom, Random, RandomSource, RandomSplitter, name_hash::NameHash};
 
-const INPUT_FACTOR: f64 = 1.0181268882175227;
+const INPUT_FACTOR: f64 = 1.018_126_888_217_522_7;
 const TARGET_DEVIATION: f64 = 1.0 / 3.0;
-const DEVIATION_COEFFICIENT: f64 = 0.2702247831245211;
+const DEVIATION_COEFFICIENT: f64 = 0.270_224_783_124_521_1;
 
 #[derive(Debug, Clone)]
 struct Layer {
@@ -302,7 +303,7 @@ impl NormalNoise {
         ys: Simd<f64, N>,
         z: f64,
     ) -> Simd<f64, N> {
-        Simd::from_array(std::array::from_fn(|index| self.get_value(x, ys[index], z)))
+        Simd::from_array(from_fn(|index| self.get_value(x, ys[index], z)))
     }
 
     #[inline]

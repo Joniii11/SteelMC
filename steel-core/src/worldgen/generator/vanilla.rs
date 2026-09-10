@@ -386,6 +386,10 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         chunk.mark_dirty();
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "mirrors Vanilla's terrain fill stage"
+    )]
     fn fill_from_noise(
         &self,
         chunk: GenerationChunk<'_, TerrainPhase>,
@@ -810,8 +814,7 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
 
             let material_ore_vein_values = retained_state
                 .as_deref_mut()
-                .map(N::material_ore_vein_values)
-                .unwrap_or_else(|| Arc::from([]));
+                .map_or_else(|| Arc::from([]), N::material_ore_vein_values);
 
             let mut rebuilt_aquifer = None;
             let aquifer = if let Some(state) = retained_state {

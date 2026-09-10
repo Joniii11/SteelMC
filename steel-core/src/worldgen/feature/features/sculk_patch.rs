@@ -484,15 +484,8 @@ impl FeatureDecorationRunner {
             spread_direction,
             same_space_only,
         );
-        if let Some(spread_pos) = spread_pos {
-            if Self::sculk_vein_spread_to_face(region, &spread_pos, post_process) {
-                Some(spread_pos)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        spread_pos
+            .filter(|spread_pos| Self::sculk_vein_spread_to_face(region, spread_pos, post_process))
     }
 
     fn sculk_vein_get_spread_from_face_toward_direction(

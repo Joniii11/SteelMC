@@ -92,7 +92,7 @@ impl<'a> SurfaceRuleContext<'a> {
 
     /// Supplies the already-evaluated ore-vein nodes for this material-rule evaluation.
     #[must_use]
-    pub fn with_ore_vein_results(mut self, results: &'a [Option<BlockStateId>]) -> Self {
+    pub const fn with_ore_vein_results(mut self, results: &'a [Option<BlockStateId>]) -> Self {
         self.ore_vein_results = results;
         self
     }

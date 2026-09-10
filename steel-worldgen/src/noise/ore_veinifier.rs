@@ -89,6 +89,10 @@ impl OreVeinifier {
     }
 
     /// Applies one `OreVeinRule` from the material-rule datapack.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "matches the Vanilla ore-vein rule inputs"
+    )]
     #[must_use]
     pub fn try_apply_material_rule(
         &self,
