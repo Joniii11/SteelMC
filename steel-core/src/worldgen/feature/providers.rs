@@ -3,6 +3,24 @@ use super::runner::FeatureDecorationRunner;
 use smallvec::SmallVec;
 use steel_math::map_clamped;
 
+pub(super) trait NoiseScale: Copy {
+    fn scale_coord(self, coord: i32) -> f64;
+}
+
+impl NoiseScale for f32 {
+    #[inline(always)]
+    fn scale_coord(self, coord: i32) -> f64 {
+        (coord as f32 * self) as f64
+    }
+}
+
+impl NoiseScale for f64 {
+    #[inline(always)]
+    fn scale_coord(self, coord: i32) -> f64 {
+        coord as f64 * self
+    }
+}
+
 impl FeatureDecorationRunner {
     pub(super) fn sample_block_state_provider_optional(
         level: &dyn LevelReader,
@@ -81,8 +99,8 @@ impl FeatureDecorationRunner {
                 panic!("weighted block-state provider failed to select an entry");
             }
             BlockStateProviderKind::RotatedBlock { state, direction } => {
-                let state = Self::sample_block_state_provider(level, registry, random, state, pos);
                 let direction = direction.unwrap_or_else(|| Self::random_direction(random));
+                let state = Self::sample_block_state_provider(level, registry, random, state, pos);
                 let state = if state.try_get_value(&BlockStateProperties::AXIS).is_some() {
                     state.set_value(&BlockStateProperties::AXIS, direction.axis())
                 } else {
@@ -283,12 +301,11 @@ impl FeatureDecorationRunner {
         )
     }
 
-    pub(super) fn noise_value(noise: &NormalNoise, pos: BlockPos, scale: f32) -> f64 {
-        let scale = f64::from(scale);
+    pub(super) fn noise_value<S: NoiseScale>(noise: &NormalNoise, pos: BlockPos, scale: S) -> f64 {
         noise.get_value(
-            f64::from(pos.x()) * scale,
-            f64::from(pos.y()) * scale,
-            f64::from(pos.z()) * scale,
+            scale.scale_coord(pos.x()),
+            scale.scale_coord(pos.y()),
+            scale.scale_coord(pos.z()),
         )
     }
 
@@ -317,8 +334,8 @@ impl FeatureDecorationRunner {
     }
 
     pub(super) fn noise_state_index(state_count: usize, noise_value: f64) -> usize {
-        let placement_value = f64::midpoint(1.0, noise_value).clamp(0.0, 0.9999);
-        (placement_value * state_count as f64) as usize
+        let placement_value = ((1.0_f32 + noise_value as f32) / 2.0).clamp(0.0, 0.9999);
+        (placement_value * state_count as f32) as usize
     }
 
     pub(super) fn random_block_state_from_data_list(
@@ -347,12 +364,15 @@ mod tests {
 
     #[test]
     fn noise_state_index_uses_vanilla_placement_value_formula() {
-        for (state_count, noise_value) in
-            [(2, -1.5), (4, -0.5), (8, 0.0), (16, 0.75), (32, 1.5)] as [(usize, f64); 5]
-        {
-            let placement_value = f64::midpoint(1.0, noise_value).clamp(0.0, 0.9999);
-            let expected = (placement_value * state_count as f64) as usize;
-
+        for (state_count, noise_value, expected) in [
+            (2, -1.5, 0),
+            (4, -0.5, 1),
+            (8, 0.0, 4),
+            (16, 0.75, 14),
+            (32, 1.5, 31),
+            (2, -f64::from(2.0_f32.powi(-25)), 1),
+            (8, -f64::from(2.0_f32.powi(-25)), 4),
+        ] {
             assert_eq!(
                 FeatureDecorationRunner::noise_state_index(state_count, noise_value),
                 expected

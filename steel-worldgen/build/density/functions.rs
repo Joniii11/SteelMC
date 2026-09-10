@@ -1205,7 +1205,7 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
                     z,
                     values[#value_index],
                     values[#value_index + 1],
-                    #filler_gap(self, cache, x as f64, y as f64, z as f64) as f32,
+                    || #filler_gap(self, cache, x as f64, y as f64, z as f64) as f32,
                     steel_registry::vanilla_blocks::#ore.default_state(),
                     steel_registry::vanilla_blocks::#raw_ore.default_state(),
                     steel_registry::vanilla_blocks::#filler.default_state(),

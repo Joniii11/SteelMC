@@ -426,11 +426,15 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         let mut world_surface_wg =
             Heightmap::new(HeightmapType::WorldSurfaceWg, min_y, N::Settings::HEIGHT);
 
+        let material_value_count = N::material_ore_vein_value_count();
+        let mut material_ore_vein_values =
+            vec![0.0_f32; 16 * 16 * N::Settings::HEIGHT as usize * material_value_count];
+        let mut material_cache = N::ColumnCache::default();
         noise_chunk.fill(
             noises,
             &mut column_cache,
             beardifier,
-            |local_x, world_y, local_z, density, _, _| {
+            |local_x, world_y, local_z, density, interpolated, _| {
                 // Flush when we move to a new column
                 if local_x != prev_x || local_z != prev_z {
                     if !pending_writes.is_empty() {
@@ -444,6 +448,20 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
                 let relative_y = (world_y - min_y) as usize;
                 let world_x = chunk_min_x + local_x as i32;
                 let world_z = chunk_min_z + local_z as i32;
+
+                if material_value_count != 0 {
+                    material_cache.ensure(world_x, world_z, noises);
+                    let offset =
+                        (relative_y * 16 * 16 + local_z * 16 + local_x) * material_value_count;
+                    noises.fill_material_ore_vein_values(
+                        &mut material_cache,
+                        interpolated,
+                        world_x,
+                        world_y,
+                        world_z,
+                        &mut material_ore_vein_values[offset..offset + material_value_count],
+                    );
+                }
 
                 let substance = aquifer.compute_substance(
                     noises,
@@ -487,9 +505,7 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         if !pending_writes.is_empty() {
             chunk.write_block_batch(&pending_writes);
         }
-        let mut material_cache = N::ColumnCache::default();
-        let material_ore_vein_values =
-            Arc::from(noise_chunk.prefill_material_ore_vein_values(noises, &mut material_cache));
+        let material_ore_vein_values = Arc::from(material_ore_vein_values);
 
         chunk.replace_noise_heightmaps(ocean_floor_wg, world_surface_wg);
         chunk.install_post_noise_state(N::wrap_post_noise_state(aquifer, material_ore_vein_values));

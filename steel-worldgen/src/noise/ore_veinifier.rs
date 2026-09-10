@@ -97,7 +97,7 @@ impl OreVeinifier {
         z: i32,
         density: f32,
         richness: f32,
-        filler_gap: f32,
+        filler_gap: impl FnOnce() -> f32,
         ore: BlockStateId,
         raw_ore: BlockStateId,
         filler: BlockStateId,
@@ -112,7 +112,7 @@ impl OreVeinifier {
             return None;
         }
 
-        if random.next_f32() < richness && filler_gap < 0.0 {
+        if random.next_f32() < richness && filler_gap() < 0.0 {
             if random.next_f32() < raw_ore_chance {
                 Some(raw_ore)
             } else {
@@ -215,6 +215,40 @@ impl OreVeinifier {
         } else {
             // Below richness threshold: filler block
             Some(vein_type.filler)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OreVeinifier;
+    use crate::random::{Random, xoroshiro::Xoroshiro};
+    use steel_registry::{init_vanilla_registry, vanilla_blocks};
+
+    #[test]
+    fn rejected_material_rules_do_not_sample_filler_gap() {
+        init_vanilla_registry();
+        let splitter = Xoroshiro::from_seed(13579).next_positional();
+        let veinifier = OreVeinifier::new(&splitter);
+        let ore = vanilla_blocks::COPPER_ORE.default_state();
+        let raw = vanilla_blocks::RAW_COPPER_BLOCK.default_state();
+        let filler = vanilla_blocks::GRANITE.default_state();
+        for (density, richness, expected) in [(0.0, 1.0, None), (1.0, 0.0, Some(filler))] {
+            assert_eq!(
+                veinifier.try_apply_material_rule(
+                    12,
+                    20,
+                    -34,
+                    density,
+                    richness,
+                    || panic!("Vanilla rejects before sampling the gap"),
+                    ore,
+                    raw,
+                    filler,
+                    0.02,
+                ),
+                expected,
+            );
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::simd::{Simd, f64x4};
 
-use crate::noise::{ImprovedNoise, PerlinNoise};
+use crate::noise::ImprovedNoise;
 use crate::random::{PositionalRandom, Random, RandomSource, RandomSplitter, name_hash::NameHash};
 
 const INPUT_FACTOR: f64 = 1.0181268882175227;
@@ -14,24 +14,11 @@ struct Layer {
     amplitude: f32,
 }
 
-#[derive(Debug, Clone)]
-enum Sampler {
-    Stack {
-        layers: Box<[Layer]>,
-        max_value: f64,
-    },
-    Legacy {
-        first: PerlinNoise,
-        second: PerlinNoise,
-        value_factor: f64,
-        max_value: f64,
-    },
-}
-
 /// Vanilla's 26.3 normal-noise sampler.
 #[derive(Debug, Clone)]
 pub struct NormalNoise {
-    sampler: Sampler,
+    layers: Box<[Layer]>,
+    max_value: f64,
 }
 
 impl NormalNoise {
@@ -67,22 +54,96 @@ impl NormalNoise {
 
     #[must_use]
     /// Creates the legacy-Nether variant, whose octave sources are sequentially seeded.
+    ///
+    /// # Panics
+    /// Panics if no octaves are provided or a positive octave is requested.
     pub fn create_legacy_nether_biome(
         random: &mut RandomSource,
         first_octave: i32,
         amplitudes: &[f64],
     ) -> Self {
-        let first = PerlinNoise::create_legacy_for_nether(random, first_octave, amplitudes);
-        let second = PerlinNoise::create_legacy_for_nether(random, first_octave, amplitudes);
-        let value_factor = parity_normalization_factor(1.0, amplitudes);
-        let max_value = (first.max_value() + second.max_value()) * value_factor;
+        assert!(!amplitudes.is_empty(), "Need at least one octave");
+        assert!(
+            first_octave <= 0 && -first_octave >= amplitudes.len() as i32 - 1,
+            "Positive octaves are disabled for legacy Nether noise"
+        );
+        let base_amplitude = parity_base_amplitude(first_octave, amplitudes);
+        let octaves = build_octaves(
+            first_octave,
+            base_amplitude,
+            amplitudes.len() as i32,
+            true,
+            amplitudes,
+        );
+        let target_amplitude = octaves
+            .iter()
+            .map(|octave| octave.amplitude.abs())
+            .sum::<f64>();
+        let value_factor =
+            (normalization_factor(target_amplitude, &octaves) * base_amplitude) as f32;
+        let mut layers = Vec::with_capacity(octaves.len() * 2);
+        Self::append_legacy_layers(
+            random,
+            first_octave,
+            amplitudes,
+            1.0,
+            value_factor,
+            &mut layers,
+        );
+        Self::append_legacy_layers(
+            random,
+            first_octave,
+            amplitudes,
+            INPUT_FACTOR,
+            value_factor,
+            &mut layers,
+        );
+        let max_value = f64::from(
+            layers
+                .iter()
+                .fold(0.0_f32, |value, layer| value + layer.amplitude.abs() * 2.0),
+        );
         Self {
-            sampler: Sampler::Legacy {
-                first,
-                second,
-                value_factor,
-                max_value,
-            },
+            layers: layers.into_boxed_slice(),
+            max_value,
+        }
+    }
+
+    fn append_legacy_layers(
+        random: &mut RandomSource,
+        first_octave: i32,
+        amplitudes: &[f64],
+        stack_frequency: f64,
+        stack_amplitude: f32,
+        layers: &mut Vec<Layer>,
+    ) {
+        let zero_index = (-first_octave) as usize;
+        let mut noises = vec![None; amplitudes.len()];
+        // LegacyFbmInitializer always constructs the zero octave, even when unused.
+        let zero_noise = ImprovedNoise::new(random);
+        if zero_index < noises.len() && amplitudes[zero_index] != 0.0 {
+            noises[zero_index] = Some(zero_noise);
+        }
+        for index in (0..zero_index).rev() {
+            if index < noises.len() && amplitudes[index] != 0.0 {
+                noises[index] = Some(ImprovedNoise::new(random));
+            } else {
+                random.consume_count(262);
+            }
+        }
+        let mut frequency = 2.0_f64.powi(first_octave);
+        let mut amplitude = 2.0_f64.powi(amplitudes.len() as i32 - 1)
+            / (2.0_f64.powi(amplitudes.len() as i32) - 1.0);
+        for (noise, modifier) in noises.into_iter().zip(amplitudes) {
+            if let Some(noise) = noise {
+                layers.push(Layer {
+                    noise,
+                    frequency: frequency * stack_frequency,
+                    amplitude: (amplitude * modifier) as f32 * stack_amplitude,
+                });
+            }
+            frequency *= 2.0;
+            amplitude /= 2.0;
         }
     }
 
@@ -170,10 +231,8 @@ impl NormalNoise {
         }
 
         Self {
-            sampler: Sampler::Stack {
-                layers: layers.into_boxed_slice(),
-                max_value: target_amplitude * TARGET_DEVIATION * 6.0,
-            },
+            layers: layers.into_boxed_slice(),
+            max_value: target_amplitude * TARGET_DEVIATION * 6.0,
         }
     }
 
@@ -181,27 +240,15 @@ impl NormalNoise {
     #[must_use]
     /// Samples the float-valued vanilla noise stack.
     pub fn get_value_f32(&self, x: f64, y: f64, z: f64) -> f32 {
-        match &self.sampler {
-            Sampler::Stack { layers, .. } => layers.iter().fold(0.0_f32, |value, layer| {
-                value
-                    + layer.amplitude
-                        * layer.noise.noise_f32(
-                            x * layer.frequency,
-                            y * layer.frequency,
-                            z * layer.frequency,
-                        )
-            }),
-            Sampler::Legacy {
-                first,
-                second,
-                value_factor,
-                ..
-            } => {
-                ((first.get_value(x, y, z)
-                    + second.get_value(x * INPUT_FACTOR, y * INPUT_FACTOR, z * INPUT_FACTOR))
-                    * value_factor) as f32
-            }
-        }
+        self.layers.iter().fold(0.0_f32, |value, layer| {
+            value
+                + layer.amplitude
+                    * layer.noise.noise_f32(
+                        x * layer.frequency,
+                        y * layer.frequency,
+                        z * layer.frequency,
+                    )
+        })
     }
 
     #[inline]
@@ -261,10 +308,8 @@ impl NormalNoise {
     #[inline]
     #[must_use]
     /// Returns the vanilla sampler's conservative range bound.
-    pub fn max_value(&self) -> f64 {
-        match &self.sampler {
-            Sampler::Stack { max_value, .. } | Sampler::Legacy { max_value, .. } => *max_value,
-        }
+    pub const fn max_value(&self) -> f64 {
+        self.max_value
     }
 }
 

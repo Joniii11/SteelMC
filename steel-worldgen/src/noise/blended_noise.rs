@@ -74,8 +74,8 @@ pub struct BlendedNoise {
     main_noise: SmearedStack,
     xz_multiplier: f64,
     y_multiplier: f64,
-    xz_factor: f64,
-    y_factor: f64,
+    main_xz_scale: f64,
+    main_y_scale: f64,
 }
 
 impl BlendedNoise {
@@ -110,24 +110,34 @@ impl BlendedNoise {
             main_noise: SmearedStack::create(random, -7, main_smear_scale_y, 12.75),
             xz_multiplier,
             y_multiplier,
-            xz_factor,
-            y_factor,
+            main_xz_scale: xz_multiplier / xz_factor,
+            main_y_scale: y_multiplier / y_factor,
         }
     }
 
     #[inline]
     /// Samples the blended terrain density at a block coordinate.
     #[must_use]
+    #[expect(
+        clippy::float_cmp,
+        reason = "Vanilla selects exact lerp endpoints before interpolation"
+    )]
     pub fn compute(&self, block_x: f64, block_y: f64, block_z: f64) -> f32 {
         let limit_x = block_x * self.xz_multiplier;
         let limit_y = block_y * self.y_multiplier;
         let limit_z = block_z * self.xz_multiplier;
         let main = self.main_noise.sample(
-            limit_x / self.xz_factor,
-            limit_y / self.y_factor,
-            limit_z / self.xz_factor,
+            block_x * self.main_xz_scale,
+            block_y * self.main_y_scale,
+            block_z * self.main_xz_scale,
         );
         let alpha = (main + 0.5_f32).clamp(0.0, 1.0);
+        if alpha == 0.0 {
+            return self.min_limit_noise.sample(limit_x, limit_y, limit_z);
+        }
+        if alpha == 1.0 {
+            return self.max_limit_noise.sample(limit_x, limit_y, limit_z);
+        }
         let minimum = self.min_limit_noise.sample(limit_x, limit_y, limit_z);
         let maximum = self.max_limit_noise.sample(limit_x, limit_y, limit_z);
         minimum + alpha * (maximum - minimum)
@@ -137,6 +147,25 @@ impl BlendedNoise {
     pub fn compute_column(&self, block_x: i32, block_ys: &[i32], block_z: i32, out: &mut [f32]) {
         for (&block_y, value) in block_ys.iter().zip(out) {
             *value = self.compute(f64::from(block_x), f64::from(block_y), f64::from(block_z));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BlendedNoise;
+    use crate::random::{RandomSource, legacy_random::LegacyRandom};
+
+    #[test]
+    fn vanilla_lerp_endpoint_and_main_coordinate_rounding() {
+        let mut random = RandomSource::Legacy(LegacyRandom::from_seed(0));
+        let noise = BlendedNoise::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0);
+
+        for (x, y, z, expected) in [
+            (0.0, -56.0, -10_000.0, 0.410_753_88_f32),
+            (20_000_068.0, 296.0, -19_999_796.0, 0.013_388_243_f32),
+        ] {
+            assert_eq!(noise.compute(x, y, z).to_bits(), expected.to_bits());
         }
     }
 }
