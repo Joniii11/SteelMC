@@ -788,6 +788,10 @@ mod tests {
         fn height(&self) -> i32 {
             384
         }
+
+        fn sea_level(&self) -> i32 {
+            63
+        }
     }
 
     fn node_with_path_type(x: i32, y: i32, z: i32, path_type: PathType) -> Node {

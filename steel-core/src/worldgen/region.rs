@@ -1468,6 +1468,10 @@ impl LevelReader for WorldGenRegion<'_> {
     fn height(&self) -> i32 {
         WorldGenRegion::height(self)
     }
+
+    fn sea_level(&self) -> i32 {
+        WorldGenRegion::sea_level(self)
+    }
 }
 
 impl ScheduledTickAccess for WorldGenRegion<'_> {

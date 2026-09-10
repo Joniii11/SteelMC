@@ -52,6 +52,10 @@ impl LevelReader for EmptyNavigationLevel {
     fn height(&self) -> i32 {
         384
     }
+
+    fn sea_level(&self) -> i32 {
+        63
+    }
 }
 
 mod ai_age;

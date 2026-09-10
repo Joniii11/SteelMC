@@ -78,6 +78,9 @@ pub trait LevelReader {
         self.min_y()
     }
 
+    /// Returns the dimension's sea level.
+    fn sea_level(&self) -> i32;
+
     /// Returns the exclusive maximum build height.
     fn max_y_exclusive(&self) -> i32 {
         self.min_y() + self.height()

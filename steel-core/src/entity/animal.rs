@@ -434,6 +434,10 @@ mod tests {
         fn height(&self) -> i32 {
             384
         }
+
+        fn sea_level(&self) -> i32 {
+            63
+        }
     }
 
     fn spawn_rule_level(block_below: BlockStateId, raw_brightness: u8) -> SpawnRuleLevel {

@@ -78,6 +78,10 @@ impl LevelReader for SurfaceLevel {
     fn height(&self) -> i32 {
         384
     }
+
+    fn sea_level(&self) -> i32 {
+        63
+    }
 }
 
 struct DespawnTestMob {

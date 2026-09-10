@@ -9,8 +9,7 @@ use steel_utils::{BlockStateId, ChunkPos, Identifier};
 
 use crate::chunk::Chunk;
 use crate::worldgen::generator::{
-    CarversPhase, ChunkGenerator, GenerationChunk, NoisePhase, SurfacePhase,
-    xoroshiro_worldgen_region_random,
+    ChunkGenerator, GenerationChunk, TerrainPhase, xoroshiro_worldgen_region_random,
 };
 use crate::worldgen::region::WorldGenRegion;
 use crate::worldgen::structure::{StructureGenerator, create_structures};
@@ -285,7 +284,7 @@ impl ChunkGenerator for FlatChunkGenerator {
 
     fn fill_from_noise(
         &self,
-        chunk: GenerationChunk<'_, NoisePhase>,
+        chunk: GenerationChunk<'_, TerrainPhase>,
         _beardifier: Option<&Beardifier>,
     ) {
         let max_relative_y = chunk.section_count() * 16;
@@ -301,12 +300,12 @@ impl ChunkGenerator for FlatChunkGenerator {
 
     fn build_surface(
         &self,
-        _chunk: GenerationChunk<'_, SurfacePhase>,
+        _chunk: GenerationChunk<'_, TerrainPhase>,
         _neighbor_biomes: &dyn Fn(IVec3) -> u16,
     ) {
     }
 
-    fn apply_carvers(&self, _chunk: GenerationChunk<'_, CarversPhase>) {}
+    fn apply_carvers(&self, _chunk: GenerationChunk<'_, TerrainPhase>) {}
 
     fn create_worldgen_region_random(&self, world_seed: i64, center: ChunkPos) -> RandomSource {
         xoroshiro_worldgen_region_random(world_seed, center)

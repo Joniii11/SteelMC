@@ -12,17 +12,30 @@ impl FeatureDecorationRunner {
         pos: BlockPos,
     ) -> Option<BlockStateId> {
         match provider {
+            BlockStateProviderKind::Reference(provider) => {
+                Self::sample_block_state_provider_optional(
+                    level,
+                    registry,
+                    random,
+                    &provider.kind,
+                    pos,
+                )
+            }
             BlockStateProviderKind::RuleBased { fallback, rules } => {
                 for rule in rules {
                     if Self::test_block_predicate(level, registry, &rule.if_true, pos) {
-                        return Some(Self::sample_block_state_provider(
+                        if let Some(state) = Self::sample_block_state_provider_optional(
                             level, registry, random, &rule.then, pos,
-                        ));
+                        ) {
+                            return Some(state);
+                        }
                     }
                 }
 
-                fallback.as_ref().map(|fallback| {
-                    Self::sample_block_state_provider(level, registry, random, fallback, pos)
+                fallback.as_ref().and_then(|fallback| {
+                    Self::sample_block_state_provider_optional(
+                        level, registry, random, fallback, pos,
+                    )
                 })
             }
             _ => Some(Self::sample_block_state_provider(
@@ -69,10 +82,26 @@ impl FeatureDecorationRunner {
             }
             BlockStateProviderKind::RotatedBlock { state, direction } => {
                 let state = Self::sample_block_state_provider(level, registry, random, state, pos);
-                let axis = direction
-                    .map(|direction| direction.axis())
-                    .unwrap_or_else(|| Self::random_axis(random));
-                state.set_value(&BlockStateProperties::AXIS, axis)
+                let direction = direction.unwrap_or_else(|| Self::random_direction(random));
+                let state = if state.try_get_value(&BlockStateProperties::AXIS).is_some() {
+                    state.set_value(&BlockStateProperties::AXIS, direction.axis())
+                } else {
+                    state
+                };
+                let state = if state.try_get_value(&BlockStateProperties::FACING).is_some() {
+                    state.set_value(&BlockStateProperties::FACING, direction)
+                } else {
+                    state
+                };
+                if direction.is_horizontal()
+                    && state
+                        .try_get_value(&BlockStateProperties::HORIZONTAL_FACING)
+                        .is_some()
+                {
+                    state.set_value(&BlockStateProperties::HORIZONTAL_FACING, direction)
+                } else {
+                    state
+                }
             }
             BlockStateProviderKind::RandomizedInt {
                 property,
@@ -134,14 +163,6 @@ impl FeatureDecorationRunner {
                 };
                 registry.blocks.get_default_state_id(block)
             }
-        }
-    }
-
-    pub(super) fn random_axis(random: &mut WorldgenRandom) -> Axis {
-        match random.next_i32_bounded(3) {
-            0 => Axis::X,
-            1 => Axis::Y,
-            _ => Axis::Z,
         }
     }
 

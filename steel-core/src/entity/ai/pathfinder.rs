@@ -408,6 +408,10 @@ mod tests {
         fn height(&self) -> i32 {
             384
         }
+
+        fn sea_level(&self) -> i32 {
+            63
+        }
     }
 
     #[test]

@@ -370,6 +370,10 @@ impl LevelReader for TestLevel {
     fn height(&self) -> i32 {
         self.height.get()
     }
+
+    fn sea_level(&self) -> i32 {
+        63
+    }
 }
 
 impl ScheduledTickAccess for TestLevel {

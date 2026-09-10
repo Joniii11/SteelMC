@@ -218,6 +218,7 @@ impl FeatureDecorationRunner {
                         random,
                         region.generation_min_y(),
                         region.generation_height(),
+                        region.sea_level(),
                     ),
                     origin.z(),
                 );

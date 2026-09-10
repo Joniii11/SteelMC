@@ -16,7 +16,7 @@ use steel_worldgen::density::NoiseParameters;
 use steel_worldgen::noise::{NormalNoise, PerlinSimplexNoise};
 use steel_worldgen::surface::SurfaceNoiseProvider;
 
-use crate::worldgen::generator::{GenerationChunk, SurfacePhase};
+use crate::worldgen::generator::{GenerationChunk, TerrainPhase};
 
 const CLAY_BAND_LENGTH: usize = 192;
 
@@ -432,7 +432,7 @@ impl SurfaceSystem {
     #[must_use]
     pub fn eroded_badlands_extension(
         &self,
-        chunk: GenerationChunk<'_, SurfacePhase>,
+        chunk: GenerationChunk<'_, TerrainPhase>,
         local_x: usize,
         local_z: usize,
         block_x: i32,
