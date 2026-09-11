@@ -12,8 +12,8 @@ use std::simd::num::{SimdFloat, SimdInt, SimdUint};
 use std::simd::ptr::SimdConstPtr;
 use std::simd::{Mask, Select, SimdCast, SimdElement, StdFloat};
 use steel_math::{
-    GRADIENT, fast_floor, fast_floor_simd, grad_dot, grad_dot_simd, lerp2, lerp3, lerp3_simd,
-    smoothstep, smoothstep_derivative, smoothstep_simd,
+    GRADIENT, GRADIENT_F32, fast_floor, fast_floor_simd, grad_dot, grad_dot_simd, lerp2, lerp3,
+    lerp3_simd, smoothstep, smoothstep_derivative, smoothstep_simd,
 };
 
 /// Improved Perlin noise generator.
@@ -175,9 +175,10 @@ impl ImprovedNoise {
     ) -> f32 {
         let permute = |coordinate: i32| i32::from(self.p[(coordinate & 255) as usize]);
         let grad_dot = |hash: i32, x: f32, y: f32, z: f32| {
-            let [gx, gy, gz] = GRADIENT[(hash & 15) as usize];
-            gx as f32 * x + gy as f32 * y + gz as f32 * z
+            let [gx, gy, gz] = GRADIENT_F32[(hash & 15) as usize];
+            gx * x + gy * y + gz * z
         };
+
         let lerp = |alpha: f32, first: f32, second: f32| first + alpha * (second - first);
         let smoothstep = |value: f32| value * value * value * (value * (value * 6.0 - 15.0) + 10.0);
 
