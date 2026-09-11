@@ -87,7 +87,7 @@ fn proto_heightmap_save_preserves_existing_maps_and_load_primes_missing_maps() {
     );
     let chunk = proto;
 
-    let Some(prepared) = ChunkStorage::prepare_chunk_save(&chunk, ChunkStatus::Terrain, &[], false)
+    let Some(prepared) = ChunkStorage::prepare_chunk_save(&chunk, ChunkStatus::Biomes, &[], false)
     else {
         panic!("dirty proto chunk should prepare for saving");
     };
@@ -100,7 +100,7 @@ fn proto_heightmap_save_preserves_existing_maps_and_load_primes_missing_maps() {
     let loaded = ChunkStorage::persistent_to_chunk(
         &prepared.persistent,
         pos,
-        ChunkStatus::Terrain,
+        ChunkStatus::Biomes,
         0,
         16,
         Weak::new(),

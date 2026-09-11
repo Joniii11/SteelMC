@@ -18,10 +18,11 @@ pub enum TerrainPhase {}
 /// them.
 ///
 /// ```compile_fail
+/// use steel_core::chunk::Chunk;
 /// use steel_core::worldgen::generator::{GenerationChunk, TerrainPhase};
 ///
-/// fn write_surface_column(chunk: GenerationChunk<'_, TerrainPhase>) {
-///     chunk.write_column(0, 0, &[]);
+/// fn forge_generation_access(chunk: &Chunk) -> GenerationChunk<'_, TerrainPhase> {
+///     GenerationChunk::from_chunk(chunk)
 /// }
 /// ```
 #[repr(transparent)]
