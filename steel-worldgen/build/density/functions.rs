@@ -1173,6 +1173,28 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
         .map(|(index, rule)| {
             let filler_gap = format_ident!("router_material_ore_vein_{index}_filler_gap");
             let value_index = index * 2;
+            let raw_ore_chance = rule.raw_ore_chance;
+            quote! {
+                if let Some(state) = ore_veinifier.try_apply_material_rule(
+                    x,
+                    y,
+                    z,
+                    values[#value_index],
+                    values[#value_index + 1],
+                    || #filler_gap(self, cache, x as f64, y as f64, z as f64) as f32,
+                    ore_vein_states[#index][0],
+                    ore_vein_states[#index][1],
+                    ore_vein_states[#index][2],
+                    #raw_ore_chance,
+                ) {
+                    out[#index] = Some(state);
+                }
+            }
+        })
+        .collect();
+    let material_ore_vein_states: Vec<TokenStream> = material_ore_veins
+        .iter()
+        .map(|rule| {
             let ore = Ident::new(
                 &rule
                     .ore_block
@@ -1197,22 +1219,12 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
                     .to_uppercase(),
                 Span::call_site(),
             );
-            let raw_ore_chance = rule.raw_ore_chance;
             quote! {
-                if let Some(state) = ore_veinifier.try_apply_material_rule(
-                    x,
-                    y,
-                    z,
-                    values[#value_index],
-                    values[#value_index + 1],
-                    || #filler_gap(self, cache, x as f64, y as f64, z as f64) as f32,
+                [
                     steel_registry::vanilla_blocks::#ore.default_state(),
                     steel_registry::vanilla_blocks::#raw_ore.default_state(),
                     steel_registry::vanilla_blocks::#filler.default_state(),
-                    #raw_ore_chance,
-                ) {
-                    out[#index] = Some(state);
-                }
+                ]
             }
         })
         .collect();
@@ -1440,6 +1452,13 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
                 z: i32,
                 out: &mut [Option<steel_utils::BlockStateId>],
             ) {
+                let ore_vein_states: &[[steel_utils::BlockStateId; 3]] = {
+                    static ORE_VEIN_STATES: std::sync::OnceLock<Box<[[steel_utils::BlockStateId; 3]]>> =
+                        std::sync::OnceLock::new();
+                    ORE_VEIN_STATES.get_or_init(|| Box::from([
+                        #(#material_ore_vein_states),*
+                    ]))
+                };
                 #material_ore_vein_apply_body
             }
         }
