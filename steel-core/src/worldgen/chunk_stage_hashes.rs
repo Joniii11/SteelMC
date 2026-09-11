@@ -116,7 +116,7 @@ const FEATURE_STAGE: &str = "minecraft:features";
 const LIGHT_STAGE: &str = "minecraft:light";
 const CHUNK_GENERATION_ORDER_X_Z_ASCENDING: &str = "x_z_ascending";
 const FEATURE_HASH_CAPTURE_AFTER_ALL_READY: &str = "after_all_tracked_features_ready";
-const HASHSET_ITERATION_ORDER_INSERTION: &str = "insertion_order";
+const HASHSET_ITERATION_ORDER_VANILLA: &str = "vanilla";
 const LIGHT_HASH_CAPTURE_AFTER_IDLE: &str =
     "after_all_tracked_light_ready_pending_tasks_drained_and_light_engine_idle";
 const LIGHT_FEATURE_DEPENDENCY_CAPTURE: &str = "after_tracked_features_before_light_x_z_ascending";
@@ -1094,8 +1094,8 @@ fn chunk_stage_hashes_inner() {
         );
         assert_eq!(
             expected.hashset_iteration_order.as_deref(),
-            Some(HASHSET_ITERATION_ORDER_INSERTION),
-            "features stage hashes must be extracted with deterministic insertion-order HashSet normalization; rerun the extractor"
+            Some(HASHSET_ITERATION_ORDER_VANILLA),
+            "features stage hashes must be extracted with Vanilla HashSet iteration; rerun the extractor"
         );
     }
     let includes_light = STAGES.contains(&LIGHT_STAGE);

@@ -438,10 +438,10 @@ impl TreeBounds {
         let mut bounds: Option<Self> = None;
         for &pos in placement
             .roots
-            .insertion_order()
-            .chain(placement.trunks.insertion_order())
-            .chain(placement.foliage.insertion_order())
-            .chain(placement.decorations.insertion_order())
+            .java_order()
+            .chain(placement.trunks.java_order())
+            .chain(placement.foliage.java_order())
+            .chain(placement.decorations.java_order())
         {
             match &mut bounds {
                 Some(bounds) => bounds.include(pos),
