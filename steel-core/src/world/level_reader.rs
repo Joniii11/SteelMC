@@ -199,6 +199,8 @@ pub trait LevelAccessor: ScheduledTickAccess {
 
 #[cfg(test)]
 mod tests {
+    use steel_worldgen::density_functions::overworld::OverworldNoiseSettings;
+
     use super::*;
 
     struct TestLevel {
@@ -220,15 +222,15 @@ mod tests {
         }
 
         fn min_y(&self) -> i32 {
-            -64
+            OverworldNoiseSettings::MIN_Y
         }
 
         fn height(&self) -> i32 {
-            384
+            OverworldNoiseSettings::HEIGHT
         }
 
         fn sea_level(&self) -> i32 {
-            63
+            OverworldNoiseSettings::SEA_LEVEL
         }
     }
 

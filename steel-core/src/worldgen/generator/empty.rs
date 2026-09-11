@@ -14,6 +14,9 @@ use steel_worldgen::noise::Beardifier;
 pub struct EmptyChunkGenerator;
 
 impl EmptyChunkGenerator {
+    const MIN_Y: i32 = 0;
+    const HEIGHT: i32 = 384;
+
     /// Creates a new `EmptyWorld`.
     #[must_use]
     pub const fn new() -> Self {
@@ -23,11 +26,11 @@ impl EmptyChunkGenerator {
 
 impl ChunkGenerator for EmptyChunkGenerator {
     fn min_y(&self) -> i32 {
-        0
+        Self::MIN_Y
     }
 
     fn gen_depth(&self) -> i32 {
-        384
+        Self::HEIGHT
     }
 
     fn noise_biome(&self, _quart_x: i32, _quart_y: i32, _quart_z: i32) -> BiomeRef {

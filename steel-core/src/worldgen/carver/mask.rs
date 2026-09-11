@@ -174,11 +174,20 @@ impl CarvingMask {
 
 #[cfg(test)]
 mod test {
+    use steel_worldgen::density_functions::{
+        nether::NetherNoiseSettings, overworld::OverworldNoiseSettings,
+    };
+
     use super::*;
+
+    const OVERWORLD_CARVER_MIN_Y: i32 = OverworldNoiseSettings::MIN_Y + 1;
+    const OVERWORLD_CARVER_MAX_Y: i32 =
+        OverworldNoiseSettings::MIN_Y + OverworldNoiseSettings::HEIGHT - 8;
+    const OVERWORLD_CARVER_HEIGHT: usize = OverworldNoiseSettings::HEIGHT as usize - 8;
 
     #[test]
     fn set_and_get_roundtrip() {
-        let mut mask = CarvingMask::new(-63, 312);
+        let mut mask = CarvingMask::new(OVERWORLD_CARVER_MIN_Y, OVERWORLD_CARVER_MAX_Y);
         assert!(!mask.get(5, 10, 7));
         mask.set(5, 10, 7);
         assert!(mask.get(5, 10, 7));
@@ -190,7 +199,7 @@ mod test {
 
     #[test]
     fn set_if_unset_reports_first_visit() {
-        let mut mask = CarvingMask::new(-63, 312);
+        let mut mask = CarvingMask::new(OVERWORLD_CARVER_MIN_Y, OVERWORLD_CARVER_MAX_Y);
         assert!(mask.set_if_unset(5, 10, 7));
         assert!(!mask.set_if_unset(5, 10, 7));
         assert!(mask.get(5, 10, 7));
@@ -198,20 +207,26 @@ mod test {
 
     #[test]
     fn indexing_matches_vanilla_layout() {
-        let mask = CarvingMask::new(-63, 312);
+        let mask = CarvingMask::new(OVERWORLD_CARVER_MIN_Y, OVERWORLD_CARVER_MAX_Y);
         // x=0, z=0, y=min_y → index 0
-        assert_eq!(mask.index(0, -63, 0), 0);
-        // x=15, z=0, y=min_y → 240 columns × 376 rows.
-        assert_eq!(mask.index(15, -63, 0), 90_240);
+        assert_eq!(mask.index(0, OVERWORLD_CARVER_MIN_Y, 0), 0);
+        // x=15, z=0, y=min_y → 240 columns × mask height.
+        assert_eq!(
+            mask.index(15, OVERWORLD_CARVER_MIN_Y, 0),
+            240 * OVERWORLD_CARVER_HEIGHT
+        );
         // x=0, z=1, y=min_y → one column.
-        assert_eq!(mask.index(0, -63, 1), 376);
+        assert_eq!(
+            mask.index(0, OVERWORLD_CARVER_MIN_Y, 1),
+            OVERWORLD_CARVER_HEIGHT
+        );
         // x=0, z=0, y=min_y+1 → next row in the column.
-        assert_eq!(mask.index(0, -62, 0), 1);
+        assert_eq!(mask.index(0, OVERWORLD_CARVER_MIN_Y + 1, 0), 1);
     }
 
     #[test]
     fn x_and_z_are_masked_to_chunk_local() {
-        let mut mask = CarvingMask::new(-63, 312);
+        let mut mask = CarvingMask::new(OVERWORLD_CARVER_MIN_Y, OVERWORLD_CARVER_MAX_Y);
         // Chunk-local: 17 → 1, 18 → 2
         mask.set(17, 0, 18);
         assert!(mask.get(1, 0, 2));
@@ -220,13 +235,22 @@ mod test {
 
     #[test]
     fn worldgen_context_excludes_protected_edges() {
-        let mask = CarvingMask::for_worldgen_context(-64, 384);
-        assert_eq!(mask.min_y(), -63);
-        assert_eq!(mask.max_y(), 312);
+        let mask = CarvingMask::for_worldgen_context(
+            OverworldNoiseSettings::MIN_Y,
+            OverworldNoiseSettings::HEIGHT,
+        );
+        assert_eq!(mask.min_y(), OverworldNoiseSettings::MIN_Y + 1);
+        assert_eq!(mask.max_y(), OVERWORLD_CARVER_MAX_Y);
 
-        let nether = CarvingMask::for_worldgen_context(0, 128);
-        assert_eq!(nether.min_y(), 1);
-        assert_eq!(nether.max_y(), 120);
+        let nether = CarvingMask::for_worldgen_context(
+            NetherNoiseSettings::MIN_Y,
+            NetherNoiseSettings::HEIGHT,
+        );
+        assert_eq!(nether.min_y(), NetherNoiseSettings::MIN_Y + 1);
+        assert_eq!(
+            nether.max_y(),
+            NetherNoiseSettings::MIN_Y + NetherNoiseSettings::HEIGHT - 8
+        );
     }
 
     #[test]

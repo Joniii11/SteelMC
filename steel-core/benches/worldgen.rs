@@ -35,6 +35,7 @@ use steel_utils::locks::SyncMutex;
 use steel_utils::types::{Difficulty, GameType};
 use steel_utils::{ChunkPos, Identifier};
 use steel_worldgen::biomes::{BiomeSourceKind, ChunkBiomeSampler};
+use steel_worldgen::density_functions::overworld::OverworldNoiseSettings;
 use steel_worldgen::noise::Beardifier;
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
 use toml::map::Map;
@@ -1618,7 +1619,7 @@ fn build_references_fixture(
         Weak::new(),
         dim.min_y,
         dim.height,
-        63, // overworld sea level (bench is overworld)
+        OverworldNoiseSettings::SEA_LEVEL,
     ));
 
     let gen_for_factory = generator_arc.clone();

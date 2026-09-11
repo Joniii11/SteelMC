@@ -489,6 +489,7 @@ const fn abs_i32(value: i32) -> i32 {
 mod tests {
     use super::*;
     use steel_registry::{init_vanilla_registry, vanilla_blocks};
+    use steel_worldgen::density_functions::overworld::OverworldNoiseSettings;
 
     struct WriteTestLevel {
         can_write: bool,
@@ -504,15 +505,15 @@ mod tests {
         }
 
         fn min_y(&self) -> i32 {
-            -64
+            OverworldNoiseSettings::MIN_Y
         }
 
         fn height(&self) -> i32 {
-            384
+            OverworldNoiseSettings::HEIGHT
         }
 
         fn sea_level(&self) -> i32 {
-            63
+            OverworldNoiseSettings::SEA_LEVEL
         }
     }
 

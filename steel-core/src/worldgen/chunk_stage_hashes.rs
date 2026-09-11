@@ -39,6 +39,9 @@ use steel_registry::structure::TerrainAdjustment;
 use steel_registry::{dimension_type::DimensionTypeRef, vanilla_dimension_types};
 use steel_utils::types::{Difficulty, GameType};
 use steel_utils::{ChunkPos, Identifier};
+use steel_worldgen::density_functions::{
+    end::EndNoiseSettings, nether::NetherNoiseSettings, overworld::OverworldNoiseSettings,
+};
 use steel_worldgen::noise::Beardifier;
 use steel_worldgen::structure::StructureStart;
 use tokio::runtime::Runtime;
@@ -236,9 +239,9 @@ fn create_test_world(
         dim_type.height,
     );
     let sea_level = match dim_key {
-        "minecraft:the_nether" => 32,
-        "minecraft:the_end" => 0,
-        _ => 63,
+        "minecraft:the_nether" => NetherNoiseSettings::SEA_LEVEL,
+        "minecraft:the_end" => EndNoiseSettings::SEA_LEVEL,
+        _ => OverworldNoiseSettings::SEA_LEVEL,
     };
 
     runtime

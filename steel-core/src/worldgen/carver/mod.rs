@@ -542,11 +542,16 @@ pub fn can_reach(
 #[cfg(test)]
 mod tests {
     use crate::chunk::heightmap::{Heightmap, HeightmapType};
+    use steel_worldgen::density_functions::overworld::OverworldNoiseSettings;
 
     use super::steep_material_condition;
 
     fn flat_world_surface(highest_taken: i32) -> Heightmap {
-        let mut heightmap = Heightmap::new(HeightmapType::WorldSurfaceWg, 0, 384);
+        let mut heightmap = Heightmap::new(
+            HeightmapType::WorldSurfaceWg,
+            0,
+            OverworldNoiseSettings::HEIGHT,
+        );
         for x in 0..16 {
             for z in 0..16 {
                 heightmap.set_height(x, z, highest_taken + 1);
@@ -557,22 +562,22 @@ mod tests {
 
     #[test]
     fn steep_material_condition_matches_vanilla_asymmetry() {
-        let mut heightmap = flat_world_surface(63);
+        let mut heightmap = flat_world_surface(OverworldNoiseSettings::SEA_LEVEL);
         heightmap.set_height(5, 4, 61);
         heightmap.set_height(5, 6, 65);
         assert!(steep_material_condition(&heightmap, 5, 5));
 
-        let mut heightmap = flat_world_surface(63);
+        let mut heightmap = flat_world_surface(OverworldNoiseSettings::SEA_LEVEL);
         heightmap.set_height(5, 4, 65);
         heightmap.set_height(5, 6, 61);
         assert!(!steep_material_condition(&heightmap, 5, 5));
 
-        let mut heightmap = flat_world_surface(63);
+        let mut heightmap = flat_world_surface(OverworldNoiseSettings::SEA_LEVEL);
         heightmap.set_height(4, 5, 65);
         heightmap.set_height(6, 5, 61);
         assert!(steep_material_condition(&heightmap, 5, 5));
 
-        let mut heightmap = flat_world_surface(63);
+        let mut heightmap = flat_world_surface(OverworldNoiseSettings::SEA_LEVEL);
         heightmap.set_height(4, 5, 61);
         heightmap.set_height(6, 5, 65);
         assert!(!steep_material_condition(&heightmap, 5, 5));
