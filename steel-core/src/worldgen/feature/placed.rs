@@ -441,10 +441,10 @@ impl FeatureDecorationRunner {
                 }
             }
             PlacementModifier::RandomlySelected { placements } => {
-                let count = match i32::try_from(placements.len()) {
-                    Ok(count) => count,
-                    Err(_) => panic!("vanilla randomly selected placement count exceeds i32"),
+                let Ok(count) = i32::try_from(placements.len()) else {
+                    panic!("vanilla randomly selected placement count exceeds i32")
                 };
+
                 let index = random.next_i32_bounded(count) as usize;
                 let modifier = &placements[index];
                 match modifier {
