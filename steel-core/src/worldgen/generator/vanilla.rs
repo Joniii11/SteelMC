@@ -25,7 +25,7 @@ use steel_worldgen::surface::{
 use crate::chunk::Chunk;
 use crate::chunk::heightmap::{Heightmap, HeightmapType};
 use crate::worldgen::carver::{
-    CarveRun, CarverBlockIds, CarvingContext, PreliminarySurfaceCorners, SourceChunk,
+    CarveRun, CarverBlockIds, CarvingContext, CarvingMask, PreliminarySurfaceCorners, SourceChunk,
 };
 use crate::worldgen::feature::FeatureDecorationRunner;
 use crate::worldgen::generator::{
@@ -866,21 +866,20 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
                 })
             };
 
-            chunk.with_carving_mask(|mask| {
-                let mut run = CarveRun {
-                    ctx: &mut ctx,
-                    noises,
-                    chunk,
-                    chunk_min_x,
-                    chunk_min_z,
-                    biome_getter: &mut biome_getter,
-                    mask,
-                    ids,
-                };
+            let mut mask = CarvingMask::for_worldgen_chunk(chunk.min_y(), chunk.height());
+            let mut run = CarveRun {
+                ctx: &mut ctx,
+                noises,
+                chunk,
+                chunk_min_x,
+                chunk_min_z,
+                biome_getter: &mut biome_getter,
+                mask: &mut mask,
+                ids,
+            };
 
-                run.run_all(&source_biomes, seed_i64, &mut random);
-                run.apply_carving_mask();
-            });
+            run.run_all(&source_biomes, seed_i64, &mut random);
+            run.apply_carving_mask();
         });
     }
 
@@ -1248,7 +1247,6 @@ mod tests {
         heightmap::HeightmapType,
         section::{ChunkSection, Sections},
     };
-    use crate::worldgen::carving_mask::CarvingMask;
     use crate::worldgen::generator::{
         CarversPhase, ChunkGenerator as _, GenerationChunk, NoisePhase, SurfacePhase,
         context::OverworldGenerator,
@@ -1339,16 +1337,6 @@ mod tests {
         assert!(!has_overworld_post_noise_state(&cold));
 
         assert_eq!(blocks(&warm), blocks(&cold));
-        assert_eq!(
-            warm.carving_mask
-                .read()
-                .as_ref()
-                .map(CarvingMask::to_packed_u64s),
-            cold.carving_mask
-                .read()
-                .as_ref()
-                .map(CarvingMask::to_packed_u64s)
-        );
         assert_eq!(&*warm.postprocessing.lock(), &*cold.postprocessing.lock());
         for x in 0..16 {
             for z in 0..16 {

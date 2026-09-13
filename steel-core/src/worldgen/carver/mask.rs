@@ -15,7 +15,14 @@ pub struct CarvingMask {
 }
 
 impl CarvingMask {
+    const BOTTOM_EXCLUDED_BLOCKS: i32 = 1;
+    const TOP_PROTECTED_BLOCKS: i32 = 7;
+
     /// Creates an empty mask for the inclusive Y range `[min_y, max_y]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `min_y` is above `max_y`.
     #[must_use]
     pub fn new(min_y: i32, max_y: i32) -> Self {
         assert!(min_y <= max_y, "carving mask must have a non-empty Y range");
@@ -29,24 +36,27 @@ impl CarvingMask {
         }
     }
 
-    /// Rebuilds a mask from Steel's packed `u64` bitset representation.
+    /// Creates Vanilla's carving mask for a normal generated chunk.
+    ///
+    /// `NoiseBasedChunkGenerator.applyCarvers` excludes the lowest block and
+    /// protects seven blocks at the top. Steel has no old-world upgrade path,
+    /// so every generated chunk uses these bounds.
     #[must_use]
-    pub fn from_packed_u64s(min_y: i32, max_y: i32, packed: &[u64]) -> Self {
-        let mut mask = Self::new(min_y, max_y);
-        let len = mask.bits.len().min(packed.len());
-        mask.bits[..len].copy_from_slice(&packed[..len]);
-        mask
+    pub(crate) fn for_worldgen_chunk(min_y: i32, height: i32) -> Self {
+        let mask_height = Self::worldgen_mask_height(height);
+        Self::new(
+            min_y + Self::BOTTOM_EXCLUDED_BLOCKS,
+            min_y + Self::BOTTOM_EXCLUDED_BLOCKS + mask_height - 1,
+        )
     }
 
-    /// Returns Steel's packed `u64` bitset representation, trimming trailing zeroes.
-    #[must_use]
-    pub fn to_packed_u64s(&self) -> Vec<u64> {
-        let len = self
-            .bits
-            .iter()
-            .rposition(|lane| *lane != 0)
-            .map_or(0, |idx| idx + 1);
-        self.bits[..len].to_vec()
+    fn worldgen_mask_height(height: i32) -> i32 {
+        let excluded = Self::BOTTOM_EXCLUDED_BLOCKS + Self::TOP_PROTECTED_BLOCKS;
+        assert!(
+            height > excluded,
+            "worldgen carving mask needs more than {excluded} vertical blocks"
+        );
+        height - excluded
     }
 
     /// Vanilla's `getIndex`: `y - minY + (z + (x << 4)) * height`.
@@ -191,12 +201,13 @@ mod test {
     }
 
     #[test]
-    fn indexing_matches_snapshot_two_layout() {
-        let mask = CarvingMask::new(-64, 319);
-        assert_eq!(mask.index(0, -64, 0), 0);
-        assert_eq!(mask.index(15, -64, 0), 92_160);
-        assert_eq!(mask.index(0, -64, 1), 384);
-        assert_eq!(mask.index(0, -63, 0), 1);
+    fn worldgen_bounds_and_indexing_match_snapshot_two() {
+        let mask = CarvingMask::for_worldgen_chunk(-64, 384);
+        assert_eq!((mask.min_y(), mask.max_y()), (-63, 312));
+        assert_eq!(mask.index(0, -63, 0), 0);
+        assert_eq!(mask.index(15, -63, 0), 90_240);
+        assert_eq!(mask.index(0, -63, 1), 376);
+        assert_eq!(mask.index(0, -62, 0), 1);
     }
 
     #[test]
@@ -215,18 +226,5 @@ mod test {
             visited,
             vec![(0, 0, 3, 3), (0, 1, -4, -4), (1, 2, -3, -2), (1, 2, 0, 0)]
         );
-    }
-
-    #[test]
-    fn packed_u64s_roundtrip_preserves_set_bits() {
-        let mut mask = CarvingMask::new(-64, 319);
-        mask.set(3, -10, 5);
-        mask.set(15, 319, 15);
-
-        let restored = CarvingMask::from_packed_u64s(-64, 319, &mask.to_packed_u64s());
-
-        assert!(restored.get(3, -10, 5));
-        assert!(restored.get(15, 319, 15));
-        assert!(!restored.get(4, -10, 5));
     }
 }

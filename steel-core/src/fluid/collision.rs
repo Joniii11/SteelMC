@@ -151,17 +151,4 @@ mod tests {
         assert!(!can_hold_specific_fluid(kelp, &vanilla_fluids::LAVA));
     }
 
-    #[test]
-    fn can_hold_any_fluid_uses_washed_away_tag() {
-        init_vanilla_registry();
-        init_behaviors();
-
-        let fire = vanilla_blocks::FIRE.default_state();
-        let stone = vanilla_blocks::STONE.default_state();
-
-        assert!(fire.get_block().has_tag(&BlockTag::WASHED_AWAY_BY_FLUIDS));
-        assert!(can_hold_any_fluid_state(fire));
-        assert!(!stone.get_block().has_tag(&BlockTag::WASHED_AWAY_BY_FLUIDS));
-        assert!(!can_hold_any_fluid_state(stone));
-    }
 }

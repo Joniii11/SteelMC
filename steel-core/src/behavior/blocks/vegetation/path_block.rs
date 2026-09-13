@@ -27,7 +27,7 @@ pub struct PathBlock {
 }
 
 impl PathBlock {
-    /// Creates a path block behavior
+    /// Creates the behavior.
     #[must_use]
     pub const fn new(block: BlockRef, base_block: BlockRef) -> Self {
         Self { block, base_block }

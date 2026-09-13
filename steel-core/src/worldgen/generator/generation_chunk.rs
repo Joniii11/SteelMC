@@ -6,7 +6,6 @@ use crate::chunk::Chunk;
 use crate::chunk::chunk_holder::ChunkHolder;
 use crate::chunk::heightmap::{Heightmap, HeightmapType};
 use crate::chunk::status::ChunkStatus;
-use crate::worldgen::carving_mask::CarvingMask;
 
 /// Marker for the Noise generation operation.
 pub enum NoisePhase {}
@@ -273,12 +272,6 @@ impl GenerationChunk<'_, CarversPhase> {
         T: DowncastType + Send + Sync,
     {
         self.chunk.consume_transient_generation_state(f)
-    }
-
-    /// Runs `f` with the chunk's lazily initialized carving mask.
-    pub fn with_carving_mask<R>(self, f: impl FnOnce(&mut CarvingMask) -> R) -> R {
-        let mut mask = self.chunk.get_or_create_carving_mask();
-        f(&mut mask)
     }
 
     /// Sets one carved block using the published Surface semantics.

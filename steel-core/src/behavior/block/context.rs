@@ -1,5 +1,5 @@
 use super::{
-    Arc, Axis, BlockLocalAabb, BlockPos, BlockStateId, DVec3, DamageSource, Entity, EntityTypeRef,
+    Arc, Axis, BlockLocalAabb, BlockPos, BlockStateId, DamageSource, Entity, EntityTypeRef,
     ItemStack, SharedBlockEntity, SmallVec, SoundEventRef, VoxelShape, World, vanilla_damage_types,
     vanilla_entities,
 };
@@ -302,17 +302,6 @@ impl BlockCollisionContext {
     }
 }
 
-/// Entity facts needed by `Block.updateEntityMovementAfterFallOn`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct EntityLandingContext {
-    /// Entity velocity before the block landing hook adjusts it.
-    pub velocity: DVec3,
-    /// Whether the entity uses vanilla living-entity bounce behavior.
-    pub is_living_entity: bool,
-    /// Whether vanilla bounce behavior should be suppressed.
-    pub suppresses_bounce: bool,
-}
-
 /// Entity facts needed by `Block.fallOn`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EntityFallOnFacts {
@@ -449,23 +438,5 @@ impl EntityFallDamage {
             damage_modifier,
             source,
         }
-    }
-}
-
-impl EntityLandingContext {
-    /// Creates a landing context for a vertical movement collision.
-    #[must_use]
-    pub const fn new(velocity: DVec3, is_living_entity: bool, suppresses_bounce: bool) -> Self {
-        Self {
-            velocity,
-            is_living_entity,
-            suppresses_bounce,
-        }
-    }
-
-    /// Vanilla default `Block.updateEntityMovementAfterFallOn` result.
-    #[must_use]
-    pub const fn default_velocity_after_fall_on(self) -> DVec3 {
-        DVec3::new(self.velocity.x, 0.0, self.velocity.z)
     }
 }

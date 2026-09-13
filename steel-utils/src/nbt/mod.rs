@@ -262,7 +262,7 @@ fn compare_lists_partially(expected: &NbtList, actual: &NbtList) -> bool {
 pub fn nbt_list_values(list: &NbtList) -> Vec<NbtTag> {
     list.as_nbt_tags()
         .into_iter()
-        .map(unwrap_list_wrapper)
+        .map(|tag| unwrap_nbt_list_element(&tag).clone())
         .collect()
 }
 
@@ -286,16 +286,15 @@ pub fn nbt_collection_values(tag: &NbtTag) -> Option<Vec<NbtTag>> {
     }
 }
 
-fn unwrap_list_wrapper(tag: NbtTag) -> NbtTag {
-    match tag {
-        NbtTag::Compound(mut compound) if compound.len() == 1 && compound.contains("") => {
-            let Some(value) = compound.take("") else {
-                return NbtTag::Compound(compound);
-            };
-            value
-        }
-        tag => tag,
+pub(crate) fn unwrap_nbt_list_element(tag: &NbtTag) -> &NbtTag {
+    let NbtTag::Compound(compound) = tag else {
+        return tag;
+    };
+    if compound.len() != 1 {
+        return tag;
     }
+
+    compound.get("").unwrap_or(tag)
 }
 
 #[cfg(test)]

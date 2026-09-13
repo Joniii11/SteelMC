@@ -27,7 +27,6 @@ struct RandomSequencesState {
     dirty: bool,
 }
 
-/// Dirty tracking sequence borrow
 pub struct RandomSequence<'a> {
     source: &'a mut Xoroshiro,
     used: bool,

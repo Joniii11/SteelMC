@@ -35,7 +35,6 @@ impl HashComponent for ProvidesPotteryPattern {
     }
 }
 
-/// Writes Vanilla `DecoratedPotPatterns.STREAM_CODEC` holderregistry ID
 pub fn network_writer(data: &ComponentData, writer: &mut Vec<u8>) -> Result<()> {
     let context = DataComponentCodecContext::new(&crate::REGISTRY);
     network_writer_with_context(&context, data, writer)
@@ -70,7 +69,6 @@ fn network_writer_with_context(
     VarInt(id).write(writer)
 }
 
-/// Reads Vanilla `DecoratedPotPatterns.STREAM_CODEC` holderegistry ID
 pub fn network_reader(reader: &mut Cursor<&[u8]>) -> Result<ComponentData> {
     let context = DataComponentCodecContext::new(&crate::REGISTRY);
     network_reader_with_context(&context, reader)
@@ -91,8 +89,6 @@ fn network_reader_with_context(
     Ok(ComponentData::new(ProvidesPotteryPattern { pattern }))
 }
 
-/// Writes Vanilla registry fixed persistent holder representation
-#[must_use]
 pub fn nbt_writer(data: &ComponentData) -> Result<NbtTag> {
     let context = DataComponentCodecContext::new(&crate::REGISTRY);
     nbt_writer_with_context(&context, data)
@@ -123,7 +119,6 @@ fn nbt_writer_with_context(
     Ok(NbtTag::String(component.pattern.key.to_string().into()))
 }
 
-/// Reads Vanilla registry fixed persistent holder representation
 #[must_use]
 pub fn nbt_reader(tag: BorrowedNbtTag) -> Option<ComponentData> {
     let context = DataComponentCodecContext::new(&crate::REGISTRY);

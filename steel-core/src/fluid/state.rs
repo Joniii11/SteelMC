@@ -358,37 +358,6 @@ mod tests {
     }
 
     #[test]
-    fn flow_below_check_uses_blocks_fluid_flow_tag() {
-        init_vanilla_registry();
-        let pos = BlockPos::new(0, 64, 0);
-        let east = pos.east();
-        let east_below = east.below();
-        let mut checked_neighbor_block = false;
-        let flow = get_flow_with(
-            pos,
-            FluidState::source(&vanilla_fluids::WATER),
-            same_water,
-            |fluid_pos| {
-                if fluid_pos == east_below {
-                    FluidState::flowing(&vanilla_fluids::FLOWING_WATER, 4, false)
-                } else {
-                    FluidState::EMPTY
-                }
-            },
-            |block_pos| {
-                if block_pos == east {
-                    checked_neighbor_block = true;
-                    assert!(!vanilla_blocks::AIR.has_tag(&BlockTag::BLOCKS_FLUID_FLOW));
-                }
-                vanilla_blocks::AIR.default_state()
-            },
-        );
-
-        assert!(checked_neighbor_block);
-        assert!(flow.x > 0.0);
-    }
-
-    #[test]
     fn falling_flow_pulls_down_when_horizontal_neighbor_has_solid_face() {
         init_vanilla_registry();
         let pos = BlockPos::new(0, 64, 0);

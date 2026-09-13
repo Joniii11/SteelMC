@@ -81,7 +81,6 @@ impl CSound {
         )
     }
 
-    /// Holder sound packet
     #[must_use]
     pub fn new_holder(
         sound: SoundEventHolder,
@@ -131,7 +130,6 @@ impl CSound {
         )
     }
 
-    /// Block holder sound packet
     #[must_use]
     pub fn block_sound_holder(
         sound: SoundEventHolder,

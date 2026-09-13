@@ -38,8 +38,6 @@ pub mod rotation;
 /// Data saving helpers
 pub mod saved_data;
 pub mod serial;
-/// SNBT helpers
-pub mod snbt;
 pub mod text;
 pub mod threading;
 /// A module for common types.

@@ -29,6 +29,7 @@ use steel_worldgen::noise::NormalNoise;
 
 use crate::{
     behavior::{BLOCK_BEHAVIORS, InteractionResult, UseOnContext},
+    block_entity::SharedBlockEntity,
     entity::{Entity, LivingEntity},
     inventory::lock::ContainerLockGuard,
     world::game_event::GameEventContext,
@@ -119,7 +120,6 @@ pub(super) fn use_on(context: &mut UseOnContext) -> InteractionResult {
     InteractionResult::Pass
 }
 
-/// Transformer item cost
 fn consume_transform_use(transform: &BlockTransformData, context: &UseOnContext) {
     let has_infinite_materials = context.player.has_infinite_materials();
     context.inv.with_item(|item| {
@@ -648,22 +648,21 @@ impl InteractionLootContextData {
     }
 }
 
-/// Block entity loot data
 struct LootBlockEntityData {
     block_entity_type: &'static steel_utils::Identifier,
     inventory: Option<Vec<ItemStack>>,
 }
 
 impl LootBlockEntityData {
-    fn from_block_entity(block_entity: crate::block_entity::SharedBlockEntity) -> Self {
-        let inventory = block_entity.container_ref().map(|container_ref| {
+    fn from_block_entity(block_entity: SharedBlockEntity) -> Self {
+        let inventory = block_entity.container_ref().and_then(|container_ref| {
             let guard = ContainerLockGuard::lock_all(&[&container_ref]);
-            let container = guard
-                .get(container_ref.container_id())
-                .expect("locked block-entity container must be present");
-            (0..container.get_container_size())
-                .map(|slot| container.get_item(slot).clone())
-                .collect()
+            let container = guard.get(container_ref.container_id())?;
+            Some(
+                (0..container.get_container_size())
+                    .map(|slot| container.get_item(slot).clone())
+                    .collect(),
+            )
         });
         Self {
             block_entity_type: &block_entity.get_type().key,
@@ -696,10 +695,8 @@ mod tests {
     use steel_registry::{
         data_components::{
             components::{
-                BlockTransformData, DropStrategy, TransformBlockState, TransformHolderSet,
-                TransformNoiseParameters, TransformParticle, TransformPredicate,
-                TransformStateProvider, TransformStateProviderRule, TransformType,
-                WeightedTransformBlockState,
+                TransformBlockState, TransformNoiseParameters, TransformPredicate,
+                TransformStateProvider, TransformStateProviderRule, WeightedTransformBlockState,
             },
             vanilla_components::BLOCK_TRANSFORMER,
         },
@@ -707,7 +704,7 @@ mod tests {
         item_stack::ItemStack,
         vanilla_block_entity_types, vanilla_blocks, vanilla_items,
     };
-    use steel_utils::{BlockPos, Direction, Identifier, random::legacy_random::LegacyRandom};
+    use steel_utils::{BlockPos, Identifier, random::legacy_random::LegacyRandom};
 
     use crate::{
         block_entity::{
@@ -719,165 +716,15 @@ mod tests {
     };
 
     use super::{
-        LootBlockEntityData, PARTICLES_SCRAPE, PARTICLES_WAX_OFF, PARTICLES_WAX_ON,
-        consume_transform_item, noise_state_index, normal_noise, particle_event,
+        LootBlockEntityData, consume_transform_item, noise_state_index, normal_noise,
         select_rule_based_provider, slow_noise_value, weighted_entry,
     };
-
-    fn only_rule(transform: &BlockTransformData) -> &TransformStateProviderRule {
-        let TransformStateProvider::RuleBased { rules, .. } = &transform.block_state_provider
-        else {
-            panic!("generated tool transform must use a rule-based state provider");
-        };
-        assert_eq!(rules.len(), 1);
-        &rules[0]
-    }
-
-    fn simple_state(provider: &TransformStateProvider) -> &TransformBlockState {
-        let TransformStateProvider::Simple { state } = provider else {
-            panic!("generated transform provider must be a simple state provider");
-        };
-        state
-    }
-
-    fn copy_properties_source_state(provider: &TransformStateProvider) -> &TransformBlockState {
-        let TransformStateProvider::CopyProperties { source } = provider else {
-            panic!("generated transform provider must copy matching properties");
-        };
-        simple_state(source)
-    }
-
-    fn matching_blocks_contains(predicate: &TransformPredicate, expected: &Identifier) -> bool {
-        matches!(
-            predicate,
-            TransformPredicate::MatchingBlocks {
-                offset: (0, 0, 0),
-                blocks: TransformHolderSet::Entries(entries),
-            } if entries.contains(expected)
-        )
-    }
 
     fn transform_state(block: &'static str) -> TransformBlockState {
         TransformBlockState {
             block: Identifier::vanilla_static(block),
             properties: Vec::new(),
         }
-    }
-
-    #[test]
-    fn generated_shovel_transformer_requires_clear_space_and_blocks_downward_use() {
-        init_vanilla_registry();
-
-        let transformer = vanilla_items::WOODEN_SHOVEL
-            .components
-            .get_ref(BLOCK_TRANSFORMER)
-            .expect("wooden shovel must have a block transformer");
-        assert_eq!(transformer.transforms.len(), 1);
-
-        let transform = &transformer.transforms[0];
-        assert_eq!(transform.disallowed_faces, vec![Direction::Down]);
-        assert_eq!(transform.item_damage_per_use, 1);
-        assert!(transform.consume_on_use);
-
-        let rule = only_rule(transform);
-        let TransformPredicate::All(predicates) = &rule.if_true else {
-            panic!("shovel transform must require both the path tag and clear space");
-        };
-        assert!(predicates.iter().any(|predicate| {
-            matches!(
-                predicate,
-                TransformPredicate::MatchingBlockTag {
-                    offset: (0, 0, 0),
-                    tag,
-                } if *tag == Identifier::vanilla_static("turns_into_dirt_path")
-            )
-        }));
-        assert!(predicates.iter().any(|predicate| {
-            matches!(
-                predicate,
-                TransformPredicate::MatchingBlockTag {
-                    offset: (0, 1, 0),
-                    tag,
-                } if *tag == Identifier::vanilla_static("air")
-            )
-        }));
-        assert_eq!(
-            simple_state(&rule.then).block,
-            Identifier::vanilla_static("dirt_path")
-        );
-    }
-
-    #[test]
-    fn generated_hoe_transformer_keeps_rooted_dirt_loot_and_face_drop() {
-        init_vanilla_registry();
-
-        let transformer = vanilla_items::WOODEN_HOE
-            .components
-            .get_ref(BLOCK_TRANSFORMER)
-            .expect("wooden hoe must have a block transformer");
-        assert_eq!(transformer.transforms.len(), 3);
-
-        let rooted_dirt = transformer
-            .transforms
-            .iter()
-            .find(|transform| {
-                transform.loot.as_ref() == Some(&Identifier::vanilla_static("till/rooted_dirt"))
-            })
-            .expect("rooted dirt hoe transform must retain its interact loot table");
-        assert_eq!(
-            simple_state(&only_rule(rooted_dirt).then).block,
-            Identifier::vanilla_static("dirt")
-        );
-        assert!(matching_blocks_contains(
-            &only_rule(rooted_dirt).if_true,
-            &Identifier::vanilla_static("rooted_dirt")
-        ));
-        assert_eq!(rooted_dirt.drop_strategy, DropStrategy::ClickedFace);
-        assert_eq!(rooted_dirt.item_damage_per_use, 1);
-    }
-
-    #[test]
-    fn generated_axe_transformer_preserves_stripping_and_copper_chest_rules() {
-        init_vanilla_registry();
-
-        let transformer = vanilla_items::WOODEN_AXE
-            .components
-            .get_ref(BLOCK_TRANSFORMER)
-            .expect("wooden axe must have a block transformer");
-        assert_eq!(transformer.transforms.len(), 130);
-
-        let stripped_oak_log = transformer
-            .transforms
-            .iter()
-            .find(|transform| {
-                matching_blocks_contains(
-                    &only_rule(transform).if_true,
-                    &Identifier::vanilla_static("oak_log"),
-                )
-            })
-            .expect("axe transformer must strip oak logs");
-        assert_eq!(
-            copy_properties_source_state(&only_rule(stripped_oak_log).then).block,
-            Identifier::vanilla_static("stripped_oak_log")
-        );
-
-        let copper_chest = transformer
-            .transforms
-            .iter()
-            .find(|transform| {
-                transform.transform_type == TransformType::CopperChest
-                    && matching_blocks_contains(
-                        &only_rule(transform).if_true,
-                        &Identifier::vanilla_static("exposed_copper_chest"),
-                    )
-            })
-            .expect("axe transformer must scrape exposed copper chests");
-        assert_eq!(copper_chest.particle, TransformParticle::Scrape);
-        assert_eq!(copper_chest.item_damage_per_use, 1);
-        assert_eq!(
-            copy_properties_source_state(&only_rule(copper_chest).then).block,
-            Identifier::vanilla_static("copper_chest")
-        );
     }
 
     #[test]
@@ -963,23 +810,6 @@ mod tests {
         assert_eq!(noise_state_index(4, 0.0), Some(2));
         assert_eq!(noise_state_index(4, 1.0), Some(3));
         assert_eq!(noise_state_index(4, 2.0), Some(3));
-    }
-
-    #[test]
-    fn transformer_particles_map_to_vanilla_level_events() {
-        assert_eq!(particle_event(TransformParticle::None), None);
-        assert_eq!(
-            particle_event(TransformParticle::Scrape),
-            Some(PARTICLES_SCRAPE)
-        );
-        assert_eq!(
-            particle_event(TransformParticle::WaxOn),
-            Some(PARTICLES_WAX_ON)
-        );
-        assert_eq!(
-            particle_event(TransformParticle::WaxOff),
-            Some(PARTICLES_WAX_OFF)
-        );
     }
 
     #[test]

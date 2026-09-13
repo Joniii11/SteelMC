@@ -81,7 +81,7 @@ fn block_transform_token(value: &Value) -> TokenStream {
     );
     let drop_strategy = drop_strategy_token(transform.get("drop_strategy"));
     let transform_type = transform_type_token(transform.get("transform_type"));
-    let consume_on_use = transform.get("consume_on_use").map_or(true, |value| {
+    let consume_on_use = transform.get("consume_on_use").is_none_or(|value| {
         value
             .as_bool()
             .unwrap_or_else(|| panic!("block_transformer.consume_on_use must be a boolean"))
@@ -330,7 +330,7 @@ fn transform_type_token(value: Option<&Value>) -> TokenStream {
 }
 
 fn direction_token(value: &str) -> TokenStream {
-    let direction = match value {
+    match value {
         "down" => quote! { steel_utils::Direction::Down },
         "up" => quote! { steel_utils::Direction::Up },
         "north" => quote! { steel_utils::Direction::North },
@@ -338,8 +338,7 @@ fn direction_token(value: &str) -> TokenStream {
         "west" => quote! { steel_utils::Direction::West },
         "east" => quote! { steel_utils::Direction::East },
         value => panic!("unsupported block_transformer direction {value}"),
-    };
-    direction
+    }
 }
 
 fn path(type_name: &str) -> TokenStream {

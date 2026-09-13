@@ -1,9 +1,4 @@
-//! Vanilla-accounted binary NBT readers for protocol payloads
-//!
-//! `simdnbt` is deliberately optimized for trusted data. Its owned parser
-//! preserves duplicate compound entries and raw MUTF-8 bytes, while Vanilla
-//! replaces duplicate keys and materializes Java strings. This module decodes
-//! directly into the owned representation while applying `NbtAccounter`
+//! Binary NBT readers that mirror Vanilla's parsing and accounting rules.
 
 use std::io::{Cursor, Error, ErrorKind, Result};
 

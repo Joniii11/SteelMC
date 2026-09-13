@@ -1,8 +1,3 @@
-#![expect(
-    clippy::unwrap_used,
-    reason = "build script must fail immediately on invalid extracted trim material data"
-)]
-
 use crate::generator_functions::{generate_identifier, generate_text_component, read_json_asset};
 use crate::shared_structs::TextComponentJson;
 use heck::ToShoutySnakeCase;

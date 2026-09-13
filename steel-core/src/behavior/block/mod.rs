@@ -108,8 +108,7 @@ mod context;
 
 pub use context::{
     BlockCollisionBoxes, BlockCollisionContext, BlockEntityCreation, BlockLootContext,
-    EntityFallDamage, EntityFallOnContext, EntityFallOnFacts, EntityLandingContext, Fallable,
-    PickupResult, RailBehavior,
+    EntityFallDamage, EntityFallOnContext, EntityFallOnFacts, Fallable, PickupResult, RailBehavior,
 };
 
 /// Data exposed by blocks that support vanilla archaeology brushing.
@@ -961,39 +960,6 @@ pub trait BlockBehavior: Send + Sync {
         entity: &dyn Entity,
         fall_distance: f64,
     ) {
-    }
-
-    /// Default post-fall movement hook.
-    ///
-    /// Overrides that mirror vanilla `super.updateEntityMovementAfterFallOn(...)`
-    /// should call [`Self::default_update_entity_movement_after_fall_on`].
-    #[expect(
-        unused_variables,
-        reason = "default trait implementation ignores state, world, and pos"
-    )]
-    fn default_update_entity_movement_after_fall_on(
-        &self,
-        state: BlockStateId,
-        world: &Arc<World>,
-        pos: BlockPos,
-        context: EntityLandingContext,
-    ) -> DVec3 {
-        context.default_velocity_after_fall_on()
-    }
-
-    /// Updates entity velocity after a vertical movement collision with this block.
-    ///
-    /// Vanilla mutates the entity in `Block.updateEntityMovementAfterFallOn`.
-    /// Steel returns the velocity to apply so movement resolution keeps entity
-    /// state changes centralized in [`Entity::move_entity`].
-    fn update_entity_movement_after_fall_on(
-        &self,
-        state: BlockStateId,
-        world: &Arc<World>,
-        pos: BlockPos,
-        context: EntityLandingContext,
-    ) -> DVec3 {
-        self.default_update_entity_movement_after_fall_on(state, world, pos, context)
     }
 
     /// Default step-on hook.

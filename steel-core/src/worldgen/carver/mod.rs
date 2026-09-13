@@ -220,7 +220,7 @@ pub(super) fn horizontal_tunnel_radius(progress_arg: f32, thickness: f32) -> f64
     1.5 + f64::from(radius_offset)
 }
 
-/// The references every direct carver needs while building the per-chunk mask.
+/// References required by each direct carver while building the per-chunk mask.
 pub struct CarveRun<'a, 'b, N, F>
 where
     N: DimensionNoises,
@@ -238,7 +238,7 @@ where
     pub chunk_min_z: i32,
     /// Biome lookup (vanilla `BiomeManager.getBiome`-style, fuzzed).
     pub biome_getter: &'a mut F,
-    /// Carving mask for the chunk (lazily created on the proto chunk).
+    /// Stage-local carving mask.
     pub mask: &'a mut CarvingMask,
     /// Block IDs cached once per carver session.
     pub ids: CarverBlockIds,
@@ -256,10 +256,6 @@ where
     #[expect(
         clippy::similar_names,
         reason = "min_x_idx / min_z_idx / max_x_idx / max_z_idx mirror vanilla"
-    )]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "x/y/z/horizontal_radius/vertical_radius + skip_checker mirrors vanilla"
     )]
     pub fn carve_ellipsoid<S: CarveSkipChecker>(
         &mut self,

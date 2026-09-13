@@ -42,12 +42,13 @@ pub(crate) fn build() -> TokenStream {
         let key = &potion.key;
         let name = &potion.name;
         let effects = potion.effects.iter().map(|effect| {
-            let effect_ident = Ident::new(&effect.effect.to_shouty_snake_case(), Span::call_site());
+            let effect_variant_ident =
+                Ident::new(&effect.effect.to_shouty_snake_case(), Span::call_site());
             let duration = effect.duration;
             let amplifier = effect.amplifier;
             quote! {
                 PotionEffect {
-                    effect: &vanilla_mob_effects::#effect_ident,
+                    effect: &vanilla_mob_effects::#effect_variant_ident,
                     duration: #duration,
                     amplifier: #amplifier,
                 }

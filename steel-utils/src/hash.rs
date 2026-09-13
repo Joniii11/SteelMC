@@ -17,7 +17,7 @@
 use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 
 use crate::nbt::nbt_list_values;
-use crate::snbt::unwrap_vanilla_list_element;
+use crate::nbt::unwrap_nbt_list_element;
 
 /// Type tags matching Minecraft's `HashOps` implementation.
 #[repr(u8)]
@@ -358,7 +358,7 @@ fn hash_nbt_list(hasher: &mut ComponentHasher, list: &NbtList) {
     hasher.start_list();
     for value in list.as_nbt_tags() {
         hash_nested_value(hasher, |nested| {
-            hash_nbt_tag(nested, unwrap_vanilla_list_element(&value));
+            hash_nbt_tag(nested, unwrap_nbt_list_element(&value));
         });
     }
     hasher.end_list();

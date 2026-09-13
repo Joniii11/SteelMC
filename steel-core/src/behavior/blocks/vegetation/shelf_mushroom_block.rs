@@ -27,7 +27,7 @@ pub struct ShelfMushroomBlock {
 }
 
 impl ShelfMushroomBlock {
-    /// Creates a new shelf mushroom block
+    /// Creates the behavior.
     #[must_use]
     pub const fn new(block: BlockRef) -> Self {
         Self { block }
@@ -69,7 +69,7 @@ impl BlockBehavior for ShelfMushroomBlock {
         let facing: Direction = state.get_value(&BlockStateProperties::HORIZONTAL_FACING);
         let support_pos = pos.relative(facing.opposite());
         let support_state = world.get_block_state(support_pos);
-        support_state.is_face_sturdy_at(support_pos, facing)
+        world.is_face_sturdy(support_state, support_pos, facing)
     }
 
     fn update_shape(

@@ -14,7 +14,6 @@ use crate::entity::{
 };
 use crate::world::World;
 use crate::world::tick_scheduler::{BlockTickList, FluidTickList, SavedTick, TickPriority};
-use crate::worldgen::carving_mask::CarvingMask;
 use glam::{DVec3, IVec3};
 use rustc_hash::FxHashSet;
 use simdnbt::borrow::read_compound as read_borrowed_compound;
@@ -684,16 +683,6 @@ impl ChunkStorage {
             .map(|full| Self::pois_to_persistent(full, pos))
             .unwrap_or_default();
 
-        let carving_mask = if full.is_some() {
-            None
-        } else {
-            chunk
-                .carving_mask
-                .read()
-                .as_ref()
-                .map(CarvingMask::to_packed_u64s)
-        };
-
         let postprocessing = if let Some(full) = full {
             full.postprocessing_for_serialization()
         } else {
@@ -709,7 +698,6 @@ impl ChunkStorage {
             fluid_ticks,
             heightmaps,
             light,
-            carving_mask,
             postprocessing,
             structure_starts,
             structure_references,
@@ -765,7 +753,6 @@ impl ChunkStorage {
         fluid_ticks: Vec<PersistentTick>,
         heightmaps: Vec<PersistentHeightmap>,
         light: PersistentLightData,
-        carving_mask: Option<Vec<u64>>,
         postprocessing: Vec<Vec<u16>>,
         structure_starts: Vec<PersistentStructureStart>,
         structure_references: Vec<PersistentStructureReference>,
@@ -828,7 +815,6 @@ impl ChunkStorage {
             fluid_ticks,
             heightmaps,
             light,
-            carving_mask,
             postprocessing,
             structure_starts,
             structure_references,

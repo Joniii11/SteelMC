@@ -176,7 +176,7 @@ pub enum TransformPredicate {
     All(Vec<TransformPredicate>),
     Not(Box<TransformPredicate>),
     True,
-    /// Unused `Vec3i`
+    /// Vanilla serializes this offset but ignores it when testing.
     Unobstructed {
         offset: (i32, i32, i32),
     },
@@ -2092,8 +2092,8 @@ mod tests {
     use simdnbt::owned::{NbtList, NbtTag};
     use steel_utils::{
         Identifier,
+        nbt::{parse_snbt, to_canonical_snbt},
         serial::{ReadFrom, WriteTo},
-        snbt::{parse_vanilla_snbt, to_vanilla_snbt},
     };
 
     use super::{
@@ -2141,7 +2141,7 @@ mod tests {
 
     fn all_variants_transformer() -> (BlockTransformer, simdnbt::owned::NbtTag, i32) {
         let fixture = fixtures().block_transformer_all_variants;
-        let tag = parse_vanilla_snbt(&fixture.snbt)
+        let tag = parse_snbt(&fixture.snbt)
             .expect("Vanilla all-variants transformer SNBT fixture must parse");
         let mut bytes = Vec::new();
         tag.write(&mut bytes);
@@ -2186,11 +2186,14 @@ mod tests {
         let (transformer, fixture_tag, expected_hash) = all_variants_transformer();
         let data = ComponentData::new(transformer.clone());
 
+        let encoded_snbt = to_canonical_snbt(
+            &nbt_writer(&data).expect("block transformer persistent encoding must succeed"),
+        )
+        .expect("block transformer persistent encoding must produce canonical SNBT");
+        let fixture_snbt = to_canonical_snbt(&fixture_tag)
+            .expect("block transformer fixture must produce canonical SNBT");
         assert_eq!(
-            to_vanilla_snbt(
-                &nbt_writer(&data).expect("block transformer persistent encoding must succeed")
-            ),
-            to_vanilla_snbt(&fixture_tag),
+            encoded_snbt, fixture_snbt,
             "persistent codec must preserve every vanilla provider and predicate variant"
         );
         assert_eq!(component_hash(&data), expected_hash);
