@@ -302,6 +302,18 @@ impl NormalNoise {
         ys: Simd<f64, N>,
         z: f64,
     ) -> Simd<f64, N> {
+        self.get_value_y_simd_f32(x, ys, z).cast()
+    }
+
+    #[inline]
+    #[must_use]
+    /// Samples a SIMD Y column with the same f32 accumulator as `get_value_f32`.
+    pub fn get_value_y_simd_f32<const N: usize>(
+        &self,
+        x: f64,
+        ys: Simd<f64, N>,
+        z: f64,
+    ) -> Simd<f32, N> {
         let mut value = Simd::splat(0.0_f32);
         for layer in &self.layers {
             let noise = layer.noise.noise_f32_y_simd(
@@ -311,7 +323,7 @@ impl NormalNoise {
             );
             value += Simd::splat(layer.amplitude) * noise;
         }
-        value.cast()
+        value
     }
 
     #[inline]
@@ -412,6 +424,7 @@ fn parity_base_amplitude(first_octave: i32, amplitudes: &[f64]) -> f64 {
 mod tests {
     use super::*;
     use crate::random::{RandomSource, legacy_random::LegacyRandom};
+    use std::simd::f64x8;
 
     #[test]
     fn value_y_simd_matches_scalar_f32_lanes() {
@@ -419,11 +432,23 @@ mod tests {
         let noise = NormalNoise::create_from_random(&mut random, -7, &[1.0, 1.0, 1.0]);
         let x = 123.25;
         let z = -456.75;
-        let ys = [0.0, 64.5, -12.25, 255.75];
-        let simd = noise.get_value_y_simd(x, f64x4::from_array(ys), z);
+        let ys4 = [0.0, 64.5, -12.25, 255.75];
+        let simd4 = noise.get_value_y_simd_f32(x, f64x4::from_array(ys4), z);
 
-        for (lane, y) in ys.into_iter().enumerate() {
-            assert_eq!(simd[lane].to_bits(), noise.get_value(x, y, z).to_bits());
+        for (lane, y) in ys4.into_iter().enumerate() {
+            assert_eq!(
+                simd4[lane].to_bits(),
+                noise.get_value_f32(x, y, z).to_bits()
+            );
+        }
+
+        let ys8 = [0.0, 64.5, -12.25, 255.75, -64.0, 1.25, 320.0, 4096.5];
+        let simd8 = noise.get_value_y_simd_f32(x, f64x8::from_array(ys8), z);
+        for (lane, y) in ys8.into_iter().enumerate() {
+            assert_eq!(
+                simd8[lane].to_bits(),
+                noise.get_value_f32(x, y, z).to_bits()
+            );
         }
     }
 }

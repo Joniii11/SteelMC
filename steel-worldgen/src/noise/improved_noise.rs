@@ -139,14 +139,16 @@ impl ImprovedNoise {
         let floor_x = fast_floor(x);
         let floor_z = fast_floor(z);
         let floor_ys = fast_floor_simd::<f64, i32, N>(ys);
+        let relative_ys = (ys - floor_ys.cast()).cast();
 
         self.sample_and_lerp_f32_y_simd(
             floor_x,
             floor_ys,
             floor_z,
             (x - f64::from(floor_x)) as f32,
-            (ys - floor_ys.cast()).cast(),
+            relative_ys,
             (z - f64::from(floor_z)) as f32,
+            relative_ys,
         )
     }
 
@@ -182,6 +184,45 @@ impl ImprovedNoise {
             (relative_y - fudge) as f32,
             (z - f64::from(floor_z)) as f32,
             relative_y as f32,
+        )
+    }
+
+    /// Samples an X/Z column of float-based `SmearedPerlinNoise` values.
+    ///
+    /// Coordinates and the vertical fudge stay in `f64`, as in vanilla. The
+    /// gradients and interpolation remain in `f32` lanes.
+    #[inline]
+    #[must_use]
+    pub fn smeared_noise_f32_y_simd<const N: usize>(
+        &self,
+        original_x: f64,
+        original_ys: Simd<f64, N>,
+        original_z: f64,
+        fudge_y_scale: f64,
+    ) -> Simd<f32, N> {
+        let x = steel_math::wrap(original_x) + self.xo;
+        let ys = steel_math::wrap_simd(original_ys) + Simd::splat(self.yo);
+        let z = steel_math::wrap(original_z) + self.zo;
+        let floor_x = fast_floor(x);
+        let floor_ys = fast_floor_simd::<f64, i32, N>(ys);
+        let floor_z = fast_floor(z);
+        let relative_ys = ys - floor_ys.cast();
+        let zero = Simd::splat(0.0);
+        let fudge_limits = (original_ys.simd_ge(zero) & original_ys.simd_lt(relative_ys))
+            .select(original_ys, relative_ys);
+        let fudge = (fudge_limits / Simd::splat(fudge_y_scale)
+            + Simd::splat(f64::from(1.0e-7_f32)))
+        .floor()
+            * Simd::splat(fudge_y_scale);
+
+        self.sample_and_lerp_f32_y_simd(
+            floor_x,
+            floor_ys,
+            floor_z,
+            (x - f64::from(floor_x)) as f32,
+            (relative_ys - fudge).cast(),
+            (z - f64::from(floor_z)) as f32,
+            relative_ys.cast(),
         )
     }
 
@@ -246,6 +287,7 @@ impl ImprovedNoise {
         relative_x: f32,
         relative_ys: Simd<f32, N>,
         relative_z: f32,
+        original_relative_ys: Simd<f32, N>,
     ) -> Simd<f32, N> {
         let x = x as u8;
         let z = z as u8;
@@ -305,7 +347,7 @@ impl ImprovedNoise {
         };
 
         let x_alpha = smoothstep(relative_xs);
-        let y_alpha = smoothstep(relative_ys);
+        let y_alpha = smoothstep(original_relative_ys);
         let z_alpha = smoothstep(relative_zs);
         let xz0 = lerp(
             y_alpha,
@@ -966,6 +1008,29 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn smeared_noise_f32_y_simd_matches_scalar() {
+        let mut rng = Xoroshiro::from_seed(42);
+        let noise = ImprovedNoise::new(&mut rng);
+        let ys = [-64.0, -56.0, -48.0, -40.0, -32.0, -24.0, -16.0, -8.0];
+        let simd = noise.smeared_noise_f32_y_simd(
+            20_000_068.0,
+            std::simd::f64x8::from_array(ys),
+            -19_999_796.0,
+            5475.296,
+        );
+
+        for (&y, &value) in ys.iter().zip(simd.as_array()) {
+            assert_eq!(
+                value.to_bits(),
+                noise
+                    .smeared_noise_f32(20_000_068.0, y, -19_999_796.0, 5475.296)
+                    .to_bits(),
+                "Y={y}"
+            );
         }
     }
 

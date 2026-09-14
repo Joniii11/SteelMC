@@ -187,6 +187,52 @@ pub trait DimensionNoises: Sized + Send + Sync {
         out: &mut [f32],
     );
 
+    /// Evaluate four Y corners at the same X/Z position.
+    fn fill_cell_corner_densities_y4(
+        &self,
+        cache: &mut Self::ColumnCache,
+        x: i32,
+        ys: [i32; 4],
+        z: i32,
+        blended_noise_values: [f32; 4],
+        out: &mut [f32],
+    ) {
+        let count = Self::interpolated_count();
+        for lane in 0..4 {
+            self.fill_cell_corner_densities(
+                cache,
+                x,
+                ys[lane],
+                z,
+                blended_noise_values[lane],
+                &mut out[lane * count..(lane + 1) * count],
+            );
+        }
+    }
+
+    /// Evaluate eight Y corners at the same X/Z position.
+    fn fill_cell_corner_densities_y8(
+        &self,
+        cache: &mut Self::ColumnCache,
+        x: i32,
+        ys: [i32; 8],
+        z: i32,
+        blended_noise_values: [f32; 8],
+        out: &mut [f32],
+    ) {
+        let count = Self::interpolated_count();
+        for lane in 0..8 {
+            self.fill_cell_corner_densities(
+                cache,
+                x,
+                ys[lane],
+                z,
+                blended_noise_values[lane],
+                &mut out[lane * count..(lane + 1) * count],
+            );
+        }
+    }
+
     /// Combine trilinearly interpolated values for `final_density`.
     fn combine_interpolated(
         &self,

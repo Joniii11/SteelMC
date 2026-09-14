@@ -2,6 +2,9 @@
 
 use crate::noise::ImprovedNoise;
 use crate::random::RandomSource;
+use std::simd::cmp::SimdPartialEq;
+use std::simd::num::SimdFloat;
+use std::simd::{Select, Simd};
 
 const BASE_SCALE: f64 = 684.412;
 
@@ -55,6 +58,21 @@ impl SmearedStack {
                 * layer.noise.smeared_noise_f32(
                     x * layer.frequency,
                     y * layer.frequency,
+                    z * layer.frequency,
+                    layer.fudge_y_scale,
+                );
+        }
+        value
+    }
+
+    #[inline]
+    fn sample_y_simd<const N: usize>(&self, x: f64, ys: Simd<f64, N>, z: f64) -> Simd<f32, N> {
+        let mut value = Simd::splat(0.0_f32);
+        for layer in &self.layers {
+            value += Simd::splat(layer.amplitude)
+                * layer.noise.smeared_noise_f32_y_simd(
+                    x * layer.frequency,
+                    ys * Simd::splat(layer.frequency),
                     z * layer.frequency,
                     layer.fudge_y_scale,
                 );
@@ -143,9 +161,53 @@ impl BlendedNoise {
         minimum + alpha * (maximum - minimum)
     }
 
+    #[inline]
+    fn compute_y_simd<const N: usize>(
+        &self,
+        block_x: f64,
+        block_ys: Simd<f64, N>,
+        block_z: f64,
+    ) -> Simd<f32, N> {
+        let limit_x = block_x * self.xz_multiplier;
+        let limit_ys = block_ys * Simd::splat(self.y_multiplier);
+        let limit_z = block_z * self.xz_multiplier;
+        let main = self.main_noise.sample_y_simd(
+            block_x * self.main_xz_scale,
+            block_ys * Simd::splat(self.main_y_scale),
+            block_z * self.main_xz_scale,
+        );
+        let alpha = (main + Simd::splat(0.5_f32))
+            .simd_max(Simd::splat(0.0))
+            .simd_min(Simd::splat(1.0));
+        let minimum = self
+            .min_limit_noise
+            .sample_y_simd(limit_x, limit_ys, limit_z);
+        let maximum = self
+            .max_limit_noise
+            .sample_y_simd(limit_x, limit_ys, limit_z);
+        let interpolated = minimum + alpha * (maximum - minimum);
+        let result = alpha
+            .simd_eq(Simd::splat(0.0))
+            .select(minimum, interpolated);
+        alpha.simd_eq(Simd::splat(1.0)).select(maximum, result)
+    }
+
     /// Samples one X/Z column into the supplied float buffer.
     pub fn compute_column(&self, block_x: i32, block_ys: &[i32], block_z: i32, out: &mut [f32]) {
-        for (&block_y, value) in block_ys.iter().zip(out) {
+        let len = block_ys.len().min(out.len());
+        let mut index = 0;
+        while index + 8 <= len {
+            let ys: Simd<f64, 8> = Simd::from_array(std::array::from_fn(|lane| {
+                f64::from(block_ys[index + lane])
+            }));
+            out[index..index + 8].copy_from_slice(
+                &self
+                    .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
+                    .to_array(),
+            );
+            index += 8;
+        }
+        for (&block_y, value) in block_ys[index..len].iter().zip(&mut out[index..len]) {
             *value = self.compute(f64::from(block_x), f64::from(block_y), f64::from(block_z));
         }
     }
@@ -166,6 +228,27 @@ mod tests {
             (20_000_068.0, 296.0, -19_999_796.0, 0.013_388_243_f32),
         ] {
             assert_eq!(noise.compute(x, y, z).to_bits(), expected.to_bits());
+        }
+    }
+
+    #[test]
+    fn compute_column_matches_scalar_lanes() {
+        let mut random = RandomSource::Legacy(LegacyRandom::from_seed(0));
+        let noise = BlendedNoise::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0);
+        let ys = [
+            -64, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 64,
+        ];
+        let mut column = [0.0_f32; 17];
+        noise.compute_column(20_000_068, &ys, -19_999_796, &mut column);
+
+        for (&y, &value) in ys.iter().zip(&column) {
+            assert_eq!(
+                value.to_bits(),
+                noise
+                    .compute(20_000_068.0, f64::from(y), -19_999_796.0)
+                    .to_bits(),
+                "Y={y}"
+            );
         }
     }
 }

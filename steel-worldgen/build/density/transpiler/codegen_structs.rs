@@ -552,12 +552,13 @@ impl TranspileContext {
         }
     }
 
-    /// Generate the SIMD (4-Y batched) parameter list for a non-flat density
-    /// function. Flat functions don't have a 4x form (callers splat from cache).
-    pub(super) fn fn_params_4x(&self) -> TokenStream {
+    /// Generate the SIMD parameter list for a non-flat density function. Flat
+    /// functions don't have a SIMD form because callers splat from the cache.
+    pub(super) fn fn_params_simd(&self, lanes: usize) -> TokenStream {
         let noises = &self.noises_ident;
         let cache = &self.cache_ident;
-        quote! { noises: &#noises, cache: &#cache, x: f64, ys: f64x4, z: f64 }
+        let lanes = Literal::usize_unsuffixed(lanes);
+        quote! { noises: &#noises, cache: &#cache, x: f64, ys: Simd<f64, #lanes>, z: f64 }
     }
 
     /// Generate the function parameter list for a router entry point.

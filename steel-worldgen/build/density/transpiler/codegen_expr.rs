@@ -21,7 +21,7 @@ use super::TranspilerInput;
 use super::bounds::compute_bounds;
 use super::context::TranspileContext;
 use super::fingerprint::{collect_expensive_subexprs, fingerprint, is_cse_candidate};
-use super::naming::{named_fn_field_ident, named_fn_ident, named_fn_ident_4x, noise_field_ident};
+use super::naming::{named_fn_field_ident, named_fn_ident, named_fn_ident_simd, noise_field_ident};
 
 impl TranspileContext {
     #[expect(
@@ -653,8 +653,8 @@ impl TranspileContext {
         fn_name
     }
 
-    /// Generate a `TokenStream` expression that computes `df` as `f64x4`
-    /// across 4 cell-corner Y values (`ys: f64x4`).
+    /// Generate a `TokenStream` expression that computes `df` across a fixed
+    /// number of cell-corner Y values.
     ///
     /// Variants migrated to true SIMD (`Constant`, `Noise`, `BlendAlpha/Offset`,
     /// `BlendDensity`, `Marker`, `Reference`, `BlendedNoise` in fill mode) emit
@@ -672,7 +672,11 @@ impl TranspileContext {
         df: &DensityFunction,
         input: &TranspilerInput,
         is_flat: bool,
+        lanes: usize,
     ) -> TokenStream {
+        let f32x = quote! { Simd::<f32, #lanes> };
+        let f64x = quote! { Simd::<f64, #lanes> };
+
         // Unified CSE (SIMD): if this node was hoisted by an enclosing scope,
         // emit the `f64x4` variable instead of recomputing the subtree.
         if is_cse_candidate(df) {
@@ -682,12 +686,12 @@ impl TranspileContext {
             }
         }
 
-        // Flat (xz-only) expressions don't depend on Y, so all 4 lanes are
+        // Flat (xz-only) expressions don't depend on Y, so all lanes are
         // bit-identical. Splatting the scalar avoids duplicating the per-lane
         // bindings and lets LLVM see the simpler form.
         if is_flat {
             let scalar = self.gen_expr(df, input, true);
-            return quote! { f64x4::splat(#scalar) };
+            return quote! { #f32x::splat(#scalar) };
         }
 
         // Splines whose entire structure is Y-independent (e.g. driven by a
@@ -700,13 +704,13 @@ impl TranspileContext {
             && self.is_spline_y_independent(&s.spline)
         {
             let scalar = self.gen_expr(df, input, true);
-            return quote! { f64x4::splat(#scalar) };
+            return quote! { #f32x::splat(#scalar) };
         }
 
         match df {
             DensityFunction::Constant(c) => {
-                let val = Literal::f64_unsuffixed(c.value);
-                quote! { f64x4::splat(#val) }
+                let val = Literal::f32_unsuffixed(c.value as f32);
+                quote! { #f32x::splat(#val) }
             }
 
             DensityFunction::Noise(n) => {
@@ -716,7 +720,7 @@ impl TranspileContext {
                     let fp = fingerprint(df);
                     if let Some((idx, _, _)) = self.inline_flat_noises.get(&fp) {
                         let cache_field = format_ident!("inline_noise_{}", idx);
-                        return quote! { f64x4::splat(cache.#cache_field) };
+                        return quote! { #f32x::splat(cache.#cache_field) };
                     }
                 }
                 let field = noise_field_ident(&n.noise_id);
@@ -724,25 +728,27 @@ impl TranspileContext {
                 let y_scale = Literal::f64_unsuffixed(n.y_scale);
                 if n.y_scale == 0.0 {
                     quote! {
-                        f64x4::splat(noises.#field.get_value_xz(
+                        #f32x::splat(noises.#field.get_value_xz_f32(
                             x * #xz_scale, z * #xz_scale,
                         ))
                     }
                 } else {
                     quote! {
-                        noises.#field.get_value_y_simd(
+                        noises.#field.get_value_y_simd_f32(
                             x * #xz_scale,
-                            ys * f64x4::splat(#y_scale),
+                            ys * #f64x::splat(#y_scale),
                             z * #xz_scale,
                         )
                     }
                 }
             }
 
-            DensityFunction::BlendAlpha(_) => quote! { f64x4::splat(1.0) },
-            DensityFunction::BlendOffset(_) => quote! { f64x4::splat(0.0) },
+            DensityFunction::BlendAlpha(_) => quote! { #f32x::splat(1.0) },
+            DensityFunction::BlendOffset(_) => quote! { #f32x::splat(0.0) },
 
-            DensityFunction::BlendDensity(bd) => self.gen_expr_simd(&bd.input, input, is_flat),
+            DensityFunction::BlendDensity(bd) => {
+                self.gen_expr_simd(&bd.input, input, is_flat, lanes)
+            }
 
             DensityFunction::Marker(m) => {
                 // Markers are transparent to SIMD codegen — recurse into the
@@ -750,14 +756,14 @@ impl TranspileContext {
                 // `interpolated_param_mode` are rewritten by the scalar combine
                 // paths, and the SIMD fill path never runs in
                 // `interpolated_param_mode`, so the marker kind is moot here.)
-                self.gen_expr_simd(&m.wrapped, input, is_flat)
+                self.gen_expr_simd(&m.wrapped, input, is_flat, lanes)
             }
 
             DensityFunction::BlendedNoise(_) => {
                 if self.fill_mode {
                     quote! { blended_noise_value_v }
                 } else {
-                    self.gen_simd_scalar_fallback(df, input, is_flat)
+                    self.gen_simd_scalar_fallback(df, input, is_flat, lanes)
                 }
             }
 
@@ -768,45 +774,39 @@ impl TranspileContext {
                     || (self.fill_mode && self.blended_noise_refs.contains(&r.id))
                 {
                     if let Some(ref_df) = input.registry.get(&r.id) {
-                        self.gen_expr_simd(ref_df, input, is_flat)
+                        self.gen_expr_simd(ref_df, input, is_flat, lanes)
                     } else {
-                        quote! { f64x4::splat(0.0) }
+                        quote! { #f32x::splat(0.0) }
                     }
                 } else if self.flat_cached.contains(&r.id) {
                     let field = named_fn_field_ident(&r.id);
-                    quote! { f64x4::splat(cache.#field) }
+                    quote! { #f32x::splat(cache.#field) }
                 } else {
-                    let fn_name = named_fn_ident_4x(&r.id);
+                    let fn_name = named_fn_ident_simd(&r.id, lanes);
                     quote! { #fn_name(noises, cache, x, ys, z) }
                 }
             }
 
             DensityFunction::YClampedGradient(g) => {
-                // Per-lane: map_clamped(f64::from(y), from_y, to_y, from_v, to_v).
-                // Scalar form: `if t < 0 { from_v } else if t > 1 { to_v } else
-                // { from_v + t * (to_v - from_v) }` — preserved bit-identically
-                // via mask-select. `ys` holds integer-valued f64s already.
-                let from_y = Literal::f64_unsuffixed(f64::from(g.from_y));
-                let to_y = Literal::f64_unsuffixed(f64::from(g.to_y));
-                let from_val = Literal::f64_unsuffixed(g.from_value);
-                let to_val = Literal::f64_unsuffixed(g.to_value);
+                let from_y = Literal::i32_unsuffixed(g.from_y);
+                let to_y = Literal::i32_unsuffixed(g.to_y);
+                let from_val = Literal::f32_unsuffixed(g.from_value as f32);
+                let to_val = Literal::f32_unsuffixed(g.to_value as f32);
                 quote! {{
-                    let __t = (ys - f64x4::splat(#from_y))
-                        / f64x4::splat(#to_y - #from_y);
-                    let __min = f64x4::splat(#from_val);
-                    let __max = f64x4::splat(#to_val);
-                    let __lerped = __min + __t * (__max - __min);
-                    let __below = __t.simd_lt(f64x4::splat(0.0));
-                    let __above = __t.simd_gt(f64x4::splat(1.0));
-                    let __r = __above.select(__max, __lerped);
-                    __below.select(__min, __r)
+                    let __coordinate = ys.cast::<i32>()
+                        .simd_max(Simd::splat(#from_y))
+                        .simd_min(Simd::splat(#to_y))
+                        - Simd::splat(#from_y);
+                    #f32x::splat(#from_val)
+                        + __coordinate.cast::<f32>()
+                            * #f32x::splat((#to_val - #from_val) / (#to_y - #from_y) as f32)
                 }}
             }
 
             DensityFunction::ShiftA(s) => {
                 let field = noise_field_ident(&s.noise_id);
                 quote! {
-                    f64x4::splat(noises.#field.get_value_xz(
+                    #f32x::splat(noises.#field.get_value_xz_f32(
                         x * 0.25, z * 0.25,
                     ) * 4.0)
                 }
@@ -815,7 +815,7 @@ impl TranspileContext {
             DensityFunction::ShiftB(s) => {
                 let field = noise_field_ident(&s.noise_id);
                 quote! {
-                    f64x4::splat(noises.#field.get_value_xy(
+                    #f32x::splat(noises.#field.get_value_xy_f32(
                         z * 0.25, x * 0.25,
                     ) * 4.0)
                 }
@@ -824,11 +824,11 @@ impl TranspileContext {
             DensityFunction::Shift(s) => {
                 let field = noise_field_ident(&s.noise_id);
                 quote! {
-                    noises.#field.get_value_y_simd(
+                    noises.#field.get_value_y_simd_f32(
                         x * 0.25,
-                        ys * f64x4::splat(0.25),
+                        ys * #f64x::splat(0.25),
                         z * 0.25,
-                    ) * f64x4::splat(4.0)
+                    ) * #f32x::splat(4.0)
                 }
             }
 
@@ -837,7 +837,7 @@ impl TranspileContext {
                 // (x, y, z). When all three shifts are Y-independent (typical
                 // vanilla case — they're flat-cached `shift_x`/`shift_z` and
                 // a constant `shift_y`), evaluate them as scalar splats and
-                // call `get_value_y_simd(`. Otherwise fall back to scalar 4×.
+                // call `get_value_y_simd_f32`. Otherwise fall back to scalar lanes.
                 if self.is_y_independent(&sn.shift_x)
                     && self.is_y_independent(&sn.shift_y)
                     && self.is_y_independent(&sn.shift_z)
@@ -853,9 +853,9 @@ impl TranspileContext {
                         quote! {{
                             let dx = #dx;
                             let dz = #dz;
-                            f64x4::splat(noises.#field.get_value_xz(
-                                x * #xz_scale + dx,
-                                z * #xz_scale + dz,
+                            #f32x::splat(noises.#field.get_value_xz_f32(
+                                x * #xz_scale + f64::from(dx),
+                                z * #xz_scale + f64::from(dz),
                             ))
                         }}
                     } else {
@@ -863,20 +863,20 @@ impl TranspileContext {
                             let dx = #dx;
                             let dy = #dy;
                             let dz = #dz;
-                            noises.#field.get_value_y_simd(
-                                x * #xz_scale + dx,
-                                ys * f64x4::splat(#y_scale) + f64x4::splat(dy),
-                                z * #xz_scale + dz,
+                            noises.#field.get_value_y_simd_f32(
+                                x * #xz_scale + f64::from(dx),
+                                ys * #f64x::splat(#y_scale) + #f64x::splat(f64::from(dy)),
+                                z * #xz_scale + f64::from(dz),
                             )
                         }}
                     }
                 } else {
-                    self.gen_simd_scalar_fallback(df, input, is_flat)
+                    self.gen_simd_scalar_fallback(df, input, is_flat, lanes)
                 }
             }
 
             DensityFunction::Mapped(m) => {
-                let v = self.gen_expr_simd(&m.input, input, is_flat);
+                let v = self.gen_expr_simd(&m.input, input, is_flat, lanes);
                 match m.op {
                     MappedType::Abs => quote! { (#v).abs() },
                     MappedType::Square => quote! {{ let __v = #v; __v * __v }},
@@ -886,27 +886,27 @@ impl TranspileContext {
                         // Mask form: gt(0) ? v : v * 0.5
                         quote! {{
                             let __v = #v;
-                            let __mask = __v.simd_gt(f64x4::splat(0.0));
-                            __mask.select(__v, __v * f64x4::splat(0.5))
+                            let __mask = __v.simd_gt(#f32x::splat(0.0));
+                            __mask.select(__v, __v * #f32x::splat(0.5))
                         }}
                     }
                     MappedType::QuarterNegative => {
                         quote! {{
                             let __v = #v;
-                            let __mask = __v.simd_gt(f64x4::splat(0.0));
-                            __mask.select(__v, __v * f64x4::splat(0.25))
+                            let __mask = __v.simd_gt(#f32x::splat(0.0));
+                            __mask.select(__v, __v * #f32x::splat(0.25))
                         }}
                     }
-                    MappedType::Invert => quote! { f64x4::splat(1.0) / (#v) },
+                    MappedType::Invert => quote! { #f32x::splat(1.0) / (#v) },
                     MappedType::Squeeze => {
                         // Scalar: c = clamp(v, -1, 1); c / 2 - c * c * c / 24.
                         quote! {{
                             let __v = #v;
                             let __c = __v
-                                .simd_max(f64x4::splat(-1.0))
-                                .simd_min(f64x4::splat(1.0));
-                            __c / f64x4::splat(2.0)
-                                - __c * __c * __c / f64x4::splat(24.0)
+                                .simd_max(#f32x::splat(-1.0))
+                                .simd_min(#f32x::splat(1.0));
+                            __c / #f32x::splat(2.0)
+                                - __c * __c * __c / #f32x::splat(24.0)
                         }}
                     }
                     MappedType::Negate => quote! { (-(#v)) },
@@ -914,29 +914,29 @@ impl TranspileContext {
             }
 
             DensityFunction::Clamp(c) => {
-                let inner = self.gen_expr_simd(&c.input, input, is_flat);
-                let min = Literal::f64_unsuffixed(c.min);
-                let max = Literal::f64_unsuffixed(c.max);
+                let inner = self.gen_expr_simd(&c.input, input, is_flat, lanes);
+                let min = Literal::f32_unsuffixed(c.min as f32);
+                let max = Literal::f32_unsuffixed(c.max as f32);
                 // Scalar `clamp` is `if v < min { min } else if v > max { max }
                 // else { v }`. SIMD `simd_max(min).simd_min(max)` matches lane
                 // by lane for finite values (no NaN in density values).
                 quote! {
                     (#inner)
-                        .simd_max(f64x4::splat(#min))
-                        .simd_min(f64x4::splat(#max))
+                        .simd_max(#f32x::splat(#min))
+                        .simd_min(#f32x::splat(#max))
                 }
             }
 
             DensityFunction::WeirdScaledSampler(ws) => {
-                // Hybrid SIMD: the rarity input is batched 4-wide (it's
-                // typically a Y-dependent Noise, so 4 scalar samples → 1 SIMD
+                // Hybrid SIMD: the rarity input is batched (it's typically a
+                // Y-dependent Noise, so scalar samples become one SIMD
                 // sample). The outer `noise.get_value(x/scale, y/scale,
                 // z/scale)` is per-lane scalar because each lane's scale —
                 // derived from its own rarity — produces a different scaled
                 // position, which can't be batched without changing the noise
                 // API. Per-lane math is identical to the scalar fallback;
                 // only the input evaluation moves from 4× scalar to 1× SIMD.
-                let input_simd = self.gen_expr_simd(&ws.input, input, is_flat);
+                let input_simd = self.gen_expr_simd(&ws.input, input, is_flat, lanes);
                 let field = noise_field_ident(&ws.noise_id);
                 let mapper = match ws.rarity_value_mapper {
                     RarityValueMapper::Tunnels => quote! { RarityValueMapper::Tunnels },
@@ -949,22 +949,19 @@ impl TranspileContext {
                         let scale = #mapper.get_values(rarity);
                         #[allow(clippy::cast_possible_truncation)]
                         let y = __ys_arr[#i_lit];
-                        scale * noises.#field.get_value(
+                        scale * noises.#field.get_value_f32(
                             x / scale,
                             y / scale,
                             z / scale,
                         ).abs()
                     }}
                 };
-                let r0 = lane(0);
-                let r1 = lane(1);
-                let r2 = lane(2);
-                let r3 = lane(3);
+                let lane_values: Vec<_> = (0..lanes).map(lane).collect();
                 quote! {{
                     let __rarity_v = #input_simd;
                     let __rarity_arr = __rarity_v.to_array();
                     let __ys_arr = ys.to_array();
-                    f64x4::from_array([#r0, #r1, #r2, #r3])
+                    Simd::from_array([#(#lane_values),*])
                 }}
             }
 
@@ -972,46 +969,50 @@ impl TranspileContext {
                 // CSE: hoist subexpressions common to both operands (mirrors the
                 // scalar path). Without this the SIMD fill recomputes shared cave
                 // subtrees (`entrances`, `pillars`, …) once per operand.
-                let (hoisted, hoisted_fps) =
-                    self.hoist_common_subexprs_simd(&[&t.argument1, &t.argument2], input, is_flat);
+                let (hoisted, hoisted_fps) = self.hoist_common_subexprs_simd(
+                    &[&t.argument1, &t.argument2],
+                    input,
+                    is_flat,
+                    lanes,
+                );
 
                 // Add/Mul are uncontroversial — they just become SIMD ops.
                 // Min/Max keep their static-bound short-circuit (the SIMD form
-                // checks `simd_le`/`simd_ge` across all 4 lanes), which
+                // checks `simd_le`/`simd_ge` across all lanes), which
                 // preserves the scalar's "skip the right operand on the lucky
                 // path" optimization.
                 let body = match t.op {
                     TwoArgType::Add => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
                         quote! { ((#a) + (#b)) }
                     }
                     TwoArgType::Sub => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
                         quote! { ((#a) - (#b)) }
                     }
                     TwoArgType::Mul => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
                         quote! { ((#a) * (#b)) }
                     }
                     TwoArgType::Div => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
                         quote! { ((#a) / (#b)) }
                     }
                     TwoArgType::Min => {
                         let (b_lo, _) = compute_bounds(&t.argument2, input);
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
                         if b_lo.is_finite() {
                             // If `a <= b_lo` for all lanes, then `b >= b_lo >= a`,
                             // so `min(a, b) = a`; the right operand is skipped.
-                            let b_lo_lit = Literal::f64_unsuffixed(b_lo);
+                            let b_lo_lit = Literal::f32_unsuffixed(b_lo as f32);
                             quote! {{
                                 let __sc_a = #a;
-                                if __sc_a.simd_le(f64x4::splat(#b_lo_lit)).all() {
+                                if __sc_a.simd_le(#f32x::splat(#b_lo_lit)).all() {
                                     __sc_a
                                 } else {
                                     __sc_a.simd_min(#b)
@@ -1023,13 +1024,13 @@ impl TranspileContext {
                     }
                     TwoArgType::Max => {
                         let (_, b_hi) = compute_bounds(&t.argument2, input);
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
                         if b_hi.is_finite() {
-                            let b_hi_lit = Literal::f64_unsuffixed(b_hi);
+                            let b_hi_lit = Literal::f32_unsuffixed(b_hi as f32);
                             quote! {{
                                 let __sc_a = #a;
-                                if __sc_a.simd_ge(f64x4::splat(#b_hi_lit)).all() {
+                                if __sc_a.simd_ge(#f32x::splat(#b_hi_lit)).all() {
                                     __sc_a
                                 } else {
                                     __sc_a.simd_max(#b)
@@ -1057,19 +1058,19 @@ impl TranspileContext {
 
             DensityFunction::EndIslands => {
                 // EndIslands ignores its `block_y` argument — the result depends
-                // only on (block_x, block_z). All 4 lanes get the same value, so
+                // only on (block_x, block_z). All lanes get the same value, so
                 // we evaluate scalar once and splat. This skips the 25×25
-                // simplex-noise neighborhood scan three out of four times.
-                quote! { f64x4::splat(noises.end_islands.sample(x, 0.0, z)) }
+                // simplex-noise neighborhood scan for every remaining lane.
+                quote! { #f32x::splat(noises.end_islands.sample(x, 0.0, z) as f32) }
             }
 
             DensityFunction::RangeChoice(rc) => {
                 // Mask-select per lane, with a runtime uniformity dispatch:
-                // when all 4 lanes agree (the typical case for Y-stratified
+                // when all lanes agree (the typical case for Y-stratified
                 // RangeChoice trees), only the matching branch is evaluated.
                 // Only when lanes diverge do we eat the both-branches cost.
 
-                let input_simd = self.gen_expr_simd(&rc.input, input, is_flat);
+                let input_simd = self.gen_expr_simd(&rc.input, input, is_flat, lanes);
                 let input_fp = (!self.disable_range_choice_input_cse
                     && is_cse_candidate(&rc.input))
                 .then(|| {
@@ -1081,10 +1082,11 @@ impl TranspileContext {
                     &[&rc.when_in_range, &rc.when_out_of_range],
                     input,
                     is_flat,
+                    lanes,
                 );
 
-                let in_range = self.gen_expr_simd(&rc.when_in_range, input, is_flat);
-                let out_range = self.gen_expr_simd(&rc.when_out_of_range, input, is_flat);
+                let in_range = self.gen_expr_simd(&rc.when_in_range, input, is_flat, lanes);
+                let out_range = self.gen_expr_simd(&rc.when_out_of_range, input, is_flat, lanes);
 
                 if let Some(fp) = input_fp {
                     self.cse_bindings_simd.remove(&fp);
@@ -1093,13 +1095,13 @@ impl TranspileContext {
                     self.cse_bindings_simd.remove(fp);
                 }
 
-                let min = Literal::f64_unsuffixed(rc.min_inclusive);
-                let max = Literal::f64_unsuffixed(rc.max_exclusive);
+                let min = Literal::f32_unsuffixed(rc.min_inclusive as f32);
+                let max = Literal::f32_unsuffixed(rc.max_exclusive as f32);
                 quote! {{
                     let __v = #input_simd;
                     #(#hoisted)*
-                    let __in_mask = __v.simd_ge(f64x4::splat(#min))
-                        & __v.simd_lt(f64x4::splat(#max));
+                    let __in_mask = __v.simd_ge(#f32x::splat(#min))
+                        & __v.simd_lt(#f32x::splat(#max));
                     if __in_mask.all() {
                         #in_range
                     } else if !__in_mask.any() {
@@ -1112,15 +1114,15 @@ impl TranspileContext {
                 }}
             }
 
-            // All other variants: scalar 4× fallback.
-            _ => self.gen_simd_scalar_fallback(df, input, is_flat),
+            // All other variants: scalar-lane fallback.
+            _ => self.gen_simd_scalar_fallback(df, input, is_flat, lanes),
         }
     }
 
-    /// Scalar 4× fallback for variants not yet migrated to true SIMD.
+    /// Scalar-lane fallback for variants not yet migrated to true SIMD.
     ///
     /// Generates the scalar expression once and duplicates the resulting
-    /// `TokenStream` across 4 independent `{ ... }` lane blocks. Each block has
+    /// `TokenStream` across independent `{ ... }` lane blocks. Each block has
     /// its own scope, so any CSE bindings (`let __cse_N = ...`) inside the
     /// duplicated tokens do not collide across lanes.
     pub(super) fn gen_simd_scalar_fallback(
@@ -1128,6 +1130,7 @@ impl TranspileContext {
         df: &DensityFunction,
         input: &TranspilerInput,
         is_flat: bool,
+        lanes: usize,
     ) -> TokenStream {
         let scalar = self.gen_expr(df, input, is_flat);
 
@@ -1154,23 +1157,16 @@ impl TranspileContext {
             }}
         };
 
-        let r0 = lane_block(0, &scalar);
-        let r1 = lane_block(1, &scalar);
-        let r2 = lane_block(2, &scalar);
-        let r3 = lane_block(3, &scalar);
+        let lane_blocks: Vec<_> = (0..lanes).map(|lane| lane_block(lane, &scalar)).collect();
 
         quote! {{
             let __ys_arr = ys.to_array();
             #bv_arr_decl
-            let __r0 = #r0;
-            let __r1 = #r1;
-            let __r2 = #r2;
-            let __r3 = #r3;
-            f64x4::from_array([__r0, __r1, __r2, __r3])
+            Simd::from_array([#(#lane_blocks),*])
         }}
     }
 
-    /// Whether `df` evaluates to the same value for all 4 SIMD lanes given a
+    /// Whether `df` evaluates to the same value for all SIMD lanes given a
     /// fixed `(x, z)` — i.e. the subtree does not depend on Y, even
     /// transitively through `Reference` nodes.
     ///
@@ -1312,15 +1308,16 @@ impl TranspileContext {
     }
 
     /// SIMD counterpart of [`Self::hoist_common_subexprs`]. Identical
-    /// fingerprint/commonality logic, but emits `f64x4` bindings (values via
+    /// fingerprint/commonality logic, but emits SIMD bindings (values via
     /// `gen_expr_simd`) into the disjoint `cse_bindings_simd` map. The scalar
-    /// CSE pass was historically never ported here, so the `_4x` fill path
+    /// CSE pass was historically never ported here, so the SIMD fill path
     /// recomputed shared cave subtrees per operand/branch.
     pub(super) fn hoist_common_subexprs_simd(
         &mut self,
         branches: &[&Arc<DensityFunction>],
         input: &TranspilerInput,
         is_flat: bool,
+        lanes: usize,
     ) -> (Vec<TokenStream>, Vec<u64>) {
         if branches.len() < 2 {
             return (Vec::new(), Vec::new());
@@ -1355,7 +1352,7 @@ impl TranspileContext {
             }
             let var = format_ident!("__cse_{}", self.cse_counter);
             self.cse_counter += 1;
-            let expr = self.gen_expr_simd(df, input, is_flat);
+            let expr = self.gen_expr_simd(df, input, is_flat, lanes);
             bindings.push(quote! { let #var = #expr; });
             self.cse_bindings_simd.insert(fp, var);
             hoisted_fps.push(fp);

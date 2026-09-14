@@ -154,7 +154,7 @@ impl<N: DimensionNoises> NoiseChunk<N> {
 
         let block_x = cell_x * cell_width;
 
-        let mut values = [0.0_f32; MAX_INTERP];
+        let mut values = [0.0_f32; MAX_INTERP * 8];
 
         for cz in 0..=cell_count_xz {
             let cell_z = first_cell_z + cz as i32;
@@ -166,7 +166,44 @@ impl<N: DimensionNoises> NoiseChunk<N> {
             // SIMD-batch blended noise for the entire Y column.
             noises.compute_noise_column(block_x, block_ys, block_z, blended_column);
 
-            for cy in 0..corners_y {
+            let mut cy = 0;
+            while cy + 8 <= corners_y {
+                noises.fill_cell_corner_densities_y8(
+                    cache,
+                    block_x,
+                    [
+                        block_ys[cy],
+                        block_ys[cy + 1],
+                        block_ys[cy + 2],
+                        block_ys[cy + 3],
+                        block_ys[cy + 4],
+                        block_ys[cy + 5],
+                        block_ys[cy + 6],
+                        block_ys[cy + 7],
+                    ],
+                    block_z,
+                    [
+                        blended_column[cy],
+                        blended_column[cy + 1],
+                        blended_column[cy + 2],
+                        blended_column[cy + 3],
+                        blended_column[cy + 4],
+                        blended_column[cy + 5],
+                        blended_column[cy + 6],
+                        blended_column[cy + 7],
+                    ],
+                    &mut values[..interp_count * 8],
+                );
+                for lane in 0..8 {
+                    let corner_idx = cz * corners_y + cy + lane;
+                    let base = corner_idx * MAX_INTERP;
+                    let value_base = lane * interp_count;
+                    slice[base..base + interp_count]
+                        .copy_from_slice(&values[value_base..value_base + interp_count]);
+                }
+                cy += 8;
+            }
+            while cy < corners_y {
                 let block_y = block_ys[cy];
 
                 noises.fill_cell_corner_densities(
@@ -181,6 +218,7 @@ impl<N: DimensionNoises> NoiseChunk<N> {
                 let corner_idx = cz * corners_y + cy;
                 let base = corner_idx * MAX_INTERP;
                 slice[base..base + interp_count].copy_from_slice(&values[..interp_count]);
+                cy += 1;
             }
         }
     }
