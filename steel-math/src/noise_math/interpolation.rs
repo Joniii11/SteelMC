@@ -12,13 +12,21 @@ use std::{
 /// Note: Vanilla's parameter order is `(factor, min, max)`, ours is `(min, max, factor)`.
 #[inline]
 #[must_use]
-pub fn clamped_lerp(min: f64, max: f64, factor: f64) -> f64 {
-    if factor < 0.0 {
+pub fn clamped_lerp<T>(min: T, max: T, factor: T) -> T
+where
+    T: ops::Add<Output = T>
+        + Copy
+        + From<f32>
+        + ops::Mul<Output = T>
+        + PartialOrd
+        + ops::Sub<Output = T>,
+{
+    if factor < T::from(0.0) {
         min
-    } else if factor > 1.0 {
+    } else if factor > T::from(1.0) {
         max
     } else {
-        lerp(factor, min, max)
+        min + factor * (max - min)
     }
 }
 
@@ -227,7 +235,16 @@ pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -
 /// Used for Y-clamped gradients in density functions.
 #[inline]
 #[must_use]
-pub fn map_clamped(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
+pub fn map_clamped<T>(value: T, from_min: T, from_max: T, to_min: T, to_max: T) -> T
+where
+    T: ops::Add<Output = T>
+        + Copy
+        + ops::Div<Output = T>
+        + From<f32>
+        + ops::Mul<Output = T>
+        + PartialOrd
+        + ops::Sub<Output = T>,
+{
     let t = (value - from_min) / (from_max - from_min);
     clamped_lerp(to_min, to_max, t)
 }

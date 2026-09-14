@@ -8,6 +8,7 @@
 use std::sync::LazyLock;
 
 use glam::IVec3;
+use steel_math::map_clamped;
 use steel_registry::structure::TerrainAdjustment;
 use steel_registry::template_pool::Projection;
 use steel_utils::BoundingBox;
@@ -26,6 +27,7 @@ struct Rigid {
 const KERNEL_RADIUS: i32 = 12;
 const KERNEL_SIZE: usize = 24;
 const KERNEL_TOTAL: usize = KERNEL_SIZE * KERNEL_SIZE * KERNEL_SIZE; // 13824
+const BURY_RADIUS: f32 = 6.0;
 
 /// Pre-computed gaussian beard kernel.
 /// Layout: `[z][x][y]` where indices go from 0..24, representing offsets -12..+11.
@@ -89,12 +91,8 @@ fn get_beard_contribution(dx: i32, dy: i32, dz: i32, y_to_ground: i32) -> f32 {
 ///
 /// Simple linear falloff: 1.0 at distance 0, 0.0 at distance 6.
 fn get_bury_contribution(dx: f32, dy: f32, dz: f32) -> f32 {
-    let distance_squared = dx * dx + dy * dy + dz * dz;
-    if distance_squared >= 36.0 {
-        0.0
-    } else {
-        1.0 - distance_squared.sqrt() / 6.0
-    }
+    let distance = (dx * dx + dy * dy + dz * dz).sqrt();
+    map_clamped(distance, 0.0, BURY_RADIUS, 1.0, 0.0)
 }
 
 /// Computes terrain density contributions from nearby structure pieces and junctions.
