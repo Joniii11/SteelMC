@@ -126,7 +126,7 @@ impl ImprovedNoise {
     /// terrain noise.
     #[inline]
     #[must_use]
-    pub fn smeared_noise_f32(
+    pub fn smeared_noise(
         &self,
         original_x: f64,
         original_y: f64,
@@ -157,13 +157,27 @@ impl ImprovedNoise {
         )
     }
 
+    /// Samples smeared noise at `(x, 0.0, z)`.
+    #[inline]
+    #[must_use]
+    pub fn smeared_noise_xz(&self, x: f64, z: f64, fudge_y_scale: f64) -> f32 {
+        self.smeared_noise(x, 0.0, z, fudge_y_scale)
+    }
+
+    /// Samples smeared noise at `(x, y, 0.0)`.
+    #[inline]
+    #[must_use]
+    pub fn smeared_noise_xy(&self, x: f64, y: f64, fudge_y_scale: f64) -> f32 {
+        self.smeared_noise(x, y, 0.0, fudge_y_scale)
+    }
+
     /// Samples an X/Z column of float-based `SmearedPerlinNoise` values.
     ///
     /// Coordinates and the vertical fudge stay in `f64`, as in vanilla. The
     /// gradients and interpolation remain in `f32` lanes.
     #[inline]
     #[must_use]
-    pub fn smeared_noise_f32_y_simd<const N: usize>(
+    pub fn smeared_noise_y_simd<const N: usize>(
         &self,
         original_x: f64,
         original_ys: Simd<f64, N>,
@@ -942,11 +956,11 @@ mod tests {
     }
 
     #[test]
-    fn smeared_noise_f32_y_simd_matches_scalar() {
+    fn smeared_noise_y_simd_matches_scalar() {
         let mut rng = Xoroshiro::from_seed(42);
         let noise = ImprovedNoise::new(&mut rng);
         let ys = [-64.0, -56.0, -48.0, -40.0, -32.0, -24.0, -16.0, -8.0];
-        let simd = noise.smeared_noise_f32_y_simd(
+        let simd = noise.smeared_noise_y_simd(
             20_000_068.0,
             std::simd::f64x8::from_array(ys),
             -19_999_796.0,
@@ -957,7 +971,7 @@ mod tests {
             assert_eq!(
                 value.to_bits(),
                 noise
-                    .smeared_noise_f32(20_000_068.0, y, -19_999_796.0, 5475.296)
+                    .smeared_noise(20_000_068.0, y, -19_999_796.0, 5475.296)
                     .to_bits(),
                 "Y={y}"
             );
@@ -1006,6 +1020,25 @@ mod tests {
         for &(a, b) in &samples {
             assert_eq!(noise.noise_xz(a, b), noise.noise(a, 0.0, b));
             assert_eq!(noise.noise_xy(a, b), noise.noise(a, b, 0.0));
+        }
+    }
+
+    #[test]
+    fn test_zero_axis_smeared_helpers_match_full_noise() {
+        let mut rng = Xoroshiro::from_seed(12_345);
+        let noise = ImprovedNoise::new(&mut rng);
+        let fudge_y_scale = 5475.296;
+        let samples = [(0.0, 0.0), (1.25, -30.75), (-1000.0, 4096.5)];
+
+        for &(a, b) in &samples {
+            assert_eq!(
+                noise.smeared_noise_xz(a, b, fudge_y_scale),
+                noise.smeared_noise(a, 0.0, b, fudge_y_scale),
+            );
+            assert_eq!(
+                noise.smeared_noise_xy(a, b, fudge_y_scale),
+                noise.smeared_noise(a, b, 0.0, fudge_y_scale),
+            );
         }
     }
 

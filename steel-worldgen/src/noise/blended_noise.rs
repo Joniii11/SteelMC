@@ -56,7 +56,7 @@ impl SmearedStack {
         let mut value = 0.0_f32;
         for layer in &self.layers {
             value += layer.amplitude
-                * layer.noise.smeared_noise_f32(
+                * layer.noise.smeared_noise(
                     x * layer.frequency,
                     y * layer.frequency,
                     z * layer.frequency,
@@ -71,7 +71,7 @@ impl SmearedStack {
         let mut value = Simd::splat(0.0_f32);
         for layer in &self.layers {
             value += Simd::splat(layer.amplitude)
-                * layer.noise.smeared_noise_f32_y_simd(
+                * layer.noise.smeared_noise_y_simd(
                     x * layer.frequency,
                     ys * Simd::splat(layer.frequency),
                     z * layer.frequency,
