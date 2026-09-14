@@ -646,10 +646,11 @@ impl HashComponent for BlockTransformerComponent {
     }
 }
 
+#[expect(dead_code, reason = "needs block transformers in a other pr")]
 pub struct BlockTransformerRegistry {
     entries_by_id: Vec<BlockTransformerRef>,
     entries_by_key: FxHashMap<Identifier, usize>,
-    _tags: RegistryTags,
+    tags: RegistryTags,
     allows_registering: bool,
 }
 
