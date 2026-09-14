@@ -5,6 +5,7 @@ use crate::random::RandomSource;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::num::SimdFloat;
 use std::simd::{Select, Simd};
+use steel_math::clamped_lerp;
 
 const BASE_SCALE: f64 = 684.412;
 
@@ -158,7 +159,7 @@ impl BlendedNoise {
         }
         let minimum = self.min_limit_noise.sample(limit_x, limit_y, limit_z);
         let maximum = self.max_limit_noise.sample(limit_x, limit_y, limit_z);
-        minimum + alpha * (maximum - minimum)
+        clamped_lerp(minimum, maximum, alpha)
     }
 
     #[inline]
