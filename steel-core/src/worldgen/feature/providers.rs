@@ -304,11 +304,11 @@ impl FeatureDecorationRunner {
     }
 
     pub(super) fn noise_value<S: NoiseScale>(noise: &NormalNoise, pos: BlockPos, scale: S) -> f64 {
-        noise.get_value(
+        f64::from(noise.get_value(
             scale.scale_coord(pos.x()),
             scale.scale_coord(pos.y()),
             scale.scale_coord(pos.z()),
-        )
+        ))
     }
 
     pub(super) fn noise_state_by_value(

@@ -34,11 +34,11 @@ fn float_noise_matches_pre1_extractor() -> Result<(), serde_json::Error> {
         let mut random = RandomSource::Legacy(LegacyRandom::from_seed(sample.seed as u64));
         let actual = match sample.sampler {
             Sampler::Normal => {
-                NormalNoise::create_from_random(&mut random, -7, &[1.0, 1.0]).get_value_f32(x, y, z)
+                NormalNoise::create_from_random(&mut random, -7, &[1.0, 1.0]).get_value(x, y, z)
             }
             Sampler::LegacyNether => {
                 NormalNoise::create_legacy_nether_biome(&mut random, -7, &[1.0, 1.0])
-                    .get_value_f32(x, y, z)
+                    .get_value(x, y, z)
             }
             Sampler::Blended => {
                 BlendedNoise::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0).compute(x, y, z)

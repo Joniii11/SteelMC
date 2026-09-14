@@ -1,4 +1,4 @@
-use std::simd::{Simd, f64x4, num::SimdFloat};
+use std::simd::Simd;
 
 use crate::noise::ImprovedNoise;
 use crate::random::{PositionalRandom, Random, RandomSource, RandomSplitter, name_hash::NameHash};
@@ -42,7 +42,7 @@ impl NormalNoise {
         amplitudes: &[f64],
     ) -> Self {
         let base_amplitude = parity_base_amplitude(first_octave, amplitudes);
-        Self::create_from_params(
+        Self::create_from_random_with_params(
             random,
             first_octave,
             base_amplitude,
@@ -159,7 +159,7 @@ impl NormalNoise {
         amplitude_modifiers: &[f64],
     ) -> Self {
         let mut random = splitter.with_hash_of(&NameHash::new(noise_id));
-        Self::create_from_params(
+        Self::create_from_random_with_params(
             &mut random,
             base_octave,
             base_amplitude,
@@ -172,24 +172,6 @@ impl NormalNoise {
     #[must_use]
     /// Creates current datapack noise from a vanilla random source.
     pub fn create_from_random_with_params(
-        random: &mut RandomSource,
-        base_octave: i32,
-        base_amplitude: f64,
-        octave_count: i32,
-        normalize: bool,
-        amplitude_modifiers: &[f64],
-    ) -> Self {
-        Self::create_from_params(
-            random,
-            base_octave,
-            base_amplitude,
-            octave_count,
-            normalize,
-            amplitude_modifiers,
-        )
-    }
-
-    fn create_from_params(
         random: &mut RandomSource,
         base_octave: i32,
         base_amplitude: f64,
@@ -239,7 +221,7 @@ impl NormalNoise {
     #[inline]
     #[must_use]
     /// Samples the float-valued vanilla noise stack.
-    pub fn get_value_f32(&self, x: f64, y: f64, z: f64) -> f32 {
+    pub fn get_value(&self, x: f64, y: f64, z: f64) -> f32 {
         self.layers.iter().fold(0.0_f32, |value, layer| {
             value
                 + layer.amplitude
@@ -254,61 +236,21 @@ impl NormalNoise {
     #[inline]
     #[must_use]
     /// Samples the float-valued vanilla noise stack with a fixed Y coordinate.
-    pub fn get_value_xz_f32(&self, x: f64, z: f64) -> f32 {
-        self.get_value_f32(x, 0.0, z)
+    pub fn get_value_xz(&self, x: f64, z: f64) -> f32 {
+        self.get_value(x, 0.0, z)
     }
 
     #[inline]
     #[must_use]
     /// Samples the float-valued vanilla noise stack with a fixed Z coordinate.
-    pub fn get_value_xy_f32(&self, x: f64, y: f64) -> f32 {
-        self.get_value_f32(x, y, 0.0)
+    pub fn get_value_xy(&self, x: f64, y: f64) -> f32 {
+        self.get_value(x, y, 0.0)
     }
 
     #[inline]
     #[must_use]
-    /// Samples the noise and widens the resulting vanilla float for legacy callers.
-    pub fn get_value(&self, x: f64, y: f64, z: f64) -> f64 {
-        f64::from(self.get_value_f32(x, y, z))
-    }
-
-    #[inline]
-    #[must_use]
-    /// Samples with a fixed Y coordinate and widens the result for legacy callers.
-    pub fn get_value_xz(&self, x: f64, z: f64) -> f64 {
-        f64::from(self.get_value_xz_f32(x, z))
-    }
-
-    #[inline]
-    #[must_use]
-    /// Samples with a fixed Z coordinate and widens the result for legacy callers.
-    pub fn get_value_xy(&self, x: f64, y: f64) -> f64 {
-        f64::from(self.get_value_xy_f32(x, y))
-    }
-
-    #[inline]
-    #[must_use]
-    /// Samples four Y coordinates.
-    pub fn get_value_y_4x(&self, x: f64, ys: f64x4, z: f64) -> f64x4 {
-        self.get_value_y_simd(x, ys, z)
-    }
-
-    #[inline]
-    #[must_use]
-    /// Samples a SIMD Y column, preserving each lane's vanilla float value.
+    /// Samples a SIMD Y column with the same f32 accumulator as `get_value`.
     pub fn get_value_y_simd<const N: usize>(
-        &self,
-        x: f64,
-        ys: Simd<f64, N>,
-        z: f64,
-    ) -> Simd<f64, N> {
-        self.get_value_y_simd_f32(x, ys, z).cast()
-    }
-
-    #[inline]
-    #[must_use]
-    /// Samples a SIMD Y column with the same f32 accumulator as `get_value_f32`.
-    pub fn get_value_y_simd_f32<const N: usize>(
         &self,
         x: f64,
         ys: Simd<f64, N>,
@@ -424,7 +366,7 @@ fn parity_base_amplitude(first_octave: i32, amplitudes: &[f64]) -> f64 {
 mod tests {
     use super::*;
     use crate::random::{RandomSource, legacy_random::LegacyRandom};
-    use std::simd::f64x8;
+    use std::simd::{f64x4, f64x8};
 
     #[test]
     fn value_y_simd_matches_scalar_f32_lanes() {
@@ -433,22 +375,16 @@ mod tests {
         let x = 123.25;
         let z = -456.75;
         let ys4 = [0.0, 64.5, -12.25, 255.75];
-        let simd4 = noise.get_value_y_simd_f32(x, f64x4::from_array(ys4), z);
+        let simd4 = noise.get_value_y_simd(x, f64x4::from_array(ys4), z);
 
         for (lane, y) in ys4.into_iter().enumerate() {
-            assert_eq!(
-                simd4[lane].to_bits(),
-                noise.get_value_f32(x, y, z).to_bits()
-            );
+            assert_eq!(simd4[lane].to_bits(), noise.get_value(x, y, z).to_bits());
         }
 
         let ys8 = [0.0, 64.5, -12.25, 255.75, -64.0, 1.25, 320.0, 4096.5];
-        let simd8 = noise.get_value_y_simd_f32(x, f64x8::from_array(ys8), z);
+        let simd8 = noise.get_value_y_simd(x, f64x8::from_array(ys8), z);
         for (lane, y) in ys8.into_iter().enumerate() {
-            assert_eq!(
-                simd8[lane].to_bits(),
-                noise.get_value_f32(x, y, z).to_bits()
-            );
+            assert_eq!(simd8[lane].to_bits(), noise.get_value(x, y, z).to_bits());
         }
     }
 }

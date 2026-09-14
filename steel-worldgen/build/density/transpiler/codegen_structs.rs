@@ -337,9 +337,7 @@ impl TranspileContext {
                 let noise_field = noise_field_ident(noise_id);
                 let scale = Literal::f64_unsuffixed(*xz_scale);
                 quote! {
-                    self.#field = noises.#noise_field.get_value_xz(
-                        x * #scale, z * #scale,
-                    ) as f32;
+                    self.#field = noises.#noise_field.get_value_xz(x * #scale, z * #scale);
                 }
             })
             .collect();
