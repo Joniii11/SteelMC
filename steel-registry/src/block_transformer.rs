@@ -649,7 +649,7 @@ impl HashComponent for BlockTransformerComponent {
 pub struct BlockTransformerRegistry {
     entries_by_id: Vec<BlockTransformerRef>,
     entries_by_key: FxHashMap<Identifier, usize>,
-    tags: RegistryTags,
+    _tags: RegistryTags,
     allows_registering: bool,
 }
 
