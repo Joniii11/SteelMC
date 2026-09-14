@@ -173,54 +173,24 @@ impl ImprovedNoise {
         relative_z: f32,
         original_relative_y: f32,
     ) -> f32 {
-        let permute = |coordinate: i32| i32::from(self.p[(coordinate & 255) as usize]);
-        let grad_dot = |hash: i32, x: f32, y: f32, z: f32| {
-            let [gx, gy, gz] = GRADIENT_F32[(hash & 15) as usize];
-            gx * x + gy * y + gz * z
-        };
-
         let lerp = |alpha: f32, first: f32, second: f32| first + alpha * (second - first);
         let smoothstep = |value: f32| value * value * value * (value * (value * 6.0 - 15.0) + 10.0);
 
-        let x0 = permute(x);
-        let x1 = permute(x + 1);
-        let xy00 = permute(x0 + y);
-        let xy01 = permute(x0 + y + 1);
-        let xy10 = permute(x1 + y);
-        let xy11 = permute(x1 + y + 1);
-        let d000 = grad_dot(permute(xy00 + z), relative_x, relative_y, relative_z);
-        let d100 = grad_dot(permute(xy10 + z), relative_x - 1.0, relative_y, relative_z);
-        let d010 = grad_dot(permute(xy01 + z), relative_x, relative_y - 1.0, relative_z);
-        let d110 = grad_dot(
-            permute(xy11 + z),
-            relative_x - 1.0,
-            relative_y - 1.0,
-            relative_z,
-        );
-        let d001 = grad_dot(
-            permute(xy00 + z + 1),
-            relative_x,
-            relative_y,
-            relative_z - 1.0,
-        );
-        let d101 = grad_dot(
-            permute(xy10 + z + 1),
-            relative_x - 1.0,
-            relative_y,
-            relative_z - 1.0,
-        );
-        let d011 = grad_dot(
-            permute(xy01 + z + 1),
-            relative_x,
-            relative_y - 1.0,
-            relative_z - 1.0,
-        );
-        let d111 = grad_dot(
-            permute(xy11 + z + 1),
-            relative_x - 1.0,
-            relative_y - 1.0,
-            relative_z - 1.0,
-        );
+        let x1 = x.wrapping_add(1);
+        let y1 = y.wrapping_add(1);
+        let z1 = z.wrapping_add(1);
+        let relative_x1 = relative_x - 1.0;
+        let relative_y1 = relative_y - 1.0;
+        let relative_z1 = relative_z - 1.0;
+
+        let d000 = grad_dot_flat_f32(&self.p, x, y, z, relative_x, relative_y, relative_z);
+        let d100 = grad_dot_flat_f32(&self.p, x1, y, z, relative_x1, relative_y, relative_z);
+        let d010 = grad_dot_flat_f32(&self.p, x, y1, z, relative_x, relative_y1, relative_z);
+        let d110 = grad_dot_flat_f32(&self.p, x1, y1, z, relative_x1, relative_y1, relative_z);
+        let d001 = grad_dot_flat_f32(&self.p, x, y, z1, relative_x, relative_y, relative_z1);
+        let d101 = grad_dot_flat_f32(&self.p, x1, y, z1, relative_x1, relative_y, relative_z1);
+        let d011 = grad_dot_flat_f32(&self.p, x, y1, z1, relative_x, relative_y1, relative_z1);
+        let d111 = grad_dot_flat_f32(&self.p, x1, y1, z1, relative_x1, relative_y1, relative_z1);
         let x_alpha = smoothstep(relative_x);
         let y_alpha = smoothstep(original_relative_y);
         let z_alpha = smoothstep(relative_z);
@@ -811,6 +781,18 @@ fn grad_dot_flat(p: &[u8; 256], px: i32, py: i32, pz: i32, fx: f64, fy: f64, fz:
     let b = p[a.wrapping_add(qy) as usize];
     let hash = p[b.wrapping_add(qz) as usize];
     grad_dot(hash as usize, fx, fy, fz)
+}
+
+/// Matches the scalar f32 Perlin gradient operation while exposing the permutation chain.
+#[inline]
+fn grad_dot_flat_f32(p: &[u8; 256], px: i32, py: i32, pz: i32, fx: f32, fy: f32, fz: f32) -> f32 {
+    let qx = (px & 0xFF) as u8;
+    let qy = (py & 0xFF) as u8;
+    let qz = (pz & 0xFF) as u8;
+    let a = p[qx as usize];
+    let b = p[a.wrapping_add(qy) as usize];
+    let [gx, gy, gz] = GRADIENT_F32[p[b.wrapping_add(qz) as usize] as usize & 15];
+    gx * fx + gy * fy + gz * fz
 }
 
 #[cfg(test)]
