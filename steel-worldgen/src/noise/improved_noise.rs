@@ -124,6 +124,32 @@ impl ImprovedNoise {
         )
     }
 
+    /// samples one X/Z column of the floatvalued Perlin noise impl
+    #[inline]
+    #[must_use]
+    pub fn noise_f32_y_simd<const N: usize>(
+        &self,
+        x: f64,
+        ys: Simd<f64, N>,
+        z: f64,
+    ) -> Simd<f32, N> {
+        let x = steel_math::wrap(x) + self.xo;
+        let z = steel_math::wrap(z) + self.zo;
+        let ys = steel_math::wrap_simd(ys) + Simd::splat(self.yo);
+        let floor_x = fast_floor(x);
+        let floor_z = fast_floor(z);
+        let floor_ys = fast_floor_simd::<f64, i32, N>(ys);
+
+        self.sample_and_lerp_f32_y_simd(
+            floor_x,
+            floor_ys,
+            floor_z,
+            (x - f64::from(floor_x)) as f32,
+            (ys - floor_ys.cast()).cast(),
+            (z - f64::from(floor_z)) as f32,
+        )
+    }
+
     /// Samples the float-based `SmearedPerlinNoise` used by 26.3's blended
     /// terrain noise.
     #[inline]
@@ -194,6 +220,93 @@ impl ImprovedNoise {
         let x_alpha = smoothstep(relative_x);
         let y_alpha = smoothstep(original_relative_y);
         let z_alpha = smoothstep(relative_z);
+        let xz0 = lerp(
+            y_alpha,
+            lerp(x_alpha, d000, d100),
+            lerp(x_alpha, d010, d110),
+        );
+        let xz1 = lerp(
+            y_alpha,
+            lerp(x_alpha, d001, d101),
+            lerp(x_alpha, d011, d111),
+        );
+        lerp(z_alpha, xz0, xz1)
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors scalar sample_and_lerp_f32 with SIMD Y lanes"
+    )]
+    #[inline]
+    fn sample_and_lerp_f32_y_simd<const N: usize>(
+        &self,
+        x: i32,
+        ys: Simd<i32, N>,
+        z: i32,
+        relative_x: f32,
+        relative_ys: Simd<f32, N>,
+        relative_z: f32,
+    ) -> Simd<f32, N> {
+        let x = x as u8;
+        let z = z as u8;
+        let x0 = self.p[x as usize];
+        let x1 = self.p[x.wrapping_add(1) as usize];
+        let ys = ys.cast::<u8>();
+
+        let mut h000 = [0_usize; N];
+        let mut h100 = [0_usize; N];
+        let mut h010 = [0_usize; N];
+        let mut h110 = [0_usize; N];
+        let mut h001 = [0_usize; N];
+        let mut h101 = [0_usize; N];
+        let mut h011 = [0_usize; N];
+        let mut h111 = [0_usize; N];
+
+        for lane in 0..N {
+            let y = ys[lane];
+            let xy00 = self.p[x0.wrapping_add(y) as usize];
+            let xy01 = self.p[x0.wrapping_add(y).wrapping_add(1) as usize];
+            let xy10 = self.p[x1.wrapping_add(y) as usize];
+            let xy11 = self.p[x1.wrapping_add(y).wrapping_add(1) as usize];
+            h000[lane] = self.p[xy00.wrapping_add(z) as usize] as usize;
+            h100[lane] = self.p[xy10.wrapping_add(z) as usize] as usize;
+            h010[lane] = self.p[xy01.wrapping_add(z) as usize] as usize;
+            h110[lane] = self.p[xy11.wrapping_add(z) as usize] as usize;
+            h001[lane] = self.p[xy00.wrapping_add(z).wrapping_add(1) as usize] as usize;
+            h101[lane] = self.p[xy10.wrapping_add(z).wrapping_add(1) as usize] as usize;
+            h011[lane] = self.p[xy01.wrapping_add(z).wrapping_add(1) as usize] as usize;
+            h111[lane] = self.p[xy11.wrapping_add(z).wrapping_add(1) as usize] as usize;
+        }
+
+        let relative_xs = Simd::splat(relative_x);
+        let relative_zs = Simd::splat(relative_z);
+        let one = Simd::splat(1.0);
+        let relative_x1 = relative_xs - one;
+        let relative_y1 = relative_ys - one;
+        let relative_z1 = relative_zs - one;
+
+        let d000 = grad_dot_simd(h000, relative_xs, relative_ys, relative_zs);
+        let d100 = grad_dot_simd(h100, relative_x1, relative_ys, relative_zs);
+        let d010 = grad_dot_simd(h010, relative_xs, relative_y1, relative_zs);
+        let d110 = grad_dot_simd(h110, relative_x1, relative_y1, relative_zs);
+        let d001 = grad_dot_simd(h001, relative_xs, relative_ys, relative_z1);
+        let d101 = grad_dot_simd(h101, relative_x1, relative_ys, relative_z1);
+        let d011 = grad_dot_simd(h011, relative_xs, relative_y1, relative_z1);
+        let d111 = grad_dot_simd(h111, relative_x1, relative_y1, relative_z1);
+
+        let smoothstep = |value: Simd<f32, N>| {
+            value
+                * value
+                * value
+                * (value * (value * Simd::splat(6.0) - Simd::splat(15.0)) + Simd::splat(10.0))
+        };
+        let lerp = |alpha: Simd<f32, N>, first: Simd<f32, N>, second: Simd<f32, N>| {
+            first + alpha * (second - first)
+        };
+
+        let x_alpha = smoothstep(relative_xs);
+        let y_alpha = smoothstep(relative_ys);
+        let z_alpha = smoothstep(relative_zs);
         let xz0 = lerp(
             y_alpha,
             lerp(x_alpha, d000, d100),
@@ -907,6 +1020,33 @@ mod tests {
                     "Mismatch at ({}, {}, {}): scalar={}, simd={}",
                     xs[i], ys[i], zs[i], scalar, simd[i],
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_noise_f32_y_simd_matches_scalar() {
+        let mut rng = Xoroshiro::from_seed(42);
+        let noise = ImprovedNoise::new(&mut rng);
+        let columns = [
+            (0.0, 0.0, [0.0, 1.25, -5.5, 1000.75]),
+            (
+                255.25 - noise.xo,
+                -256.25 - noise.zo,
+                [
+                    255.5 - noise.yo,
+                    256.5 - noise.yo,
+                    -1.5 - noise.yo,
+                    -256.5 - noise.yo,
+                ],
+            ),
+            (33_554_432.0, -33_554_432.0, [64.0, 64.5, 65.0, 65.5]),
+        ];
+
+        for (x, z, ys) in columns {
+            let simd = noise.noise_f32_y_simd(x, f64x4::from_array(ys), z);
+            for (lane, y) in ys.into_iter().enumerate() {
+                assert_eq!(simd[lane].to_bits(), noise.noise_f32(x, y, z).to_bits());
             }
         }
     }

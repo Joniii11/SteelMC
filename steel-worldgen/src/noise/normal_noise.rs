@@ -1,5 +1,4 @@
-use std::array::from_fn;
-use std::simd::{Simd, f64x4};
+use std::simd::{Simd, f64x4, num::SimdFloat};
 
 use crate::noise::ImprovedNoise;
 use crate::random::{PositionalRandom, Random, RandomSource, RandomSplitter, name_hash::NameHash};
@@ -303,7 +302,16 @@ impl NormalNoise {
         ys: Simd<f64, N>,
         z: f64,
     ) -> Simd<f64, N> {
-        Simd::from_array(from_fn(|index| self.get_value(x, ys[index], z)))
+        let mut value = Simd::splat(0.0_f32);
+        for layer in &self.layers {
+            let noise = layer.noise.noise_f32_y_simd(
+                x * layer.frequency,
+                ys * Simd::splat(layer.frequency),
+                z * layer.frequency,
+            );
+            value += Simd::splat(layer.amplitude) * noise;
+        }
+        value.cast()
     }
 
     #[inline]
@@ -398,4 +406,24 @@ fn parity_base_amplitude(first_octave: i32, amplitudes: &[f64]) -> f64 {
         return 1.0;
     }
     parity_normalization_factor(1.0, amplitudes) / new_factor
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::random::{RandomSource, legacy_random::LegacyRandom};
+
+    #[test]
+    fn value_y_simd_matches_scalar_f32_lanes() {
+        let mut random = RandomSource::Legacy(LegacyRandom::from_seed(42));
+        let noise = NormalNoise::create_from_random(&mut random, -7, &[1.0, 1.0, 1.0]);
+        let x = 123.25;
+        let z = -456.75;
+        let ys = [0.0, 64.5, -12.25, 255.75];
+        let simd = noise.get_value_y_simd(x, f64x4::from_array(ys), z);
+
+        for (lane, y) in ys.into_iter().enumerate() {
+            assert_eq!(simd[lane].to_bits(), noise.get_value(x, y, z).to_bits());
+        }
+    }
 }
