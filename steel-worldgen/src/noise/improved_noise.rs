@@ -31,10 +31,6 @@ pub struct ImprovedNoise {
     pub yo: f64,
     /// Z offset for the noise coordinates
     pub zo: f64,
-    yo_floor: i32,
-    yo_fraction: f64,
-    zo_floor: i32,
-    zo_fraction: f64,
 }
 
 impl ImprovedNoise {
@@ -62,42 +58,7 @@ impl ImprovedNoise {
             p.swap(i, i + offset);
         }
 
-        let yo_floor = fast_floor(yo);
-        let yo_fraction = yo - f64::from(yo_floor);
-        let zo_floor = fast_floor(zo);
-        let zo_fraction = zo - f64::from(zo_floor);
-
-        Self {
-            p,
-            xo,
-            yo,
-            zo,
-            yo_floor,
-            yo_fraction,
-            zo_floor,
-            zo_fraction,
-        }
-    }
-
-    /// Sample noise at the given coordinates.
-    ///
-    /// This is the standard 3D Perlin noise sampling without Y scaling.
-    #[inline]
-    #[must_use]
-    pub fn noise(&self, x: f64, y: f64, z: f64) -> f64 {
-        let x = x + self.xo;
-        let y = y + self.yo;
-        let z = z + self.zo;
-
-        let xf = fast_floor(x);
-        let yf = fast_floor(y);
-        let zf = fast_floor(z);
-
-        let xr = x - f64::from(xf);
-        let yr = y - f64::from(yf);
-        let zr = z - f64::from(zf);
-
-        self.sample_and_lerp(xf, yf, zf, xr, yr, zr, yr)
+        Self { p, xo, yo, zo }
     }
 
     /// Samples the 26.3 float-based `PerlinNoise` implementation.
@@ -106,7 +67,7 @@ impl ImprovedNoise {
     /// fractional coordinates and every interpolation operation to `float`.
     #[inline]
     #[must_use]
-    pub fn noise_f32(&self, x: f64, y: f64, z: f64) -> f32 {
+    pub fn noise(&self, x: f64, y: f64, z: f64) -> f32 {
         let x = steel_math::wrap(x) + self.xo;
         let y = steel_math::wrap(y) + self.yo;
         let z = steel_math::wrap(z) + self.zo;
@@ -124,15 +85,24 @@ impl ImprovedNoise {
         )
     }
 
+    /// Samples noise at `(x, 0.0, z)`.
+    #[inline]
+    #[must_use]
+    pub fn noise_xz(&self, x: f64, z: f64) -> f32 {
+        self.noise(x, 0.0, z)
+    }
+
+    /// Samples noise at `(x, y, 0.0)`.
+    #[inline]
+    #[must_use]
+    pub fn noise_xy(&self, x: f64, y: f64) -> f32 {
+        self.noise(x, y, 0.0)
+    }
+
     /// samples one X/Z column of the floatvalued Perlin noise impl
     #[inline]
     #[must_use]
-    pub fn noise_f32_y_simd<const N: usize>(
-        &self,
-        x: f64,
-        ys: Simd<f64, N>,
-        z: f64,
-    ) -> Simd<f32, N> {
+    pub fn noise_y_simd<const N: usize>(&self, x: f64, ys: Simd<f64, N>, z: f64) -> Simd<f32, N> {
         let x = steel_math::wrap(x) + self.xo;
         let z = steel_math::wrap(z) + self.zo;
         let ys = steel_math::wrap_simd(ys) + Simd::splat(self.yo);
@@ -394,46 +364,6 @@ impl ImprovedNoise {
         let zr = z - zf.cast();
 
         self.sample_and_lerp_simd(xf, yf, zf, xr, yr, zr, yr)
-    }
-
-    /// Sample noise at `(x, 0.0, z)`.
-    #[inline]
-    #[must_use]
-    pub fn noise_xz(&self, x: f64, z: f64) -> f64 {
-        let x = x + self.xo;
-        let z = z + self.zo;
-
-        let xf = fast_floor(x);
-        let zf = fast_floor(z);
-
-        let xr = x - f64::from(xf);
-        let zr = z - f64::from(zf);
-
-        self.sample_and_lerp(
-            xf,
-            self.yo_floor,
-            zf,
-            xr,
-            self.yo_fraction,
-            zr,
-            self.yo_fraction,
-        )
-    }
-
-    /// Sample noise at `(x, y, 0.0)`.
-    #[inline]
-    #[must_use]
-    pub fn noise_xy(&self, x: f64, y: f64) -> f64 {
-        let x = x + self.xo;
-        let y = y + self.yo;
-
-        let xf = fast_floor(x);
-        let yf = fast_floor(y);
-
-        let xr = x - f64::from(xf);
-        let yr = y - f64::from(yf);
-
-        self.sample_and_lerp(xf, yf, self.zo_floor, xr, yr, self.zo_fraction, yr)
     }
 
     /// Sample noise at the given coordinates, accumulating partial derivatives.
@@ -1035,62 +965,7 @@ mod tests {
     }
 
     #[test]
-    fn test_noise_simd_matches_scalar() {
-        let mut rng = Xoroshiro::from_seed(42);
-        let noise = ImprovedNoise::new(&mut rng);
-
-        let batches = [
-            (
-                [0.0, 1.25, -5.5, 1000.75],
-                [0.0, 64.5, -20.25, 255.75],
-                [0.0, -30.75, 4096.5, -1000.25],
-            ),
-            (
-                [
-                    255.25 - noise.xo,
-                    256.25 - noise.xo,
-                    -1.75 - noise.xo,
-                    -256.25 - noise.xo,
-                ],
-                [
-                    255.5 - noise.yo,
-                    256.5 - noise.yo,
-                    -1.5 - noise.yo,
-                    -256.5 - noise.yo,
-                ],
-                [
-                    255.75 - noise.zo,
-                    256.75 - noise.zo,
-                    -1.25 - noise.zo,
-                    -256.25 - noise.zo,
-                ],
-            ),
-        ];
-
-        for (xs, ys, zs) in batches {
-            let simd = noise.noise_simd(
-                f64x4::from_array(xs),
-                f64x4::from_array(ys),
-                f64x4::from_array(zs),
-            );
-            for i in 0..4 {
-                let scalar = noise.noise(xs[i], ys[i], zs[i]);
-                #[expect(
-                    clippy::float_cmp,
-                    reason = "SIMD path must be bit-identical to scalar noise for vanilla determinism"
-                )]
-                let matches = scalar == simd[i];
-                assert!(
-                    matches,
-                    "Mismatch at ({}, {}, {}): scalar={}, simd={}",
-                    xs[i], ys[i], zs[i], scalar, simd[i],
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_noise_f32_y_simd_matches_scalar() {
+    fn test_noise_y_simd_matches_scalar() {
         let mut rng = Xoroshiro::from_seed(42);
         let noise = ImprovedNoise::new(&mut rng);
         let columns = [
@@ -1109,10 +984,28 @@ mod tests {
         ];
 
         for (x, z, ys) in columns {
-            let simd = noise.noise_f32_y_simd(x, f64x4::from_array(ys), z);
+            let simd = noise.noise_y_simd(x, f64x4::from_array(ys), z);
             for (lane, y) in ys.into_iter().enumerate() {
-                assert_eq!(simd[lane].to_bits(), noise.noise_f32(x, y, z).to_bits());
+                assert_eq!(simd[lane].to_bits(), noise.noise(x, y, z).to_bits());
             }
+        }
+    }
+
+    #[test]
+    fn test_zero_axis_helpers_match_full_noise() {
+        let mut rng = Xoroshiro::from_seed(12_345);
+        let noise = ImprovedNoise::new(&mut rng);
+        let samples = [
+            (0.0, 0.0),
+            (1.25, -30.75),
+            (-1000.0, 4096.5),
+            (33_554_431.5, -33_554_432.25),
+            (-0.000_000_1, 0.000_000_1),
+        ];
+
+        for &(a, b) in &samples {
+            assert_eq!(noise.noise_xz(a, b), noise.noise(a, 0.0, b));
+            assert_eq!(noise.noise_xy(a, b), noise.noise(a, b, 0.0));
         }
     }
 
@@ -1204,40 +1097,6 @@ mod tests {
     }
 
     #[test]
-    fn test_noise_matches_zero_y_scale_path() {
-        let mut rng = Xoroshiro::from_seed(42);
-        let noise = ImprovedNoise::new(&mut rng);
-
-        for (x, y, z) in [
-            (0.0, 0.0, 0.0),
-            (1.25, 64.5, -30.75),
-            (-1000.0, -20.25, 4096.5),
-        ] {
-            assert!(
-                (noise.noise(x, y, z) - noise.noise_with_y_scale(x, y, z, 0.0, 0.0)).abs() < 1e-15
-            );
-        }
-    }
-
-    #[test]
-    fn test_zero_axis_helpers_match_full_noise() {
-        let mut rng = Xoroshiro::from_seed(12_345);
-        let noise = ImprovedNoise::new(&mut rng);
-        let samples = [
-            (0.0, 0.0),
-            (1.25, -30.75),
-            (-1000.0, 4096.5),
-            (33_554_431.5, -33_554_432.25),
-            (-0.000_000_1, 0.000_000_1),
-        ];
-
-        for &(a, b) in &samples {
-            assert_eq!(noise.noise_xz(a, b), noise.noise(a, 0.0, b));
-            assert_eq!(noise.noise_xy(a, b), noise.noise(a, b, 0.0));
-        }
-    }
-
-    #[test]
     fn test_improved_noise_range() {
         let mut rng = Xoroshiro::from_seed(42);
         let noise = ImprovedNoise::new(&mut rng);
@@ -1273,29 +1132,6 @@ mod tests {
         )]
         let all_same = v1 == v2 && v2 == v3 && v3 == v4;
         assert!(!all_same, "All noise values are the same - unexpected");
-    }
-
-    #[test]
-    fn test_noise_with_derivative_matches_noise() {
-        let mut rng = Xoroshiro::from_seed(42);
-        let noise = ImprovedNoise::new(&mut rng);
-
-        // noise_with_derivative should return the same value as noise()
-        // (when no y_scale/y_fudge is used)
-        for &(x, y, z) in &[
-            (0.0, 0.0, 0.0),
-            (1.5, 2.3, 3.7),
-            (-5.2, 64.0, 100.3),
-            (0.25, 0.25, 0.25),
-        ] {
-            let v1 = noise.noise(x, y, z);
-            let mut deriv = [0.0; 3];
-            let v2 = noise.noise_with_derivative(x, y, z, &mut deriv);
-            assert!(
-                (v1 - v2).abs() < 1e-12,
-                "Value mismatch at ({x}, {y}, {z}): {v1} vs {v2}",
-            );
-        }
     }
 
     #[test]

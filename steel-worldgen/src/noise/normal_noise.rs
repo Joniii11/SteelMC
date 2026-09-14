@@ -225,7 +225,7 @@ impl NormalNoise {
         self.layers.iter().fold(0.0_f32, |value, layer| {
             value
                 + layer.amplitude
-                    * layer.noise.noise_f32(
+                    * layer.noise.noise(
                         x * layer.frequency,
                         y * layer.frequency,
                         z * layer.frequency,
@@ -258,7 +258,7 @@ impl NormalNoise {
     ) -> Simd<f32, N> {
         let mut value = Simd::splat(0.0_f32);
         for layer in &self.layers {
-            let noise = layer.noise.noise_f32_y_simd(
+            let noise = layer.noise.noise_y_simd(
                 x * layer.frequency,
                 ys * Simd::splat(layer.frequency),
                 z * layer.frequency,
