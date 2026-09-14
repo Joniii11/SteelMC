@@ -58,8 +58,7 @@ impl Player {
     }
 
     fn bed_rule_problem_message(rule: &BedRule) -> Option<TextComponent> {
-        rule.error_message_key
-            .map(|key| TranslatedMessage::new(key, None).component())
+        rule.error_message.map(|message| message())
     }
 
     fn bed_sleep_problem(rule: &BedRule) -> BedSleepingProblem {

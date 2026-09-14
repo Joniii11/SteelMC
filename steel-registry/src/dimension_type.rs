@@ -2,6 +2,7 @@ use rustc_hash::FxHashMap;
 use simdnbt::ToNbtTag;
 use simdnbt::owned::NbtTag;
 use steel_utils::Identifier;
+use text_components::TextComponent;
 
 use crate::sound_event::SoundEventRef;
 use crate::world_clock::WorldClockRef;
@@ -13,6 +14,7 @@ pub struct BedRule {
     pub destroy_on_use: bool,
     pub destroy_on_leave: bool,
     pub error_message_key: Option<&'static str>,
+    pub error_message: Option<fn() -> TextComponent>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

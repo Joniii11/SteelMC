@@ -210,6 +210,13 @@ fn generate_bed_rule(bed_rule: &BedRuleJson) -> TokenStream {
             quote! { #s }
         },
     );
+    let error_message = generate_option(
+        &bed_rule.error_message.as_ref().map(|m| m.translate.clone()),
+        |key| {
+            let ident = Ident::new(&key.to_shouty_snake_case(), Span::call_site());
+            quote! { || steel_utils::translations::#ident.msg().component() }
+        },
+    );
     quote! {
         BedRule {
             can_set_spawn: #can_set_spawn,
@@ -217,6 +224,7 @@ fn generate_bed_rule(bed_rule: &BedRuleJson) -> TokenStream {
             destroy_on_use: #destroy_on_use,
             destroy_on_leave: #destroy_on_leave,
             error_message_key: #error_message_key,
+            error_message: #error_message,
         }
     }
 }

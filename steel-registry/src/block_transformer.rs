@@ -557,7 +557,7 @@ fn insert_offset(value: &mut NbtCompound, offset: (i32, i32, i32)) {
     }
 }
 
-fn particle_name(particle: TransformParticle) -> &'static str {
+const fn particle_name(particle: TransformParticle) -> &'static str {
     match particle {
         TransformParticle::None => "none",
         TransformParticle::Scrape => "scrape",
@@ -566,14 +566,14 @@ fn particle_name(particle: TransformParticle) -> &'static str {
     }
 }
 
-fn drop_strategy_name(strategy: DropStrategy) -> &'static str {
+const fn drop_strategy_name(strategy: DropStrategy) -> &'static str {
     match strategy {
         DropStrategy::ClickedFace => "clicked_face",
         DropStrategy::FromMiddle => "from_middle",
     }
 }
 
-fn transform_type_name(transform_type: TransformType) -> &'static str {
+const fn transform_type_name(transform_type: TransformType) -> &'static str {
     match transform_type {
         TransformType::SingleBlock => "single_block",
         TransformType::CopperChest => "copper_chest",
