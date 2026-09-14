@@ -165,13 +165,13 @@ impl BlockBehavior for StrawBedBlock {
         let Some((head_state, head_pos)) = self.base.head_state_and_pos(world, state, pos) else {
             return InteractionResult::Consume;
         };
-        
+
         let rule = &world.dimension_type.straw_bed_rule;
         if rule.destroy_on_use {
             Self::destroy_bed(world, head_pos);
             return InteractionResult::SuccessServer;
         }
-        
+
         if head_state.get_value(&BlockStateProperties::OCCUPIED) {
             player.send_overlay_message(&TextComponent::translated(TranslatedMessage {
                 key: "block.minecraft.bed.occupied".into(),
@@ -180,7 +180,7 @@ impl BlockBehavior for StrawBedBlock {
             }));
             return InteractionResult::SuccessServer;
         }
-        
+
         if let Err(problem) =
             player.start_sleep_in_bed(head_pos, rule, &vanilla_custom_stats::SLEEP_IN_STRAW_BED)
             && let Some(message) = problem.message()
