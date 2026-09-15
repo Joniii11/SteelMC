@@ -38,7 +38,7 @@ pub struct TemperatureXzCache {
     frozen_large_x7: f64,
     frozen_edge: f64,
     frozen_small: f64,
-    height_temp_noise_x8: f64,
+    height_temp_noise_x8: f32,
 }
 
 impl TemperatureXzCache {
@@ -51,7 +51,7 @@ impl TemperatureXzCache {
             frozen_large_x7: f64::NAN,
             frozen_edge: f64::NAN,
             frozen_small: f64::NAN,
-            height_temp_noise_x8: f64::NAN,
+            height_temp_noise_x8: f32::NAN,
         }
     }
 }
@@ -232,8 +232,7 @@ impl SurfaceSystem {
         let v = f64::from(
             self.frozen_temperature_noise
                 .get_value(f64::from(xz.block_x) * 0.05, f64::from(xz.block_z) * 0.05)
-                as f32
-                * 7.0_f32,
+                * 7.0,
         );
         xz.frozen_large_x7 = v;
         v
@@ -245,9 +244,10 @@ impl SurfaceSystem {
         if !xz.frozen_edge.is_nan() {
             return xz.frozen_edge;
         }
-        let v = self
-            .biome_info_noise
-            .get_value(f64::from(xz.block_x) * 0.2, f64::from(xz.block_z) * 0.2);
+        let v = f64::from(
+            self.biome_info_noise
+                .get_value(f64::from(xz.block_x) * 0.2, f64::from(xz.block_z) * 0.2),
+        );
         xz.frozen_edge = v;
         v
     }
@@ -258,16 +258,17 @@ impl SurfaceSystem {
         if !xz.frozen_small.is_nan() {
             return xz.frozen_small;
         }
-        let v = self
-            .biome_info_noise
-            .get_value(f64::from(xz.block_x) * 0.09, f64::from(xz.block_z) * 0.09);
+        let v = f64::from(
+            self.biome_info_noise
+                .get_value(f64::from(xz.block_x) * 0.09, f64::from(xz.block_z) * 0.09),
+        );
         xz.frozen_small = v;
         v
     }
 
     /// `temperature_noise.get_value(x/8, z/8) * 8.0`, lazily cached.
     #[inline]
-    fn height_temp_noise_x8(&self, xz: &mut TemperatureXzCache) -> f64 {
+    fn height_temp_noise_x8(&self, xz: &mut TemperatureXzCache) -> f32 {
         if !xz.height_temp_noise_x8.is_nan() {
             return xz.height_temp_noise_x8;
         }
@@ -316,7 +317,7 @@ impl SurfaceSystem {
         // Height-based temperature adjustment above seaLevel + 17
         let snow_level = self.sea_level + 17;
         if block_y > snow_level {
-            let v = self.height_temp_noise_x8(xz) as f32;
+            let v = self.height_temp_noise_x8(xz);
             modified_temp - (v + block_y as f32 - snow_level as f32) * 0.05 / 40.0
         } else {
             modified_temp

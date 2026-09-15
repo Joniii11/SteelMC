@@ -103,7 +103,7 @@ impl PerlinSimplexNoise {
     ///
     /// Matches vanilla's `getValue(x, z, false)` path (no offset applied).
     #[must_use]
-    pub fn get_value(&self, x: f64, z: f64) -> f64 {
+    pub fn get_value(&self, x: f64, z: f64) -> f32 {
         let mut sum = 0.0_f32;
         let mut factor = self.highest_freq_input_factor;
         let mut amplitude = self.highest_freq_value_factor;
@@ -116,6 +116,6 @@ impl PerlinSimplexNoise {
             amplitude *= 2.0;
         }
 
-        f64::from(sum)
+        sum
     }
 }

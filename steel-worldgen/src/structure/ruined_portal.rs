@@ -341,14 +341,17 @@ fn biome_temperature(biome: BiomeRef, sea_level: i32, pos: (i32, i32, i32)) -> f
         TemperatureModifier::None => biome.temperature,
         TemperatureModifier::Frozen => {
             let large = f64::from(
-                FROZEN_TEMPERATURE_NOISE.get_value(f64::from(pos.0) * 0.05, f64::from(pos.2) * 0.05)
-                    as f32
-                    * 7.0_f32,
+                FROZEN_TEMPERATURE_NOISE
+                    .get_value(f64::from(pos.0) * 0.05, f64::from(pos.2) * 0.05)
+                    * 7.0,
             );
-            let edge = BIOME_INFO_NOISE.get_value(f64::from(pos.0) * 0.2, f64::from(pos.2) * 0.2);
+            let edge = f64::from(
+                BIOME_INFO_NOISE.get_value(f64::from(pos.0) * 0.2, f64::from(pos.2) * 0.2),
+            );
             if large + edge < 0.3 {
-                let small =
-                    BIOME_INFO_NOISE.get_value(f64::from(pos.0) * 0.09, f64::from(pos.2) * 0.09);
+                let small = f64::from(
+                    BIOME_INFO_NOISE.get_value(f64::from(pos.0) * 0.09, f64::from(pos.2) * 0.09),
+                );
                 if small < 0.8 { 0.2 } else { biome.temperature }
             } else {
                 biome.temperature
@@ -363,7 +366,6 @@ fn biome_temperature(biome: BiomeRef, sea_level: i32, pos: (i32, i32, i32)) -> f
 
     let value = TEMPERATURE_NOISE
         .get_value(f64::from(pos.0 as f32 / 8.0), f64::from(pos.2 as f32 / 8.0))
-        as f32
         * 8.0;
     modified_temperature - (value + pos.1 as f32 - snow_level as f32) * 0.05 / 40.0
 }
