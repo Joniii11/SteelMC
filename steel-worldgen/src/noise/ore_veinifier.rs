@@ -4,6 +4,7 @@
 //! (`vein_toggle`, `vein_ridged`, `vein_gap`) per solid block to decide whether
 //! to replace stone with copper/iron ore, raw ore blocks, or filler (granite/tuff).
 
+use steel_math::map_clamped;
 use steel_registry::{REGISTRY, vanilla_blocks};
 use steel_utils::BlockStateId;
 use steel_utils::random::name_hash::NameHash;
@@ -169,9 +170,13 @@ impl OreVeinifier {
 
         // Edge roundoff: tighten threshold near Y boundaries
         let dist_from_edge = dist_from_top.min(dist_from_bottom);
-        let edge_roundoff = MAX_EDGE_ROUNDOFF
-            + (dist_from_edge as f32 / EDGE_ROUNDOFF_BEGIN).clamp(0.0, 1.0)
-                * (0.0 - MAX_EDGE_ROUNDOFF);
+        let edge_roundoff = map_clamped(
+            dist_from_edge as f32,
+            0.0,
+            EDGE_ROUNDOFF_BEGIN,
+            MAX_EDGE_ROUNDOFF,
+            0.0,
+        );
 
         if veininess + edge_roundoff < VEININESS_THRESHOLD {
             return None;
@@ -197,9 +202,13 @@ impl OreVeinifier {
         }
 
         // Compute richness from veininess
-        let richness = MIN_RICHNESS
-            + ((veininess - VEININESS_THRESHOLD) / (0.6 - VEININESS_THRESHOLD)).clamp(0.0, 1.0)
-                * (MAX_RICHNESS - MIN_RICHNESS);
+        let richness = map_clamped(
+            veininess,
+            VEININESS_THRESHOLD,
+            0.6,
+            MIN_RICHNESS,
+            MAX_RICHNESS,
+        );
 
         if rng.next_f32() < richness {
             // vein_gap has no Interpolated marker — evaluate directly
