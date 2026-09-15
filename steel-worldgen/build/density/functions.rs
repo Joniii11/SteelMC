@@ -1377,13 +1377,8 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
             }
 
             #[inline]
-            fn fill_cell_corner_densities_y4(&self, cache: &mut Self::ColumnCache, x: i32, ys: [i32; 4], z: i32, blended_noise_values: [f32; 4], out: &mut [f32]) {
-                fill_cell_corner_densities_y4(self, cache, x, ys, z, blended_noise_values, out)
-            }
-
-            #[inline]
-            fn fill_cell_corner_densities_y8(&self, cache: &mut Self::ColumnCache, x: i32, ys: [i32; 8], z: i32, blended_noise_values: [f32; 8], out: &mut [f32]) {
-                fill_cell_corner_densities_y8(self, cache, x, ys, z, blended_noise_values, out)
+            fn fill_cell_corner_densities_y_simd<const N: usize>(&self, cache: &mut Self::ColumnCache, x: i32, ys: [i32; N], z: i32, blended_noise_values: [f32; N], out: &mut [f32]) {
+                fill_cell_corner_densities_y_simd::<N>(self, cache, x, ys, z, blended_noise_values, out)
             }
 
             #[inline]

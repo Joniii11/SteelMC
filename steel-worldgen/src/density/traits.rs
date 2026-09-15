@@ -187,41 +187,22 @@ pub trait DimensionNoises: Sized + Send + Sync {
         out: &mut [f32],
     );
 
-    /// Evaluate four Y corners at the same X/Z position.
-    fn fill_cell_corner_densities_y4(
+    /// Evaluate a batch of Y corners at the same X/Z position.
+    ///
+    /// The generated dimension implementations use the best SIMD width for
+    /// the target. The default keeps the same lane-major output layout while
+    /// providing a scalar fallback for dimensions without generated SIMD code.
+    fn fill_cell_corner_densities_y_simd<const N: usize>(
         &self,
         cache: &mut Self::ColumnCache,
         x: i32,
-        ys: [i32; 4],
+        ys: [i32; N],
         z: i32,
-        blended_noise_values: [f32; 4],
+        blended_noise_values: [f32; N],
         out: &mut [f32],
     ) {
         let count = Self::interpolated_count();
-        for lane in 0..4 {
-            self.fill_cell_corner_densities(
-                cache,
-                x,
-                ys[lane],
-                z,
-                blended_noise_values[lane],
-                &mut out[lane * count..(lane + 1) * count],
-            );
-        }
-    }
-
-    /// Evaluate eight Y corners at the same X/Z position.
-    fn fill_cell_corner_densities_y8(
-        &self,
-        cache: &mut Self::ColumnCache,
-        x: i32,
-        ys: [i32; 8],
-        z: i32,
-        blended_noise_values: [f32; 8],
-        out: &mut [f32],
-    ) {
-        let count = Self::interpolated_count();
-        for lane in 0..8 {
+        for lane in 0..N {
             self.fill_cell_corner_densities(
                 cache,
                 x,

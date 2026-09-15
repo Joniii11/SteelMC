@@ -550,13 +550,12 @@ impl TranspileContext {
         }
     }
 
-    /// Generate the SIMD parameter list for a non-flat density function. Flat
-    /// functions don't have a SIMD form because callers splat from the cache.
-    pub(super) fn fn_params_simd(&self, lanes: usize) -> TokenStream {
+    /// Generate the generic SIMD parameter list for a non-flat density
+    /// function.
+    pub(super) fn fn_params_simd_generic(&self) -> TokenStream {
         let noises = &self.noises_ident;
         let cache = &self.cache_ident;
-        let lanes = Literal::usize_unsuffixed(lanes);
-        quote! { noises: &#noises, cache: &#cache, x: f64, ys: Simd<f64, #lanes>, z: f64 }
+        quote! { noises: &#noises, cache: &#cache, x: f64, ys: Simd<f64, N>, z: f64 }
     }
 
     /// Generate the function parameter list for a router entry point.

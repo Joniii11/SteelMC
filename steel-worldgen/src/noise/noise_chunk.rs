@@ -10,6 +10,7 @@
 //! Cell dimensions depend on the dimension's noise settings.
 
 use std::marker::PhantomData;
+use steel_utils::SIMD_BATCH;
 use steel_worldgen::density::{ColumnCache, DimensionNoises, NoiseSettings};
 
 use crate::noise::Beardifier;
@@ -154,7 +155,7 @@ impl<N: DimensionNoises> NoiseChunk<N> {
 
         let block_x = cell_x * cell_width;
 
-        let mut values = [0.0_f32; MAX_INTERP * 8];
+        let mut values = [0.0_f32; MAX_INTERP * SIMD_BATCH];
 
         for cz in 0..=cell_count_xz {
             let cell_z = first_cell_z + cz as i32;
@@ -166,59 +167,50 @@ impl<N: DimensionNoises> NoiseChunk<N> {
             // SIMD-batch blended noise for the entire Y column.
             noises.compute_noise_column(block_x, block_ys, block_z, blended_column);
 
-            let mut cy = 0;
-            while cy + 8 <= corners_y {
-                noises.fill_cell_corner_densities_y8(
+            let (y_batches, y_tail) = block_ys.as_chunks::<SIMD_BATCH>();
+            let (blended_batches, blended_tail) = blended_column.as_chunks::<SIMD_BATCH>();
+            debug_assert_eq!(y_batches.len(), blended_batches.len());
+            debug_assert_eq!(y_tail.len(), blended_tail.len());
+
+            for (batch, (ys, blended_noise_values)) in
+                y_batches.iter().zip(blended_batches.iter()).enumerate()
+            {
+                let cy = batch * SIMD_BATCH;
+                noises.fill_cell_corner_densities_y_simd::<SIMD_BATCH>(
                     cache,
                     block_x,
-                    [
-                        block_ys[cy],
-                        block_ys[cy + 1],
-                        block_ys[cy + 2],
-                        block_ys[cy + 3],
-                        block_ys[cy + 4],
-                        block_ys[cy + 5],
-                        block_ys[cy + 6],
-                        block_ys[cy + 7],
-                    ],
+                    *ys,
                     block_z,
-                    [
-                        blended_column[cy],
-                        blended_column[cy + 1],
-                        blended_column[cy + 2],
-                        blended_column[cy + 3],
-                        blended_column[cy + 4],
-                        blended_column[cy + 5],
-                        blended_column[cy + 6],
-                        blended_column[cy + 7],
-                    ],
-                    &mut values[..interp_count * 8],
+                    *blended_noise_values,
+                    &mut values[..interp_count * SIMD_BATCH],
                 );
-                for lane in 0..8 {
+                for lane in 0..SIMD_BATCH {
                     let corner_idx = cz * corners_y + cy + lane;
                     let base = corner_idx * MAX_INTERP;
                     let value_base = lane * interp_count;
                     slice[base..base + interp_count]
                         .copy_from_slice(&values[value_base..value_base + interp_count]);
                 }
-                cy += 8;
             }
-            while cy < corners_y {
-                let block_y = block_ys[cy];
+
+            let tail_start = y_batches.len() * SIMD_BATCH;
+            for (tail_offset, (&block_y, &blended_noise_value)) in
+                y_tail.iter().zip(blended_tail.iter()).enumerate()
+            {
+                let cy = tail_start + tail_offset;
 
                 noises.fill_cell_corner_densities(
                     cache,
                     block_x,
                     block_y,
                     block_z,
-                    blended_column[cy],
+                    blended_noise_value,
                     &mut values[..interp_count],
                 );
 
                 let corner_idx = cz * corners_y + cy;
                 let base = corner_idx * MAX_INTERP;
                 slice[base..base + interp_count].copy_from_slice(&values[..interp_count]);
-                cy += 1;
             }
         }
     }

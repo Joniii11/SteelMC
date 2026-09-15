@@ -45,16 +45,15 @@ impl TranspileContext {
                 }
             });
             if !is_flat {
-                for lanes in [4, 8] {
-                    let fn_name_simd = named_fn_ident_simd(&name, lanes);
-                    let body_simd = self.gen_expr_simd(&inner, input, false, lanes);
-                    let params_simd = self.fn_params_simd(lanes);
-                    let lanes = Literal::usize_unsuffixed(lanes);
-                    fns.push(quote! {
-                        #[inline]
-                        fn #fn_name_simd(#params_simd) -> Simd<f32, #lanes> { #body_simd }
-                    });
-                }
+                let fn_name_simd = named_fn_ident_simd(&name);
+                let body_simd = self.gen_expr_simd(&inner, input, false);
+                let params_simd = self.fn_params_simd_generic();
+                fns.push(quote! {
+                    #[inline]
+                    fn #fn_name_simd<const N: usize>(#params_simd) -> Simd<f32, N> {
+                        #body_simd
+                    }
+                });
             }
         }
 
@@ -198,34 +197,19 @@ impl TranspileContext {
         // Phase 2: Generate fill_cell_corner_densities with ALL channels
         self.fill_mode = true;
         let mut inner_stmts = Vec::with_capacity(total_count);
-        let mut inner_stmts_4x = Vec::with_capacity(total_count);
-        let mut inner_stmts_8x = Vec::with_capacity(total_count);
+        let mut inner_stmts_simd = Vec::with_capacity(total_count);
         for (i, inner_df) in all_inners.iter().enumerate() {
             let idx = Literal::usize_unsuffixed(i);
             let inner = unwrap_markers(inner_df);
             let expr = self.gen_expr(inner, input, false);
             inner_stmts.push(quote! { out[#idx] = #expr; });
-            let expr_4x = self.gen_expr_simd(inner, input, false, 4);
-            let value_4x = format_ident!("__values_4x_{i}");
-            inner_stmts_4x.push(quote! {
-                let #value_4x = (#expr_4x).to_array();
-                out[#idx] = #value_4x[0];
-                out[INTERPOLATED_COUNT + #idx] = #value_4x[1];
-                out[INTERPOLATED_COUNT * 2 + #idx] = #value_4x[2];
-                out[INTERPOLATED_COUNT * 3 + #idx] = #value_4x[3];
-            });
-            let expr_8x = self.gen_expr_simd(inner, input, false, 8);
-            let value_8x = format_ident!("__values_8x_{i}");
-            inner_stmts_8x.push(quote! {
-                let #value_8x = (#expr_8x).to_array();
-                out[#idx] = #value_8x[0];
-                out[INTERPOLATED_COUNT + #idx] = #value_8x[1];
-                out[INTERPOLATED_COUNT * 2 + #idx] = #value_8x[2];
-                out[INTERPOLATED_COUNT * 3 + #idx] = #value_8x[3];
-                out[INTERPOLATED_COUNT * 4 + #idx] = #value_8x[4];
-                out[INTERPOLATED_COUNT * 5 + #idx] = #value_8x[5];
-                out[INTERPOLATED_COUNT * 6 + #idx] = #value_8x[6];
-                out[INTERPOLATED_COUNT * 7 + #idx] = #value_8x[7];
+            let expr_simd = self.gen_expr_simd(inner, input, false);
+            let value_simd = format_ident!("__values_simd_{i}");
+            inner_stmts_simd.push(quote! {
+                let #value_simd = (#expr_simd).to_array();
+                for lane in 0..N {
+                    out[lane * INTERPOLATED_COUNT + #idx] = #value_simd[lane];
+                }
             });
         }
         self.fill_mode = false;
@@ -336,26 +320,23 @@ impl TranspileContext {
                 #(#inner_stmts)*
             }
 
-            pub fn fill_cell_corner_densities_y4(
-                noises: &#noises, cache: &#cache, x: i32, ys: [i32; 4], z: i32,
-                blended_noise_values: [f32; 4], out: &mut [f32],
+            /// SIMD form of [`fill_cell_corner_densities`] with a generic
+            /// compile-time batch width.
+            #[inline]
+            pub fn fill_cell_corner_densities_y_simd<const N: usize>(
+                noises: &#noises,
+                cache: &#cache,
+                x: i32,
+                ys: [i32; N],
+                z: i32,
+                blended_noise_values: [f32; N],
+                out: &mut [f32],
             ) {
                 let x = cache.x as f64;
                 let z = cache.z as f64;
                 let ys = Simd::from_array(ys.map(f64::from));
                 let blended_noise_value_v = Simd::from_array(blended_noise_values);
-                #(#inner_stmts_4x)*
-            }
-
-            pub fn fill_cell_corner_densities_y8(
-                noises: &#noises, cache: &#cache, x: i32, ys: [i32; 8], z: i32,
-                blended_noise_values: [f32; 8], out: &mut [f32],
-            ) {
-                let x = cache.x as f64;
-                let z = cache.z as f64;
-                let ys = Simd::from_array(ys.map(f64::from));
-                let blended_noise_value_v = Simd::from_array(blended_noise_values);
-                #(#inner_stmts_8x)*
+                #(#inner_stmts_simd)*
             }
 
             /// Combine interpolated values for `final_density`.

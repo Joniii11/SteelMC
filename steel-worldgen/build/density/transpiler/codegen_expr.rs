@@ -652,12 +652,12 @@ impl TranspileContext {
         fn_name
     }
 
-    /// Generate a `TokenStream` expression that computes `df` across a fixed
-    /// number of cell-corner Y values.
+    /// Generate a generic `TokenStream` expression that computes `df` across
+    /// `N` cell-corner Y values.
     ///
     /// Variants migrated to true SIMD (`Constant`, `Noise`, `BlendAlpha/Offset`,
     /// `BlendDensity`, `Marker`, `Reference`, `BlendedNoise` in fill mode) emit
-    /// per-lane SIMD ops directly. Other variants fall back to a scalar 4×
+    /// per-lane SIMD ops directly. Other variants fall back to a scalar loop
     /// emission via [`Self::gen_simd_scalar_fallback`].
     ///
     /// Per-lane semantics are bit-identical to the scalar [`Self::gen_expr`]
@@ -671,13 +671,12 @@ impl TranspileContext {
         df: &DensityFunction,
         input: &TranspilerInput,
         is_flat: bool,
-        lanes: usize,
     ) -> TokenStream {
-        let f32x = quote! { Simd::<f32, #lanes> };
-        let f64x = quote! { Simd::<f64, #lanes> };
+        let f32x = quote! { Simd::<f32, N> };
+        let f64x = quote! { Simd::<f64, N> };
 
         // Unified CSE (SIMD): if this node was hoisted by an enclosing scope,
-        // emit the `f64x4` variable instead of recomputing the subtree.
+        // emit the SIMD variable instead of recomputing the subtree.
         if is_cse_candidate(df) {
             let fp = fingerprint(df);
             if let Some(var) = self.cse_bindings_simd.get(&fp) {
@@ -695,10 +694,10 @@ impl TranspileContext {
 
         // Splines whose entire structure is Y-independent (e.g. driven by a
         // flat-cached climate Reference) can be evaluated scalar once and
-        // splatted across the 4 lanes — saving the 4× scalar fallback the
+        // splatted across the lanes — saving the scalar fallback the
         // generic path would otherwise emit. This is the only Spline-specific
         // SIMD treatment in the transpiler; lane-divergent Splines fall back
-        // to scalar 4× emission via the catch-all arm below.
+        // to the scalar loop via the catch-all arm below.
         if let DensityFunction::Spline(s) = df
             && self.is_spline_y_independent(&s.spline)
         {
@@ -714,7 +713,7 @@ impl TranspileContext {
 
             DensityFunction::Noise(n) => {
                 // Y-independent noise inside a 3D function: use the cached
-                // scalar value, splatted across the 4 lanes.
+                // scalar value, splatted across the lanes.
                 if n.y_scale == 0.0 {
                     let fp = fingerprint(df);
                     if let Some((idx, _, _)) = self.inline_flat_noises.get(&fp) {
@@ -743,9 +742,7 @@ impl TranspileContext {
             DensityFunction::BlendAlpha(_) => quote! { #f32x::splat(1.0) },
             DensityFunction::BlendOffset(_) => quote! { #f32x::splat(0.0) },
 
-            DensityFunction::BlendDensity(bd) => {
-                self.gen_expr_simd(&bd.input, input, is_flat, lanes)
-            }
+            DensityFunction::BlendDensity(bd) => self.gen_expr_simd(&bd.input, input, is_flat),
 
             DensityFunction::Marker(m) => {
                 // Markers are transparent to SIMD codegen — recurse into the
@@ -753,14 +750,14 @@ impl TranspileContext {
                 // `interpolated_param_mode` are rewritten by the scalar combine
                 // paths, and the SIMD fill path never runs in
                 // `interpolated_param_mode`, so the marker kind is moot here.)
-                self.gen_expr_simd(&m.wrapped, input, is_flat, lanes)
+                self.gen_expr_simd(&m.wrapped, input, is_flat)
             }
 
             DensityFunction::BlendedNoise(_) => {
                 if self.fill_mode {
                     quote! { blended_noise_value_v }
                 } else {
-                    self.gen_simd_scalar_fallback(df, input, is_flat, lanes)
+                    self.gen_simd_scalar_fallback(df, input, is_flat)
                 }
             }
 
@@ -771,7 +768,7 @@ impl TranspileContext {
                     || (self.fill_mode && self.blended_noise_refs.contains(&r.id))
                 {
                     if let Some(ref_df) = input.registry.get(&r.id) {
-                        self.gen_expr_simd(ref_df, input, is_flat, lanes)
+                        self.gen_expr_simd(ref_df, input, is_flat)
                     } else {
                         quote! { #f32x::splat(0.0) }
                     }
@@ -779,8 +776,8 @@ impl TranspileContext {
                     let field = named_fn_field_ident(&r.id);
                     quote! { #f32x::splat(cache.#field) }
                 } else {
-                    let fn_name = named_fn_ident_simd(&r.id, lanes);
-                    quote! { #fn_name(noises, cache, x, ys, z) }
+                    let fn_name = named_fn_ident_simd(&r.id);
+                    quote! { #fn_name::<N>(noises, cache, x, ys, z) }
                 }
             }
 
@@ -864,12 +861,12 @@ impl TranspileContext {
                         }}
                     }
                 } else {
-                    self.gen_simd_scalar_fallback(df, input, is_flat, lanes)
+                    self.gen_simd_scalar_fallback(df, input, is_flat)
                 }
             }
 
             DensityFunction::Mapped(m) => {
-                let v = self.gen_expr_simd(&m.input, input, is_flat, lanes);
+                let v = self.gen_expr_simd(&m.input, input, is_flat);
                 match m.op {
                     MappedType::Abs => quote! { (#v).abs() },
                     MappedType::Square => quote! {{ let __v = #v; __v * __v }},
@@ -907,7 +904,7 @@ impl TranspileContext {
             }
 
             DensityFunction::Clamp(c) => {
-                let inner = self.gen_expr_simd(&c.input, input, is_flat, lanes);
+                let inner = self.gen_expr_simd(&c.input, input, is_flat);
                 let min = Literal::f32_unsuffixed(c.min as f32);
                 let max = Literal::f32_unsuffixed(c.max as f32);
                 // Scalar `clamp` is `if v < min { min } else if v > max { max }
@@ -929,32 +926,28 @@ impl TranspileContext {
                 // position, which can't be batched without changing the noise
                 // API. Per-lane math is identical to the scalar fallback;
                 // only the input evaluation moves from 4× scalar to 1× SIMD.
-                let input_simd = self.gen_expr_simd(&ws.input, input, is_flat, lanes);
+                let input_simd = self.gen_expr_simd(&ws.input, input, is_flat);
                 let field = noise_field_ident(&ws.noise_id);
                 let mapper = match ws.rarity_value_mapper {
                     RarityValueMapper::Tunnels => quote! { RarityValueMapper::Tunnels },
                     RarityValueMapper::Caves => quote! { RarityValueMapper::Caves },
                 };
-                let lane = |i: usize| -> TokenStream {
-                    let i_lit = Literal::usize_unsuffixed(i);
-                    quote! {{
-                        let rarity = __rarity_arr[#i_lit];
+                quote! {{
+                    let __rarity_arr = (#input_simd).to_array();
+                    let __ys_arr = ys.to_array();
+                    let mut __values = [0.0_f32; N];
+                    for lane in 0..N {
+                        let rarity = __rarity_arr[lane];
                         let scale = #mapper.get_values(rarity);
                         #[allow(clippy::cast_possible_truncation)]
-                        let y = __ys_arr[#i_lit];
-                        scale * noises.#field.get_value(
+                        let y = __ys_arr[lane];
+                        __values[lane] = scale * noises.#field.get_value(
                             x / scale,
                             y / scale,
                             z / scale,
-                        ).abs()
-                    }}
-                };
-                let lane_values: Vec<_> = (0..lanes).map(lane).collect();
-                quote! {{
-                    let __rarity_v = #input_simd;
-                    let __rarity_arr = __rarity_v.to_array();
-                    let __ys_arr = ys.to_array();
-                    Simd::from_array([#(#lane_values),*])
+                        ).abs();
+                    }
+                    Simd::from_array(__values)
                 }}
             }
 
@@ -962,12 +955,8 @@ impl TranspileContext {
                 // CSE: hoist subexpressions common to both operands (mirrors the
                 // scalar path). Without this the SIMD fill recomputes shared cave
                 // subtrees (`entrances`, `pillars`, …) once per operand.
-                let (hoisted, hoisted_fps) = self.hoist_common_subexprs_simd(
-                    &[&t.argument1, &t.argument2],
-                    input,
-                    is_flat,
-                    lanes,
-                );
+                let (hoisted, hoisted_fps) =
+                    self.hoist_common_subexprs_simd(&[&t.argument1, &t.argument2], input, is_flat);
 
                 // Add/Mul are uncontroversial — they just become SIMD ops.
                 // Min/Max keep their static-bound short-circuit (the SIMD form
@@ -976,29 +965,29 @@ impl TranspileContext {
                 // path" optimization.
                 let body = match t.op {
                     TwoArgType::Add => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         quote! { ((#a) + (#b)) }
                     }
                     TwoArgType::Sub => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         quote! { ((#a) - (#b)) }
                     }
                     TwoArgType::Mul => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         quote! { ((#a) * (#b)) }
                     }
                     TwoArgType::Div => {
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         quote! { ((#a) / (#b)) }
                     }
                     TwoArgType::Min => {
                         let (b_lo, _) = compute_bounds(&t.argument2, input);
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         if b_lo.is_finite() {
                             // If `a <= b_lo` for all lanes, then `b >= b_lo >= a`,
                             // so `min(a, b) = a`; the right operand is skipped.
@@ -1017,8 +1006,8 @@ impl TranspileContext {
                     }
                     TwoArgType::Max => {
                         let (_, b_hi) = compute_bounds(&t.argument2, input);
-                        let a = self.gen_expr_simd(&t.argument1, input, is_flat, lanes);
-                        let b = self.gen_expr_simd(&t.argument2, input, is_flat, lanes);
+                        let a = self.gen_expr_simd(&t.argument1, input, is_flat);
+                        let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         if b_hi.is_finite() {
                             let b_hi_lit = Literal::f32_unsuffixed(b_hi as f32);
                             quote! {{
@@ -1063,7 +1052,7 @@ impl TranspileContext {
                 // RangeChoice trees), only the matching branch is evaluated.
                 // Only when lanes diverge do we eat the both-branches cost.
 
-                let input_simd = self.gen_expr_simd(&rc.input, input, is_flat, lanes);
+                let input_simd = self.gen_expr_simd(&rc.input, input, is_flat);
                 let input_fp = (!self.disable_range_choice_input_cse
                     && is_cse_candidate(&rc.input))
                 .then(|| {
@@ -1075,11 +1064,10 @@ impl TranspileContext {
                     &[&rc.when_in_range, &rc.when_out_of_range],
                     input,
                     is_flat,
-                    lanes,
                 );
 
-                let in_range = self.gen_expr_simd(&rc.when_in_range, input, is_flat, lanes);
-                let out_range = self.gen_expr_simd(&rc.when_out_of_range, input, is_flat, lanes);
+                let in_range = self.gen_expr_simd(&rc.when_in_range, input, is_flat);
+                let out_range = self.gen_expr_simd(&rc.when_out_of_range, input, is_flat);
 
                 if let Some(fp) = input_fp {
                     self.cse_bindings_simd.remove(&fp);
@@ -1108,54 +1096,43 @@ impl TranspileContext {
             }
 
             // All other variants: scalar-lane fallback.
-            _ => self.gen_simd_scalar_fallback(df, input, is_flat, lanes),
+            _ => self.gen_simd_scalar_fallback(df, input, is_flat),
         }
     }
 
     /// Scalar-lane fallback for variants not yet migrated to true SIMD.
     ///
-    /// Generates the scalar expression once and duplicates the resulting
-    /// `TokenStream` across independent `{ ... }` lane blocks. Each block has
-    /// its own scope, so any CSE bindings (`let __cse_N = ...`) inside the
-    /// duplicated tokens do not collide across lanes.
+    /// Generates the scalar expression once and evaluates it in a generic
+    /// per-lane loop. Each iteration has its own scope, so any CSE bindings
+    /// (`let __cse_N = ...`) inside the generated expression remain local.
     pub(super) fn gen_simd_scalar_fallback(
         &mut self,
         df: &DensityFunction,
         input: &TranspilerInput,
         is_flat: bool,
-        lanes: usize,
     ) -> TokenStream {
         let scalar = self.gen_expr(df, input, is_flat);
-
-        // `blended_noise_value` is only emitted by `gen_expr` when
-        // `fill_mode` is set, so only bind the lane scalar when needed.
         let bv_arr_decl = if self.fill_mode {
             quote! { let __bv_arr = blended_noise_value_v.to_array(); }
         } else {
             quote! {}
         };
-
-        let lane_block = |i: usize, scalar: &TokenStream| -> TokenStream {
-            let i_lit = Literal::usize_unsuffixed(i);
-            let bv_decl = if self.fill_mode {
-                quote! { let blended_noise_value = __bv_arr[#i_lit]; }
-            } else {
-                quote! {}
-            };
-            quote! {{
-                #[allow(clippy::cast_possible_truncation)]
-                let y = __ys_arr[#i_lit];
-                #bv_decl
-                #scalar
-            }}
+        let bv_decl = if self.fill_mode {
+            quote! { let blended_noise_value = __bv_arr[lane]; }
+        } else {
+            quote! {}
         };
-
-        let lane_blocks: Vec<_> = (0..lanes).map(|lane| lane_block(lane, &scalar)).collect();
-
         quote! {{
             let __ys_arr = ys.to_array();
             #bv_arr_decl
-            Simd::from_array([#(#lane_blocks),*])
+            let mut __values = [0.0_f32; N];
+            for lane in 0..N {
+                #[allow(clippy::cast_possible_truncation)]
+                let y = __ys_arr[lane];
+                #bv_decl
+                __values[lane] = #scalar;
+            }
+            Simd::from_array(__values)
         }}
     }
 
@@ -1310,7 +1287,6 @@ impl TranspileContext {
         branches: &[&Arc<DensityFunction>],
         input: &TranspilerInput,
         is_flat: bool,
-        lanes: usize,
     ) -> (Vec<TokenStream>, Vec<u64>) {
         if branches.len() < 2 {
             return (Vec::new(), Vec::new());
@@ -1345,7 +1321,7 @@ impl TranspileContext {
             }
             let var = format_ident!("__cse_{}", self.cse_counter);
             self.cse_counter += 1;
-            let expr = self.gen_expr_simd(df, input, is_flat, lanes);
+            let expr = self.gen_expr_simd(df, input, is_flat);
             bindings.push(quote! { let #var = #expr; });
             self.cse_bindings_simd.insert(fp, var);
             hoisted_fps.push(fp);
