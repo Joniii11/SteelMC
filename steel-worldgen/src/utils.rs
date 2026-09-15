@@ -69,7 +69,7 @@ pub(crate) fn column_interpolated_density<N: DimensionNoises>(
     z: i32,
     cell_w: i32,
     cell_h: i32,
-) -> f64 {
+) -> f32 {
     interpolated_density::<N>(cache, noises, x, y, z, cell_w, cell_h)
 }
 /// Finds the highest solid block below air in a single base-noise column.
@@ -402,7 +402,7 @@ fn interpolated_density<N: DimensionNoises>(
     z: i32,
     cell_w: i32,
     cell_h: i32,
-) -> f64 {
+) -> f32 {
     const MAX_INTERP: usize = 16;
 
     let cx = x.div_euclid(cell_w);
@@ -482,5 +482,5 @@ fn interpolated_density<N: DimensionNoises>(
         );
     }
 
-    f64::from(noises.combine_interpolated(&mut *cache, &interpolated[..interp_count], 0, y, 0))
+    noises.combine_interpolated(&mut *cache, &interpolated[..interp_count], 0, y, 0)
 }
