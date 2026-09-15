@@ -28,6 +28,10 @@ pub struct ImprovedNoise {
     pub yo: f64,
     /// Z offset for the noise coordinates
     pub zo: f64,
+    yo_floor: i32,
+    yo_fraction: f64,
+    zo_floor: i32,
+    zo_fraction: f64,
 }
 
 impl ImprovedNoise {
@@ -55,7 +59,21 @@ impl ImprovedNoise {
             p.swap(i, i + offset);
         }
 
-        Self { p, xo, yo, zo }
+        let yo_floor = fast_floor(yo);
+        let yo_fraction = yo - f64::from(yo_floor);
+        let zo_floor = fast_floor(zo);
+        let zo_fraction = zo - f64::from(zo_floor);
+
+        Self {
+            p,
+            xo,
+            yo,
+            zo,
+            yo_floor,
+            yo_fraction,
+            zo_floor,
+            zo_fraction,
+        }
     }
 
     /// Samples the 26.3 float-based `PerlinNoise` implementation.
@@ -86,14 +104,38 @@ impl ImprovedNoise {
     #[inline]
     #[must_use]
     pub fn noise_xz(&self, x: f64, z: f64) -> f32 {
-        self.noise(x, 0.0, z)
+        let x = steel_math::wrap(x) + self.xo;
+        let z = steel_math::wrap(z) + self.zo;
+        let floor_x = fast_floor(x);
+        let floor_z = fast_floor(z);
+        self.sample_and_lerp(
+            floor_x,
+            self.yo_floor,
+            floor_z,
+            (x - f64::from(floor_x)) as f32,
+            self.yo_fraction as f32,
+            (z - f64::from(floor_z)) as f32,
+            self.yo_fraction as f32,
+        )
     }
 
     /// Samples noise at `(x, y, 0.0)`.
     #[inline]
     #[must_use]
     pub fn noise_xy(&self, x: f64, y: f64) -> f32 {
-        self.noise(x, y, 0.0)
+        let x = steel_math::wrap(x) + self.xo;
+        let y = steel_math::wrap(y) + self.yo;
+        let floor_x = fast_floor(x);
+        let floor_y = fast_floor(y);
+        self.sample_and_lerp(
+            floor_x,
+            floor_y,
+            self.zo_floor,
+            (x - f64::from(floor_x)) as f32,
+            (y - f64::from(floor_y)) as f32,
+            self.zo_fraction as f32,
+            (y - f64::from(floor_y)) as f32,
+        )
     }
 
     /// samples one X/Z column of the floatvalued Perlin noise impl
