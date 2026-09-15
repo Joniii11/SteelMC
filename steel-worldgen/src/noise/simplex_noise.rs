@@ -82,7 +82,7 @@ impl SimplexNoise {
     ///
     /// Returns a value typically in the range `[-1, 1]` (scaled by 70).
     #[must_use]
-    pub fn get_value_2d(&self, xin: f64, yin: f64) -> f64 {
+    pub fn get_value_2d(&self, xin: f64, yin: f64) -> f32 {
         let s = (xin + yin) * F2;
         let i = fast_floor(xin + s);
         let j = fast_floor(yin + s);
@@ -108,7 +108,7 @@ impl SimplexNoise {
         let n1 = corner_noise_3d(gi1, x1, y1, 0.0, 0.5);
         let n2 = corner_noise_3d(gi2, x2, y2, 0.0, 0.5);
 
-        f64::from((70.0 * (n0 + n1 + n2)) as f32)
+        (70.0 * (n0 + n1 + n2)) as f32
     }
 
     /// Skewing factor for 3D simplex: `1/3`
@@ -124,7 +124,7 @@ impl SimplexNoise {
         clippy::many_single_char_names,
         reason = "matches vanilla simplex noise math notation"
     )]
-    pub fn get_value_3d(&self, xin: f64, yin: f64, zin: f64) -> f64 {
+    pub fn get_value_3d(&self, xin: f64, yin: f64, zin: f64) -> f32 {
         let s = (xin + yin + zin) * Self::F3;
         let i = fast_floor(xin + s);
         let j = fast_floor(yin + s);
@@ -174,7 +174,7 @@ impl SimplexNoise {
         let n2 = corner_noise_3d(gi2, x2, y2, z2, 0.6);
         let n3 = corner_noise_3d(gi3, x3, y3, z3, 0.6);
 
-        f64::from((32.0 * (n0 + n1 + n2 + n3)) as f32)
+        (32.0 * (n0 + n1 + n2 + n3)) as f32
     }
 }
 
@@ -204,12 +204,12 @@ mod tests {
         let mut rng = LegacyRandom::from_seed(0);
         let noise = SimplexNoise::new(&mut rng);
 
-        let values: Vec<f64> = (0..20)
+        let values: Vec<f32> = (0..20)
             .map(|i| noise.get_value_2d(f64::from(i) * 50.0, f64::from(i) * 30.0))
             .collect();
 
-        let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-        let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let min = values.iter().copied().fold(f32::INFINITY, f32::min);
+        let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         assert!(max - min > 0.01, "2D simplex should have spatial variation");
     }
 

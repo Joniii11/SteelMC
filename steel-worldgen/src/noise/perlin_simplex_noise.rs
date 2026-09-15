@@ -54,8 +54,11 @@ impl PerlinSimplexNoise {
         // Compute seed for positive octaves before moving zero_octave
         let hf_seed = if high_freq_octaves > 0 {
             Some(
-                (zero_octave.get_value_3d(zero_octave.xo, zero_octave.yo, zero_octave.zo)
-                    * 9.223_372_036_854_776e18) as i64,
+                (f64::from(zero_octave.get_value_3d(
+                    zero_octave.xo,
+                    zero_octave.yo,
+                    zero_octave.zo,
+                )) * 9.223_372_036_854_776e18) as i64,
             )
         } else {
             None
@@ -110,7 +113,7 @@ impl PerlinSimplexNoise {
 
         for noise in &self.noise_levels {
             if let Some(n) = noise {
-                sum += amplitude * n.get_value_2d(x * factor, z * factor) as f32;
+                sum += amplitude * n.get_value_2d(x * factor, z * factor);
             }
             factor /= 2.0;
             amplitude *= 2.0;

@@ -14,8 +14,7 @@ use super::SimplexNoise;
 
 /// Threshold for simplex noise below which an island is spawned.
 ///
-/// Stored widened because [`SimplexNoise`] exposes its Vanilla-f32 result as f64.
-const ISLAND_THRESHOLD: f64 = -0.9_f32 as f64;
+const ISLAND_THRESHOLD: f32 = -0.9;
 
 /// End islands density function.
 ///
