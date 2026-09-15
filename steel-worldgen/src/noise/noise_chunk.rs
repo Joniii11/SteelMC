@@ -10,6 +10,7 @@
 //! Cell dimensions depend on the dimension's noise settings.
 
 use std::marker::PhantomData;
+use std::simd::f32x4;
 use steel_utils::SIMD_BATCH;
 use steel_worldgen::density::{ColumnCache, DimensionNoises, NoiseSettings};
 
@@ -271,61 +272,129 @@ impl<N: DimensionNoises> NoiseChunk<N> {
 
         let mut interpolated = [0.0_f32; MAX_INTERP];
 
+        // Reuse the Y/X interpolation partials across every Z position in a
+        // cell. The scratch rows are laid out by Y position and channel.
+        let column_len = cell_count_y * cell_height as usize;
+        let mut scratch = vec![0.0_f32; column_len * interp_count * 2];
+        let (d0_col, d1_col) = scratch.split_at_mut(column_len * interp_count);
+
         for cell_x_idx in 0..cell_count_xz {
+            let s0: &[f32] = &self.slices[cell_x_idx][..];
+            let s1: &[f32] = &self.slices[cell_x_idx + 1][..];
+
             for cell_z_idx in 0..cell_count_xz {
+                let z0_base = cell_z_idx * corners_y;
+                let z1_base = (cell_z_idx + 1) * corners_y;
+
                 for x_in_cell in 0..cell_width {
                     let factor_x = x_in_cell as f32 / cell_width as f32;
+                    let factor_x_v = f32x4::splat(factor_x);
                     let local_x = (cell_x_idx as i32 * cell_width + x_in_cell) as usize;
 
-                    for z_in_cell in 0..cell_width {
-                        let factor_z = z_in_cell as f32 / cell_width as f32;
-                        let local_z = (cell_z_idx as i32 * cell_width + z_in_cell) as usize;
+                    // Stage A: compute the Y/X partials for the whole column.
+                    for cell_y_idx in 0..cell_count_y {
+                        let i0_base = (z0_base + cell_y_idx) * MAX_INTERP;
+                        let i1_base = (z1_base + cell_y_idx) * MAX_INTERP;
+                        let i0_next = i0_base + MAX_INTERP;
+                        let i1_next = i1_base + MAX_INTERP;
 
-                        // Pre-compute flat indices for this Z column
-                        let z0_base = cell_z_idx * corners_y;
-                        let z1_base = (cell_z_idx + 1) * corners_y;
+                        for y_in_cell in 0..cell_height {
+                            let factor_y = y_in_cell as f32 / cell_height as f32;
+                            let factor_y_v = f32x4::splat(factor_y);
+                            let row = cell_y_idx * cell_height as usize + y_in_cell as usize;
+                            let row_base = row * interp_count;
+                            let d0_row = &mut d0_col[row_base..row_base + interp_count];
+                            let d1_row = &mut d1_col[row_base..row_base + interp_count];
 
-                        // Process entire Y column at this (x, z)
-                        for cell_y_idx in (0..cell_count_y).rev() {
-                            let i0_base = (z0_base + cell_y_idx) * MAX_INTERP;
-                            let i1_base = (z1_base + cell_y_idx) * MAX_INTERP;
-                            let i0_next = i0_base + MAX_INTERP;
-                            let i1_next = i1_base + MAX_INTERP;
-                            let s0 = &*self.slices[cell_x_idx];
-                            let s1 = &*self.slices[cell_x_idx + 1];
-                            let mut values_by_y = [[0.0_f32; MAX_INTERP]; MAX_CELL_HEIGHT];
-                            let y_count = cell_height as usize;
-                            debug_assert!(y_count <= MAX_CELL_HEIGHT);
+                            let mut ch_batch = 0;
+                            while ch_batch + 4 <= interp_count {
+                                let n000 = f32x4::from_slice(
+                                    &s0[i0_base + ch_batch..i0_base + ch_batch + 4],
+                                );
+                                let n100 = f32x4::from_slice(
+                                    &s1[i0_base + ch_batch..i0_base + ch_batch + 4],
+                                );
+                                let n010 = f32x4::from_slice(
+                                    &s0[i0_next + ch_batch..i0_next + ch_batch + 4],
+                                );
+                                let n110 = f32x4::from_slice(
+                                    &s1[i0_next + ch_batch..i0_next + ch_batch + 4],
+                                );
+                                let n001 = f32x4::from_slice(
+                                    &s0[i1_base + ch_batch..i1_base + ch_batch + 4],
+                                );
+                                let n101 = f32x4::from_slice(
+                                    &s1[i1_base + ch_batch..i1_base + ch_batch + 4],
+                                );
+                                let n011 = f32x4::from_slice(
+                                    &s0[i1_next + ch_batch..i1_next + ch_batch + 4],
+                                );
+                                let n111 = f32x4::from_slice(
+                                    &s1[i1_next + ch_batch..i1_next + ch_batch + 4],
+                                );
 
-                            for ch in 0..interp_count {
-                                let n000 = s0[i0_base + ch];
-                                let n001 = s0[i1_base + ch];
-                                let n100 = s1[i0_base + ch];
-                                let n101 = s1[i1_base + ch];
-                                let n010 = s0[i0_next + ch];
-                                let n011 = s0[i1_next + ch];
-                                let n110 = s1[i0_next + ch];
-                                let n111 = s1[i1_next + ch];
-                                let v00 = n000 + factor_z * (n001 - n000);
-                                let v01 = n010 + factor_z * (n011 - n010);
-                                let v10 = n100 + factor_z * (n101 - n100);
-                                let v11 = n110 + factor_z * (n111 - n110);
-                                let v0 = v00 + factor_x * (v10 - v00);
-                                let v1 = v01 + factor_x * (v11 - v01);
-                                let step = (v1 - v0) * (1.0_f32 / cell_height as f32);
-                                let mut value = v0;
-                                for values in values_by_y.iter_mut().take(y_count) {
-                                    values[ch] = value;
-                                    value += step;
-                                }
+                                let d00 = n000 + factor_y_v * (n010 - n000);
+                                let d10 = n100 + factor_y_v * (n110 - n100);
+                                let d01 = n001 + factor_y_v * (n011 - n001);
+                                let d11 = n101 + factor_y_v * (n111 - n101);
+                                let d0 = d00 + factor_x_v * (d10 - d00);
+                                let d1 = d01 + factor_x_v * (d11 - d01);
+                                d0_row[ch_batch..ch_batch + 4].copy_from_slice(&d0.to_array());
+                                d1_row[ch_batch..ch_batch + 4].copy_from_slice(&d1.to_array());
+                                ch_batch += 4;
                             }
 
+                            while ch_batch < interp_count {
+                                let n000 = s0[i0_base + ch_batch];
+                                let n100 = s1[i0_base + ch_batch];
+                                let n010 = s0[i0_next + ch_batch];
+                                let n110 = s1[i0_next + ch_batch];
+                                let n001 = s0[i1_base + ch_batch];
+                                let n101 = s1[i1_base + ch_batch];
+                                let n011 = s0[i1_next + ch_batch];
+                                let n111 = s1[i1_next + ch_batch];
+                                let d00 = n000 + factor_y * (n010 - n000);
+                                let d10 = n100 + factor_y * (n110 - n100);
+                                let d01 = n001 + factor_y * (n011 - n001);
+                                let d11 = n101 + factor_y * (n111 - n101);
+                                d0_row[ch_batch] = d00 + factor_x * (d10 - d00);
+                                d1_row[ch_batch] = d01 + factor_x * (d11 - d01);
+                                ch_batch += 1;
+                            }
+                        }
+                    }
+
+                    // Stage B: interpolate the reusable partials along Z and
+                    // evaluate the outer density operations per block.
+                    for z_in_cell in 0..cell_width {
+                        let factor_z = z_in_cell as f32 / cell_width as f32;
+                        let factor_z_v = f32x4::splat(factor_z);
+                        let local_z = (cell_z_idx as i32 * cell_width + z_in_cell) as usize;
+
+                        for cell_y_idx in (0..cell_count_y).rev() {
+                            let cell_world_y = (self.cell_min_y + cell_y_idx as i32) * cell_height;
+
                             for y_in_cell in (0..cell_height).rev() {
-                                let world_y =
-                                    (self.cell_min_y + cell_y_idx as i32) * cell_height + y_in_cell;
-                                interpolated[..interp_count].copy_from_slice(
-                                    &values_by_y[y_in_cell as usize][..interp_count],
-                                );
+                                let world_y = cell_world_y + y_in_cell;
+                                let row = cell_y_idx * cell_height as usize + y_in_cell as usize;
+                                let row_base = row * interp_count;
+                                let d0_row = &d0_col[row_base..row_base + interp_count];
+                                let d1_row = &d1_col[row_base..row_base + interp_count];
+
+                                let mut ch_batch = 0;
+                                while ch_batch + 4 <= interp_count {
+                                    let d0 = f32x4::from_slice(&d0_row[ch_batch..ch_batch + 4]);
+                                    let d1 = f32x4::from_slice(&d1_row[ch_batch..ch_batch + 4]);
+                                    let result = d0 + factor_z_v * (d1 - d0);
+                                    interpolated[ch_batch..ch_batch + 4]
+                                        .copy_from_slice(&result.to_array());
+                                    ch_batch += 4;
+                                }
+                                while ch_batch < interp_count {
+                                    interpolated[ch_batch] = d0_row[ch_batch]
+                                        + factor_z * (d1_row[ch_batch] - d0_row[ch_batch]);
+                                    ch_batch += 1;
+                                }
 
                                 // Apply outer operations per-block.
                                 // x/z are 0 because vanilla's outer operations (squeeze, add, mul,
