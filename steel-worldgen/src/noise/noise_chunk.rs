@@ -308,30 +308,41 @@ impl<N: DimensionNoises> NoiseChunk<N> {
 
                             let mut ch_batch = 0;
                             while ch_batch + 4 <= interp_count {
-                                let n000 = f32x4::from_slice(
-                                    &s0[i0_base + ch_batch..i0_base + ch_batch + 4],
-                                );
-                                let n100 = f32x4::from_slice(
-                                    &s1[i0_base + ch_batch..i0_base + ch_batch + 4],
-                                );
-                                let n010 = f32x4::from_slice(
-                                    &s0[i0_next + ch_batch..i0_next + ch_batch + 4],
-                                );
-                                let n110 = f32x4::from_slice(
-                                    &s1[i0_next + ch_batch..i0_next + ch_batch + 4],
-                                );
-                                let n001 = f32x4::from_slice(
-                                    &s0[i1_base + ch_batch..i1_base + ch_batch + 4],
-                                );
-                                let n101 = f32x4::from_slice(
-                                    &s1[i1_base + ch_batch..i1_base + ch_batch + 4],
-                                );
-                                let n011 = f32x4::from_slice(
-                                    &s0[i1_next + ch_batch..i1_next + ch_batch + 4],
-                                );
-                                let n111 = f32x4::from_slice(
-                                    &s1[i1_next + ch_batch..i1_next + ch_batch + 4],
-                                );
+                                // SAFETY: `cell_z_idx < cell_count_xz`,
+                                // `cell_y_idx < cell_count_y`, and
+                                // `ch_batch + 4 <= interp_count <= MAX_INTERP`.
+                                // Therefore every range below ends at most at
+                                // `(cell_count_xz + 1) * corners_y * MAX_INTERP`,
+                                // which is bounded by `MAX_SLICE_LEN * MAX_INTERP`,
+                                // the length of both fixed-size slice buffers.
+                                let (n000, n100, n010, n110, n001, n101, n011, n111) = unsafe {
+                                    (
+                                        f32x4::from_slice(s0.get_unchecked(
+                                            i0_base + ch_batch..i0_base + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s1.get_unchecked(
+                                            i0_base + ch_batch..i0_base + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s0.get_unchecked(
+                                            i0_next + ch_batch..i0_next + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s1.get_unchecked(
+                                            i0_next + ch_batch..i0_next + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s0.get_unchecked(
+                                            i1_base + ch_batch..i1_base + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s1.get_unchecked(
+                                            i1_base + ch_batch..i1_base + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s0.get_unchecked(
+                                            i1_next + ch_batch..i1_next + ch_batch + 4,
+                                        )),
+                                        f32x4::from_slice(s1.get_unchecked(
+                                            i1_next + ch_batch..i1_next + ch_batch + 4,
+                                        )),
+                                    )
+                                };
 
                                 let d00 = n000 + factor_y_v * (n010 - n000);
                                 let d10 = n100 + factor_y_v * (n110 - n100);
@@ -345,14 +356,21 @@ impl<N: DimensionNoises> NoiseChunk<N> {
                             }
 
                             while ch_batch < interp_count {
-                                let n000 = s0[i0_base + ch_batch];
-                                let n100 = s1[i0_base + ch_batch];
-                                let n010 = s0[i0_next + ch_batch];
-                                let n110 = s1[i0_next + ch_batch];
-                                let n001 = s0[i1_base + ch_batch];
-                                let n101 = s1[i1_base + ch_batch];
-                                let n011 = s0[i1_next + ch_batch];
-                                let n111 = s1[i1_next + ch_batch];
+                                // SAFETY: `ch_batch < interp_count <= MAX_INTERP`,
+                                // and the corner bases satisfy the same bounds
+                                // proven for the SIMD load above.
+                                let (n000, n100, n010, n110, n001, n101, n011, n111) = unsafe {
+                                    (
+                                        *s0.get_unchecked(i0_base + ch_batch),
+                                        *s1.get_unchecked(i0_base + ch_batch),
+                                        *s0.get_unchecked(i0_next + ch_batch),
+                                        *s1.get_unchecked(i0_next + ch_batch),
+                                        *s0.get_unchecked(i1_base + ch_batch),
+                                        *s1.get_unchecked(i1_base + ch_batch),
+                                        *s0.get_unchecked(i1_next + ch_batch),
+                                        *s1.get_unchecked(i1_next + ch_batch),
+                                    )
+                                };
                                 let d00 = n000 + factor_y * (n010 - n000);
                                 let d10 = n100 + factor_y * (n110 - n100);
                                 let d01 = n001 + factor_y * (n011 - n001);
