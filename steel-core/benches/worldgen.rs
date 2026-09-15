@@ -1798,7 +1798,7 @@ fn bench_end_full(c: &mut Criterion) {
 /// the kernel's heavy scalar permutation-gather floor. Each variant computes
 /// the same 8 Y samples per column across a fixed set of columns.
 fn bench_noise_kernel(c: &mut Criterion) {
-    use std::simd::{f64x4, f64x8};
+    use std::simd::{f32x4, f32x8, f64x4, f64x8};
     use steel_utils::random::xoroshiro::Xoroshiro;
     use steel_worldgen::noise::ImprovedNoise;
 
@@ -1820,7 +1820,7 @@ fn bench_noise_kernel(c: &mut Criterion) {
     // Current production path: generic 4 lanes, two calls per 8 Ys.
     group.bench_function("y_scale_4x_generic", |b| {
         b.iter(|| {
-            let mut acc = f64x4::splat(0.0);
+            let mut acc = f32x4::splat(0.0);
             for &(x, z) in &columns {
                 acc += noise.noise_with_y_scale_simd(
                     black_box(x),
@@ -1844,7 +1844,7 @@ fn bench_noise_kernel(c: &mut Criterion) {
     // 8-wide (AVX-512 on Zen 5), one call per 8 Ys.
     group.bench_function("y_scale_8x_generic", |b| {
         b.iter(|| {
-            let mut acc = f64x8::splat(0.0);
+            let mut acc = f32x8::splat(0.0);
             for &(x, z) in &columns {
                 acc += noise.noise_with_y_scale_simd::<8>(
                     black_box(x),
