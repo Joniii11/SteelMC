@@ -5,7 +5,7 @@
 //! Vanilla wraps density functions with `Interpolated` markers. Only the inner
 //! functions (arguments to `Interpolated`) are evaluated at cell corners; the
 //! outer operations (squeeze, min, etc.) are applied per-block after trilinear
-//! interpolation. Each `Interpolated` marker gets its own independent channel.
+//! interpolation. Markers with identical evaluations share a channel.
 //!
 //! Cell dimensions depend on the dimension's noise settings.
 
@@ -30,8 +30,8 @@ const MAX_CELL_HEIGHT: usize = 16;
 /// trilinear interpolation between corners for block-level resolution.
 ///
 /// Supports multiple interpolation channels matching vanilla's multi-interpolator
-/// system. Each `Interpolated` marker in the density function tree gets its own
-/// channel, filled at cell corners and interpolated independently.
+/// system. Distinct marker evaluations get channels filled at cell corners
+/// and interpolated independently.
 ///
 /// Storage is per-corner `SoA` — `slice[corner_idx * MAX_INTERP + ch]` — so 4
 /// adjacent channels' values at a given corner sit in contiguous memory,
@@ -503,7 +503,6 @@ impl<N: DimensionNoises> NoiseChunk<N> {
                         let world_z = self.first_cell_z * cell_width
                             + cell_z_idx as i32 * cell_width
                             + z_in_cell;
-                        cache.ensure(world_x, world_z, noises);
 
                         for cell_y_idx in (0..self.cell_count_y).rev() {
                             let i0_base = (z0_base + cell_y_idx) * MAX_INTERP;

@@ -136,9 +136,9 @@ impl TranspileContext {
     /// `Interpolated` markers: `fill_cell_corner_densities`, `combine_interpolated`,
     /// and per-entry combine functions for `vein_toggle`/`vein_ridged`.
     ///
-    /// All entries share a single contiguous channel array. Channel indices are
-    /// assigned in order: `final_density` channels first, then `vein_toggle`, then
-    /// `vein_ridged`.
+    /// All entries share a channel array, reusing identical scalar/SIMD
+    /// evaluations. Channels are assigned on first occurrence, starting with
+    /// `final_density`, then vein and material entries.
     #[expect(clippy::too_many_lines, reason = "splitting would hurt readability")]
     pub(super) fn gen_all_interpolation_functions(
         &mut self,
@@ -191,19 +191,30 @@ impl TranspileContext {
             }
         }
 
-        let total_count = all_inners.len();
-        let total_count_lit = Literal::usize_unsuffixed(total_count);
-
-        // Phase 2: Generate fill_cell_corner_densities with ALL channels
+        // Phase 2: Share identical evaluations without relying on structural
+        // hashes. Analysis already requires every marker to use the same grid.
         self.fill_mode = true;
-        let mut inner_stmts = Vec::with_capacity(total_count);
-        let mut inner_stmts_simd = Vec::with_capacity(total_count);
-        for (i, inner_df) in all_inners.iter().enumerate() {
-            let idx = Literal::usize_unsuffixed(i);
+        self.interpolated_param_channels.clear();
+        let mut channels = BTreeMap::new();
+        let mut inner_stmts = Vec::new();
+        let mut inner_stmts_simd = Vec::new();
+        let inner_cse_start = self.cse_counter;
+        for inner_df in &all_inners {
+            // Each expression has its own scope; stable names preserve channel sharing.
+            self.cse_counter = inner_cse_start;
             let inner = unwrap_markers(inner_df);
             let expr = self.gen_expr(inner, input, false);
-            inner_stmts.push(quote! { out[#idx] = #expr; });
             let expr_simd = self.gen_expr_simd(inner, input, false);
+            let key = (expr.to_string(), expr_simd.to_string());
+            if let Some(&channel) = channels.get(&key) {
+                self.interpolated_param_channels.push(channel);
+                continue;
+            }
+            let i = channels.len();
+            channels.insert(key, i);
+            self.interpolated_param_channels.push(i);
+            let idx = Literal::usize_unsuffixed(i);
+            inner_stmts.push(quote! { out[#idx] = #expr; });
             let value_simd = format_ident!("__values_simd_{i}");
             inner_stmts_simd.push(quote! {
                 let #value_simd = (#expr_simd).to_array();
@@ -212,6 +223,7 @@ impl TranspileContext {
                 }
             });
         }
+        let total_count_lit = Literal::usize_unsuffixed(channels.len());
         self.fill_mode = false;
         let fill_spline_fns = mem::take(&mut self.spline_fns);
 
@@ -258,11 +270,12 @@ impl TranspileContext {
             .filter(|(name, _)| name.starts_with("material_ore_vein_"))
         {
             let function = format_ident!("combine_{}", sanitize_name(name));
+            let prepare_cache = self
+                .combine_needs_column_cache(&info.df, input)
+                .then(|| quote! { cache.ensure(x, z, noises); });
             self.interpolated_param_mode = true;
             self.interpolated_param_counter = info.start;
-            self.disable_range_choice_input_cse = true;
             let body = self.gen_expr(&info.df, input, false);
-            self.disable_range_choice_input_cse = false;
             self.interpolated_param_mode = false;
             material_combine_splines.extend(mem::take(&mut self.spline_fns));
             material_combine_fns.push(quote! {
@@ -270,14 +283,15 @@ impl TranspileContext {
                 #[inline]
                 pub fn #function(
                     noises: &#noises,
-                    cache: &#cache,
+                    cache: &mut #cache,
                     interpolated: &[f32],
-                    _x: i32,
+                    x: i32,
                     y: i32,
-                    _z: i32,
+                    z: i32,
                 ) -> f32 {
-                    let x = cache.x as f64;
-                    let z = cache.z as f64;
+                    #prepare_cache
+                    let x = x as f64;
+                    let z = z as f64;
                     let y = y as f64;
                     #body
                 }

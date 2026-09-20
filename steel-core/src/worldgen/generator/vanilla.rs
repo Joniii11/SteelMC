@@ -454,7 +454,6 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
                 let world_z = chunk_min_z + local_z as i32;
 
                 if material_value_count != 0 {
-                    material_cache.ensure(world_x, world_z, noises);
                     let offset =
                         (relative_y * 16 * 16 + local_z * 16 + local_x) * material_value_count;
                     noises.fill_material_ore_vein_values(
@@ -718,7 +717,6 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
                         if let Some(values) = material_ore_vein_values
                             .get(offset..offset + material_ore_vein_value_count)
                         {
-                            material_cache.ensure(block_x, block_z, &self.noises);
                             N::fill_prefilled_material_ore_vein_results(
                                 &self.noises,
                                 &mut material_cache,
