@@ -180,6 +180,16 @@ impl BlendedNoise {
         let alpha = (main + Simd::splat(0.5_f32))
             .simd_max(Simd::splat(0.0))
             .simd_min(Simd::splat(1.0));
+        if alpha.simd_eq(Simd::splat(0.0)).all() {
+            return self
+                .min_limit_noise
+                .sample_y_simd(limit_x, limit_ys, limit_z);
+        }
+        if alpha.simd_eq(Simd::splat(1.0)).all() {
+            return self
+                .max_limit_noise
+                .sample_y_simd(limit_x, limit_ys, limit_z);
+        }
         let minimum = self
             .min_limit_noise
             .sample_y_simd(limit_x, limit_ys, limit_z);
@@ -251,5 +261,47 @@ mod tests {
                 "Y={y}"
             );
         }
+    }
+
+    #[test]
+    fn simd_endpoint_shortcuts_preserve_each_lane() {
+        use std::array;
+        use std::simd::{Simd, num::SimdFloat};
+
+        let mut saw_minimum = false;
+        let mut saw_maximum = false;
+        let mut saw_mixed = false;
+        for seed in [0, 42, 13579] {
+            let mut random = RandomSource::Legacy(LegacyRandom::from_seed(seed));
+            let noise = BlendedNoise::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0);
+            for x in [-20_000_068.0, -128.0, 0.0, 128.0, 20_000_068.0] {
+                for z in [-19_999_796.0, -256.0, 0.0, 256.0, 19_999_796.0] {
+                    for base_y in (-64..256).step_by(64) {
+                        let ys = Simd::from_array(array::from_fn::<_, 8, _>(|lane| {
+                            f64::from(base_y) + lane as f64 * 8.0
+                        }));
+                        let main = noise.main_noise.sample_y_simd(
+                            x * noise.main_xz_scale,
+                            ys * Simd::splat(noise.main_y_scale),
+                            z * noise.main_xz_scale,
+                        );
+                        let all_minimum = main.reduce_max() <= -0.5;
+                        let all_maximum = main.reduce_min() >= 0.5;
+                        saw_minimum |= all_minimum;
+                        saw_maximum |= all_maximum;
+                        saw_mixed |= !all_minimum && !all_maximum;
+                        let actual = noise.compute_y_simd(x, ys, z);
+                        for (lane, y) in ys.to_array().into_iter().enumerate() {
+                            assert_eq!(
+                                actual[lane].to_bits(),
+                                noise.compute(x, y, z).to_bits(),
+                                "seed {seed}, ({x}, {y}, {z})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(saw_minimum && saw_maximum && saw_mixed);
     }
 }
