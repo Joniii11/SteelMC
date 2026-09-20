@@ -68,8 +68,6 @@ pub(super) struct TranspileContext {
     pub(super) cse_bindings_simd: FxHashMap<u64, Ident>,
     /// Counter for generating unique CSE variable names.
     pub(super) cse_counter: usize,
-    /// Disables range-choice input reuse while emitting a nested material rule.
-    pub(super) disable_range_choice_input_cse: bool,
     /// Inline `Noise` nodes with `y_scale == 0.0` found inside non-flat
     /// functions. These are Y-independent but get recomputed per Y corner;
     /// caching them in the column cache avoids ~48 redundant evaluations per
@@ -100,7 +98,6 @@ impl TranspileContext {
             cse_bindings: FxHashMap::default(),
             cse_bindings_simd: FxHashMap::default(),
             cse_counter: 0,
-            disable_range_choice_input_cse: false,
             inline_flat_noises: BTreeMap::new(),
         }
     }
