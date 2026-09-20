@@ -661,8 +661,9 @@ impl TranspileContext {
     /// `N` cell-corner Y values.
     ///
     /// Variants migrated to true SIMD (`Constant`, `Noise`, `BlendAlpha/Offset`,
-    /// `BlendDensity`, `Lerp`, `Marker`, `Reference`, `BlendedNoise` in fill mode) emit
-    /// per-lane SIMD ops directly. Other variants fall back to a scalar loop
+    /// `BlendDensity`, `Lerp`, `IntervalSelect`, `Marker`, `Reference`,
+    /// `BlendedNoise` in fill mode) emit per-lane SIMD ops directly.
+    /// Other variants fall back to a scalar loop
     /// emission via [`Self::gen_simd_scalar_fallback`].
     ///
     /// Per-lane semantics are bit-identical to the scalar [`Self::gen_expr`]
@@ -1123,6 +1124,59 @@ impl TranspileContext {
                 }}
             }
 
+            DensityFunction::IntervalSelect(interval) => {
+                let input_simd = self.gen_expr_simd(&interval.input, input, is_flat);
+                let input_var = format_ident!("__branch_input_{}", self.cse_counter);
+                self.cse_counter += 1;
+                let input_fp =
+                    is_cse_candidate(&interval.input).then(|| fingerprint(&interval.input));
+                let input_fp = input_fp.filter(|fp| !self.cse_bindings_simd.contains_key(fp));
+                if let Some(fp) = input_fp {
+                    self.cse_bindings_simd.insert(fp, input_var.clone());
+                }
+                let branches: Vec<_> = interval.functions.iter().collect();
+                let (hoisted, hoisted_fps) =
+                    self.hoist_common_subexprs_simd(&branches, input, is_flat);
+                let function_exprs: Vec<_> = interval
+                    .functions
+                    .iter()
+                    .map(|function| self.gen_expr_simd(function, input, is_flat))
+                    .collect();
+                if let Some(fp) = input_fp {
+                    self.cse_bindings_simd.remove(&fp);
+                }
+                for fp in &hoisted_fps {
+                    self.cse_bindings_simd.remove(fp);
+                }
+                let Some((last_expr, earlier_exprs)) = function_exprs.split_last() else {
+                    panic!("minecraft:interval_select requires at least one function");
+                };
+                let mut branch_expr = quote! { #last_expr };
+                for (threshold, function_expr) in
+                    interval.thresholds.iter().zip(earlier_exprs.iter()).rev()
+                {
+                    let threshold = Literal::f32_unsuffixed(*threshold as f32);
+                    let else_expr = branch_expr;
+                    branch_expr = quote! {{
+                        let __below_mask = #input_var.simd_lt(#f32x::splat(#threshold));
+                        if __below_mask.all() {
+                            #function_expr
+                        } else if !__below_mask.any() {
+                            #else_expr
+                        } else {
+                            let __below = #function_expr;
+                            let __above = #else_expr;
+                            __below_mask.select(__below, __above)
+                        }
+                    }};
+                }
+                quote! {{
+                    let #input_var = #input_simd;
+                    #(#hoisted)*
+                    #branch_expr
+                }}
+            }
+
             // All other variants: scalar-lane fallback.
             _ => self.gen_simd_scalar_fallback(df, input, is_flat),
         }
@@ -1370,3 +1424,7 @@ mod imported_tests;
 #[cfg(test)]
 #[path = "codegen_lerp_tests.rs"]
 mod lerp_tests;
+
+#[cfg(test)]
+#[path = "codegen_interval_tests.rs"]
+mod interval_tests;
