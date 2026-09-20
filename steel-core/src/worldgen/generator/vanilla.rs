@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::{cell::Cell, marker::PhantomData, sync::Arc};
+use std::{cell::Cell, iter, marker::PhantomData, sync::Arc};
 
 use glam::{DVec3, IVec3};
 use rustc_hash::FxHashSet;
@@ -451,8 +451,13 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
             Heightmap::new(HeightmapType::WorldSurfaceWg, min_y, N::Settings::HEIGHT);
 
         let material_value_count = N::material_ore_vein_value_count();
-        let mut material_ore_vein_values =
-            vec![0.0_f32; 16 * 16 * N::Settings::HEIGHT as usize * material_value_count];
+        // An exact-length iterator allocates the retained Arc slice directly.
+        let mut material_ore_vein_values: Arc<[f32]> = iter::repeat_n(
+            0.0_f32,
+            16 * 16 * N::Settings::HEIGHT as usize * material_value_count,
+        )
+        .collect();
+        let material_values = Arc::make_mut(&mut material_ore_vein_values);
         let mut material_cache = N::ColumnCache::default();
         noise_chunk.fill(
             noises,
@@ -482,7 +487,7 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
                         world_x,
                         world_y,
                         world_z,
-                        &mut material_ore_vein_values[offset..offset + material_value_count],
+                        &mut material_values[offset..offset + material_value_count],
                     );
                 }
 
@@ -528,8 +533,6 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         if !pending_writes.is_empty() {
             chunk.write_block_batch(&pending_writes);
         }
-        let material_ore_vein_values = Arc::from(material_ore_vein_values);
-
         chunk.replace_noise_heightmaps(ocean_floor_wg, world_surface_wg);
         chunk.install_post_noise_state(N::wrap_post_noise_state(aquifer, material_ore_vein_values));
     }
