@@ -421,11 +421,7 @@ where
 
     /// Applies the shared output mask after every carver has marked its geometry.
     pub fn apply_carving_mask(&mut self) {
-        let mut ranges = Vec::new();
-        self.mask
-            .visit(|x, z, bottom_y, top_y| ranges.push((x, z, bottom_y, top_y)));
-
-        for (local_x, local_z, bottom_y, top_y) in ranges {
+        self.mask.visit(|local_x, local_z, bottom_y, top_y| {
             let world_x = self.chunk_min_x + local_x;
             let world_z = self.chunk_min_z + local_z;
             let mut has_grass = false;
@@ -463,7 +459,7 @@ where
                 if self.chunk.get_block_state(below_pos) != self.ids.dirt {
                     continue;
                 }
-                let steep = self.steep_material_condition(world_x, world_z);
+                let steep = Self::steep_material_condition(self.chunk, world_x, world_z);
                 let biome_id =
                     (self.biome_getter)(BlockPos(IVec3::new(world_x, world_y - 1, world_z)));
                 if let Some(top) = self.ctx.top_material(
@@ -480,11 +476,15 @@ where
                     }
                 }
             }
-        }
+        });
     }
 
-    fn steep_material_condition(&self, world_x: i32, world_z: i32) -> bool {
-        let Some(steep) = self.chunk.with_world_surface_heightmap(|worldgen_surface| {
+    fn steep_material_condition(
+        chunk: GenerationChunk<'_, TerrainPhase>,
+        world_x: i32,
+        world_z: i32,
+    ) -> bool {
+        let Some(steep) = chunk.with_world_surface_heightmap(|worldgen_surface| {
             steep_material_condition(worldgen_surface, world_x, world_z)
         }) else {
             log::error!("WorldSurfaceWg heightmap missing during carver top-material lookup");
