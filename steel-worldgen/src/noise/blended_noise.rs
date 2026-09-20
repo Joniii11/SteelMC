@@ -180,6 +180,16 @@ impl BlendedNoise {
         let alpha = (main + Simd::splat(0.5_f32))
             .simd_max(Simd::splat(0.0))
             .simd_min(Simd::splat(1.0));
+        if alpha.simd_eq(Simd::splat(0.0)).all() {
+            return self
+                .min_limit_noise
+                .sample_y_simd(limit_x, limit_ys, limit_z);
+        }
+        if alpha.simd_eq(Simd::splat(1.0)).all() {
+            return self
+                .max_limit_noise
+                .sample_y_simd(limit_x, limit_ys, limit_z);
+        }
         let minimum = self
             .min_limit_noise
             .sample_y_simd(limit_x, limit_ys, limit_z);
@@ -207,6 +217,28 @@ impl BlendedNoise {
                     .to_array(),
             );
             index += 8;
+        }
+        if index + 4 <= len {
+            let ys: Simd<f64, 4> = Simd::from_array(std::array::from_fn(|lane| {
+                f64::from(block_ys[index + lane])
+            }));
+            out[index..index + 4].copy_from_slice(
+                &self
+                    .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
+                    .to_array(),
+            );
+            index += 4;
+        }
+        if index + 2 <= len {
+            let ys: Simd<f64, 2> = Simd::from_array(std::array::from_fn(|lane| {
+                f64::from(block_ys[index + lane])
+            }));
+            out[index..index + 2].copy_from_slice(
+                &self
+                    .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
+                    .to_array(),
+            );
+            index += 2;
         }
         for (&block_y, value) in block_ys[index..len].iter().zip(&mut out[index..len]) {
             *value = self.compute(f64::from(block_x), f64::from(block_y), f64::from(block_z));
@@ -240,16 +272,60 @@ mod tests {
             -64, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 64,
         ];
         let mut column = [0.0_f32; 17];
-        noise.compute_column(20_000_068, &ys, -19_999_796, &mut column);
-
-        for (&y, &value) in ys.iter().zip(&column) {
-            assert_eq!(
-                value.to_bits(),
-                noise
-                    .compute(20_000_068.0, f64::from(y), -19_999_796.0)
-                    .to_bits(),
-                "Y={y}"
-            );
+        // Exercise every 8/4/2/scalar tail combination and short output buffers.
+        for len in 0..=ys.len() {
+            noise.compute_column(20_000_068, &ys, -19_999_796, &mut column[..len]);
+            for (&y, &value) in ys.iter().zip(&column[..len]) {
+                assert_eq!(
+                    value.to_bits(),
+                    noise
+                        .compute(20_000_068.0, f64::from(y), -19_999_796.0)
+                        .to_bits(),
+                    "length={len}, Y={y}"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn simd_endpoint_shortcuts_preserve_each_lane() {
+        use std::array;
+        use std::simd::{Simd, num::SimdFloat};
+
+        let mut saw_minimum = false;
+        let mut saw_maximum = false;
+        let mut saw_mixed = false;
+        for seed in [0, 42, 13579] {
+            let mut random = RandomSource::Legacy(LegacyRandom::from_seed(seed));
+            let noise = BlendedNoise::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0);
+            for x in [-20_000_068.0, -128.0, 0.0, 128.0, 20_000_068.0] {
+                for z in [-19_999_796.0, -256.0, 0.0, 256.0, 19_999_796.0] {
+                    for base_y in (-64..256).step_by(64) {
+                        let ys = Simd::from_array(array::from_fn::<_, 8, _>(|lane| {
+                            f64::from(base_y) + lane as f64 * 8.0
+                        }));
+                        let main = noise.main_noise.sample_y_simd(
+                            x * noise.main_xz_scale,
+                            ys * Simd::splat(noise.main_y_scale),
+                            z * noise.main_xz_scale,
+                        );
+                        let all_minimum = main.reduce_max() <= -0.5;
+                        let all_maximum = main.reduce_min() >= 0.5;
+                        saw_minimum |= all_minimum;
+                        saw_maximum |= all_maximum;
+                        saw_mixed |= !all_minimum && !all_maximum;
+                        let actual = noise.compute_y_simd(x, ys, z);
+                        for (lane, y) in ys.to_array().into_iter().enumerate() {
+                            assert_eq!(
+                                actual[lane].to_bits(),
+                                noise.compute(x, y, z).to_bits(),
+                                "seed {seed}, ({x}, {y}, {z})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(saw_minimum && saw_maximum && saw_mixed);
     }
 }
