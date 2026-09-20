@@ -20,7 +20,7 @@ use steel_registry::biome::BiomeRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
 use steel_utils::ChunkPos;
 use steel_utils::{BlockPos, BlockStateId, Identifier};
-use steel_worldgen::density::{ColumnCache, DimensionNoises};
+use steel_worldgen::density::DimensionNoises;
 use steel_worldgen::surface::{SurfaceConditionNoiseCache, SurfaceRuleContext};
 
 use crate::chunk::heightmap::Heightmap;
@@ -150,7 +150,6 @@ impl<N: DimensionNoises> CarvingContext<'_, N> {
                 .material_ore_vein_values
                 .get(offset..offset + value_count)
             {
-                self.material_cache.ensure(block_x, block_z, self.noises);
                 N::fill_prefilled_material_ore_vein_results(
                     self.noises,
                     &mut self.material_cache,
