@@ -207,6 +207,8 @@ impl BlendedNoise {
     pub fn compute_column(&self, block_x: i32, block_ys: &[i32], block_z: i32, out: &mut [f32]) {
         let len = block_ys.len().min(out.len());
         let mut index = 0;
+        // Four-lane batches are faster on baseline targets; retain eight for AVX-512.
+        #[cfg(target_feature = "avx512f")]
         while index + 8 <= len {
             let ys: Simd<f64, 8> = Simd::from_array(std::array::from_fn(|lane| {
                 f64::from(block_ys[index + lane])
@@ -218,7 +220,7 @@ impl BlendedNoise {
             );
             index += 8;
         }
-        if index + 4 <= len {
+        while index + 4 <= len {
             let ys: Simd<f64, 4> = Simd::from_array(std::array::from_fn(|lane| {
                 f64::from(block_ys[index + lane])
             }));
