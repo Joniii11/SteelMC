@@ -130,6 +130,9 @@ impl_post_noise_state_type!(EndNoises);
 pub struct VanillaGenerator<N: DimensionNoises> {
     /// Biome source for this dimension. Determines biomes at each quart position.
     biome_source: BiomeSourceKind,
+    /// Representative biome when every possible biome has the same carver list.
+    /// Mixed lists retain vanilla's per-source biome lookup.
+    uniform_carver_biome: Option<BiomeRef>,
     /// Noise generators for this dimension's density functions.
     /// Boxed because noise structs can be large.
     noises: Box<N>,
@@ -221,9 +224,11 @@ impl<N: DimensionNoises> VanillaGenerator<N> {
         let structure_generator =
             StructureGenerator::vanilla(seed as i64, world_path, &biome_source, thread_pool);
         let feature_runner = FeatureDecorationRunner::new(&possible_biome_refs, &REGISTRY);
+        let uniform_carver_biome = Self::uniform_carver_biome(&possible_biomes);
 
         Self {
             biome_source,
+            uniform_carver_biome,
             noises: Box::new(noises),
             splitter,
             ore_veinifier,
@@ -236,6 +241,21 @@ impl<N: DimensionNoises> VanillaGenerator<N> {
             feature_runner,
             _phantom: PhantomData,
         }
+    }
+
+    fn uniform_carver_biome(possible_biomes: &FxHashSet<Identifier>) -> Option<BiomeRef> {
+        let mut possible_biomes = possible_biomes.iter();
+        let first_key = possible_biomes.next()?;
+        let first = REGISTRY.biomes.by_key(first_key)?;
+
+        possible_biomes
+            .all(|key| {
+                REGISTRY
+                    .biomes
+                    .by_key(key)
+                    .is_some_and(|biome| biome.carvers == first.carvers)
+            })
+            .then_some(first)
     }
 }
 
@@ -799,7 +819,19 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keeps retained aquifer state, source carvers, and biome sampling in one flow"
+    )]
     fn apply_carvers(&self, chunk: GenerationChunk<'_, TerrainPhase>) {
+        if self
+            .uniform_carver_biome
+            .is_some_and(|biome| biome.carvers.is_empty())
+        {
+            chunk.clear_post_noise_state();
+            return;
+        }
+
         chunk.consume_post_noise_state::<N::State, _>(|mut retained_state| {
             chunk.prime_world_surface_heightmap();
 
@@ -869,9 +901,13 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
                 for dz in -8i32..=8 {
                     let sx = pos.0.x + dx;
                     let sz = pos.0.y + dz;
-                    let qx = (sx * 16) >> 2;
-                    let qz = (sz * 16) >> 2;
-                    let biome = biome_sampler.sample(qx, 0, qz);
+                    let biome = if let Some(biome) = self.uniform_carver_biome {
+                        biome
+                    } else {
+                        let qx = (sx * 16) >> 2;
+                        let qz = (sz * 16) >> 2;
+                        biome_sampler.sample(qx, 0, qz)
+                    };
                     source_biomes.push(SourceChunk {
                         pos: ChunkPos::new(sx, sz),
                         biome,
