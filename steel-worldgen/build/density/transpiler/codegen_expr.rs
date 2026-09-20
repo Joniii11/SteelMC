@@ -661,7 +661,7 @@ impl TranspileContext {
     /// `N` cell-corner Y values.
     ///
     /// Variants migrated to true SIMD (`Constant`, `Noise`, `BlendAlpha/Offset`,
-    /// `BlendDensity`, `Marker`, `Reference`, `BlendedNoise` in fill mode) emit
+    /// `BlendDensity`, `Lerp`, `Marker`, `Reference`, `BlendedNoise` in fill mode) emit
     /// per-lane SIMD ops directly. Other variants fall back to a scalar loop
     /// emission via [`Self::gen_simd_scalar_fallback`].
     ///
@@ -714,6 +714,29 @@ impl TranspileContext {
             DensityFunction::Constant(c) => {
                 let val = Literal::f32_unsuffixed(c.value as f32);
                 quote! { #f32x::splat(#val) }
+            }
+
+            DensityFunction::Lerp(l) => {
+                let alpha = self.gen_expr_simd(&l.alpha, input, is_flat);
+                let first = self.gen_expr_simd(&l.first, input, is_flat);
+                let second = self.gen_expr_simd(&l.second, input, is_flat);
+                quote! {{
+                    let __lerp_alpha = #alpha;
+                    let __zero = __lerp_alpha.simd_eq(#f32x::splat(0.0));
+                    let __one = __lerp_alpha.simd_eq(#f32x::splat(1.0));
+                    if __zero.all() {
+                        #first
+                    } else if __one.all() {
+                        #second
+                    } else {
+                        let __lerp_first = #first;
+                        let __lerp_second = #second;
+                        let __lerp_value =
+                            __lerp_first + __lerp_alpha * (__lerp_second - __lerp_first);
+                        // Vanilla returns the exact endpoint at alpha 0 or 1.
+                        __zero.select(__lerp_first, __one.select(__lerp_second, __lerp_value))
+                    }
+                }}
             }
 
             DensityFunction::Noise(n) => {
@@ -1343,3 +1366,7 @@ mod tests;
 #[cfg(test)]
 #[path = "codegen_expr_imported_tests.rs"]
 mod imported_tests;
+
+#[cfg(test)]
+#[path = "codegen_lerp_tests.rs"]
+mod lerp_tests;
