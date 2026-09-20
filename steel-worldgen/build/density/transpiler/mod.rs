@@ -96,6 +96,7 @@ pub fn transpile(input: &TranspilerInput) -> TokenStream {
         use std::simd::Simd;
         use std::simd::Select;
         use std::simd::cmp::SimdOrd;
+        use std::simd::cmp::SimdPartialEq;
         use std::simd::cmp::SimdPartialOrd;
         use std::simd::num::SimdInt;
         use std::simd::num::SimdFloat;
