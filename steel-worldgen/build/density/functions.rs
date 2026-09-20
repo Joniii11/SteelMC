@@ -1181,7 +1181,10 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
                     z,
                     values[#value_index],
                     values[#value_index + 1],
-                    || #filler_gap(self, cache, x as f64, y as f64, z as f64) as f32,
+                    || {
+                        cache.ensure(x, z, self);
+                        #filler_gap(self, cache, x as f64, y as f64, z as f64) as f32
+                    },
                     ore_vein_states[#index][0],
                     ore_vein_states[#index][1],
                     ore_vein_states[#index][2],
