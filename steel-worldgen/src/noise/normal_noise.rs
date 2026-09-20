@@ -237,14 +237,26 @@ impl NormalNoise {
     #[must_use]
     /// Samples the float-valued vanilla noise stack with a fixed Y coordinate.
     pub fn get_value_xz(&self, x: f64, z: f64) -> f32 {
-        self.get_value(x, 0.0, z)
+        self.layers.iter().fold(0.0_f32, |value, layer| {
+            value
+                + layer.amplitude
+                    * layer
+                        .noise
+                        .noise_xz(x * layer.frequency, z * layer.frequency)
+        })
     }
 
     #[inline]
     #[must_use]
     /// Samples the float-valued vanilla noise stack with a fixed Z coordinate.
     pub fn get_value_xy(&self, x: f64, y: f64) -> f32 {
-        self.get_value(x, y, 0.0)
+        self.layers.iter().fold(0.0_f32, |value, layer| {
+            value
+                + layer.amplitude
+                    * layer
+                        .noise
+                        .noise_xy(x * layer.frequency, y * layer.frequency)
+        })
     }
 
     #[inline]
@@ -367,6 +379,35 @@ mod tests {
     use super::*;
     use crate::random::{RandomSource, legacy_random::LegacyRandom};
     use std::simd::{f64x4, f64x8};
+
+    #[test]
+    fn zero_axis_helpers_match_full_noise() {
+        let samples = [
+            (0.0, -0.0),
+            (1.25, -30.75),
+            (-1000.0, 4096.5),
+            (33_554_431.5, -33_554_432.25),
+            (-0.000_000_1, 0.000_000_1),
+        ];
+        for seed in [0, 42, 98_765] {
+            for amplitudes in [&[1.0, 0.0, 1.0, 1.0, 0.5][..], &[0.0; 5][..]] {
+                let mut random = RandomSource::Legacy(LegacyRandom::from_seed(seed));
+                let noise = NormalNoise::create_from_random(&mut random, -6, amplitudes);
+                for (a, b) in samples {
+                    assert_eq!(
+                        noise.get_value_xz(a, b).to_bits(),
+                        noise.get_value(a, 0.0, b).to_bits(),
+                        "XZ: seed={seed}, ({a}, {b})"
+                    );
+                    assert_eq!(
+                        noise.get_value_xy(a, b).to_bits(),
+                        noise.get_value(a, b, 0.0).to_bits(),
+                        "XY: seed={seed}, ({a}, {b})"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn value_y_simd_matches_scalar_f32_lanes() {
