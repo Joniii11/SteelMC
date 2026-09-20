@@ -263,27 +263,76 @@ impl ImprovedNoise {
         relative_z: f32,
         original_relative_y: f32,
     ) -> f32 {
-        let x1 = x.wrapping_add(1);
-        let y1 = y.wrapping_add(1);
-        let z1 = z.wrapping_add(1);
-        let relative_x1 = relative_x - 1.0;
-        let relative_y1 = relative_y - 1.0;
-        let relative_z1 = relative_z - 1.0;
+        #[cfg(target_feature = "avx512f")]
+        let [d000, d100, d010, d110, d001, d101, d011, d111] =
+            self.corner_gradients_simd(x, y, z, relative_x, relative_y, relative_z);
 
-        let d000 = grad_dot_flat(&self.p, x, y, z, relative_x, relative_y, relative_z);
-        let d100 = grad_dot_flat(&self.p, x1, y, z, relative_x1, relative_y, relative_z);
-        let d010 = grad_dot_flat(&self.p, x, y1, z, relative_x, relative_y1, relative_z);
-        let d110 = grad_dot_flat(&self.p, x1, y1, z, relative_x1, relative_y1, relative_z);
-        let d001 = grad_dot_flat(&self.p, x, y, z1, relative_x, relative_y, relative_z1);
-        let d101 = grad_dot_flat(&self.p, x1, y, z1, relative_x1, relative_y, relative_z1);
-        let d011 = grad_dot_flat(&self.p, x, y1, z1, relative_x, relative_y1, relative_z1);
-        let d111 = grad_dot_flat(&self.p, x1, y1, z1, relative_x1, relative_y1, relative_z1);
+        #[cfg(not(target_feature = "avx512f"))]
+        let [d000, d100, d010, d110, d001, d101, d011, d111] = {
+            let x1 = x.wrapping_add(1);
+            let y1 = y.wrapping_add(1);
+            let z1 = z.wrapping_add(1);
+            let relative_x1 = relative_x - 1.0;
+            let relative_y1 = relative_y - 1.0;
+            let relative_z1 = relative_z - 1.0;
+
+            let d000 = grad_dot_flat(&self.p, x, y, z, relative_x, relative_y, relative_z);
+            let d100 = grad_dot_flat(&self.p, x1, y, z, relative_x1, relative_y, relative_z);
+            let d010 = grad_dot_flat(&self.p, x, y1, z, relative_x, relative_y1, relative_z);
+            let d110 = grad_dot_flat(&self.p, x1, y1, z, relative_x1, relative_y1, relative_z);
+            let d001 = grad_dot_flat(&self.p, x, y, z1, relative_x, relative_y, relative_z1);
+            let d101 = grad_dot_flat(&self.p, x1, y, z1, relative_x1, relative_y, relative_z1);
+            let d011 = grad_dot_flat(&self.p, x, y1, z1, relative_x, relative_y1, relative_z1);
+            let d111 = grad_dot_flat(&self.p, x1, y1, z1, relative_x1, relative_y1, relative_z1);
+            [d000, d100, d010, d110, d001, d101, d011, d111]
+        };
         let x_alpha = smoothstep(relative_x);
         let y_alpha = smoothstep(original_relative_y);
         let z_alpha = smoothstep(relative_z);
         let xz0 = lerp2(x_alpha, y_alpha, d000, d100, d010, d110);
         let xz1 = lerp2(x_alpha, y_alpha, d001, d101, d011, d111);
         lerp(z_alpha, xz0, xz1)
+    }
+
+    /// Batches the two Z faces while sharing their X/Y permutation lookups.
+    #[cfg(any(test, target_feature = "avx512f"))]
+    #[inline]
+    fn corner_gradients_simd(
+        &self,
+        x: i32,
+        y: i32,
+        z: i32,
+        relative_x: f32,
+        relative_y: f32,
+        relative_z: f32,
+    ) -> [f32; 8] {
+        let x = x as u8;
+        let y = y as u8;
+        let z = z as u8;
+        let x0 = self.p[x as usize];
+        let x1 = self.p[x.wrapping_add(1) as usize];
+        let xy = [
+            self.p[x0.wrapping_add(y) as usize],
+            self.p[x1.wrapping_add(y) as usize],
+            self.p[x0.wrapping_add(y).wrapping_add(1) as usize],
+            self.p[x1.wrapping_add(y).wrapping_add(1) as usize],
+        ];
+        let xs = Simd::from_array([relative_x, relative_x - 1.0, relative_x, relative_x - 1.0]);
+        let ys = Simd::from_array([relative_y, relative_y, relative_y - 1.0, relative_y - 1.0]);
+        let sample_face = |face_z: u8, relative_z| {
+            let gradients =
+                xy.map(|xy| GRADIENT_F32[self.p[xy.wrapping_add(face_z) as usize] as usize & 15]);
+            let gx = Simd::from_array(gradients.map(|g| g[0]));
+            let gy = Simd::from_array(gradients.map(|g| g[1]));
+            let gz = Simd::from_array(gradients.map(|g| g[2]));
+            // Preserve all three terms and vanilla's float addition order.
+            (gx * xs + gy * ys + gz * Simd::splat(relative_z)).to_array()
+        };
+        let low = sample_face(z, relative_z);
+        let high = sample_face(z.wrapping_add(1), relative_z - 1.0);
+        [
+            low[0], low[1], low[2], low[3], high[0], high[1], high[2], high[3],
+        ]
     }
 
     #[expect(
@@ -738,6 +787,41 @@ mod tests {
     use super::*;
     use crate::random::xoroshiro::Xoroshiro;
     use std::simd::f64x4;
+
+    #[test]
+    fn corner_gradient_batches_match_scalar_at_permutation_boundaries() {
+        let mut random = Xoroshiro::from_seed(42);
+        let noise = ImprovedNoise::new(&mut random);
+        for x in [-257_i32, -1, 0, 255, 256, i32::MAX] {
+            for y in [-1_i32, 0, 255, i32::MAX] {
+                for z in [-1_i32, 0, 255, i32::MAX] {
+                    for [rx, ry, rz] in [[0.0_f32, 0.0, 0.0], [0.125, -0.25, 0.75], [0.9, 0.7, 0.3]]
+                    {
+                        let actual = noise.corner_gradients_simd(x, y, z, rx, ry, rz);
+                        for (corner, actual) in actual.into_iter().enumerate() {
+                            let dx = (corner & 1) as i32;
+                            let dy = ((corner >> 1) & 1) as i32;
+                            let dz = ((corner >> 2) & 1) as i32;
+                            let expected = grad_dot_flat(
+                                &noise.p,
+                                x.wrapping_add(dx),
+                                y.wrapping_add(dy),
+                                z.wrapping_add(dz),
+                                rx - dx as f32,
+                                ry - dy as f32,
+                                rz - dz as f32,
+                            );
+                            assert_eq!(
+                                actual.to_bits(),
+                                expected.to_bits(),
+                                "({x}, {y}, {z}), corner {corner}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_noise_with_y_scale_4x_matches_scalar() {

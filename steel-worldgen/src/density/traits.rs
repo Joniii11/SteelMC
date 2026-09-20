@@ -280,6 +280,7 @@ pub trait DimensionNoises: Sized + Send + Sync {
     /// Vanilla samples these functions over the complete chunk volume before
     /// surface rules start evaluating. `out` has
     /// [`Self::material_ore_vein_value_count`] entries, two per ore rule.
+    /// Prepares `cache` if any non-interpolated inputs require column values.
     fn fill_material_ore_vein_values(
         &self,
         cache: &mut Self::ColumnCache,
@@ -295,6 +296,7 @@ pub trait DimensionNoises: Sized + Send + Sync {
     ///
     /// `out` is ordered by the material-rule tree's depth-first traversal, so
     /// generated rule code can preserve vanilla's sequence ordering.
+    /// Prepares the column cache only when an ore rule samples its gap noise.
     #[expect(
         clippy::too_many_arguments,
         reason = "mirrors the generated Vanilla material-rule call"
