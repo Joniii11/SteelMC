@@ -1,3 +1,4 @@
+use std::ops::{Add, Mul, Neg, Sub};
 use std::simd::Simd;
 #[cfg(target_feature = "avx512f")]
 use std::simd::{
@@ -48,10 +49,10 @@ pub fn grad_dot_simd<const N: usize>(
     z: Simd<f32, N>,
 ) -> Simd<f32, N>
 where
-    Simd<f32, N>: std::ops::Mul<Output = Simd<f32, N>>
-        + std::ops::Add<Output = Simd<f32, N>>
-        + std::ops::Sub<Output = Simd<f32, N>>
-        + std::ops::Neg<Output = Simd<f32, N>>,
+    Simd<f32, N>: Mul<Output = Simd<f32, N>>
+        + Add<Output = Simd<f32, N>>
+        + Sub<Output = Simd<f32, N>>
+        + Neg<Output = Simd<f32, N>>,
 {
     #[cfg(target_feature = "avx512f")]
     {
@@ -73,10 +74,10 @@ where
 
     #[cfg(not(target_feature = "avx512f"))]
     {
-        let gradients = hashes.map(|hash| GRADIENT[hash & 15]);
-        let gx = Simd::from_array(gradients.map(|gradient| gradient[0] as f32));
-        let gy = Simd::from_array(gradients.map(|gradient| gradient[1] as f32));
-        let gz = Simd::from_array(gradients.map(|gradient| gradient[2] as f32));
+        let gradients = hashes.map(|hash| GRADIENT_F32[hash & 15]);
+        let gx = Simd::from_array(gradients.map(|gradient| gradient[0]));
+        let gy = Simd::from_array(gradients.map(|gradient| gradient[1]));
+        let gz = Simd::from_array(gradients.map(|gradient| gradient[2]));
         gx * x + gy * y + gz * z
     }
 }
