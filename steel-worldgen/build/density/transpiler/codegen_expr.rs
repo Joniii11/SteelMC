@@ -21,6 +21,7 @@ use super::TranspilerInput;
 use super::bounds::compute_bounds;
 use super::context::TranspileContext;
 use super::fingerprint::{collect_expensive_subexprs, fingerprint, is_cse_candidate};
+use super::graph::collect_interpolated_inners;
 use super::naming::{named_fn_field_ident, named_fn_ident, named_fn_ident_simd, noise_field_ident};
 
 impl TranspileContext {
@@ -39,6 +40,11 @@ impl TranspileContext {
         if is_cse_candidate(df) {
             let fp = fingerprint(df);
             if let Some(var) = self.cse_bindings.get(&fp) {
+                // Reuse the value without changing the marker traversal order.
+                if self.interpolated_param_mode {
+                    self.interpolated_param_counter +=
+                        collect_interpolated_inners(df, &input.registry).len();
+                }
                 return quote! { #var };
             }
         }
@@ -266,18 +272,16 @@ impl TranspileContext {
                 let min = Literal::f32_unsuffixed(rc.min_inclusive as f32);
                 let max = Literal::f32_unsuffixed(rc.max_exclusive as f32);
 
-                // Generate input expression BEFORE registering any CSE
-                // bindings (otherwise a self-referencing input produces
-                // `let v = v;`).
+                // Evaluate the input before making its binding available to branches.
                 let input_expr = self.gen_expr(&rc.input, input, is_flat);
 
-                let input_fp = (!self.disable_range_choice_input_cse
-                    && is_cse_candidate(&rc.input))
-                .then(|| {
-                    let fp = fingerprint(&rc.input);
-                    self.cse_bindings.insert(fp, format_ident!("v"));
-                    fp
-                });
+                let input_var = format_ident!("__branch_input_{}", self.cse_counter);
+                self.cse_counter += 1;
+                let input_fp = is_cse_candidate(&rc.input).then(|| fingerprint(&rc.input));
+                let input_fp = input_fp.filter(|fp| !self.cse_bindings.contains_key(fp));
+                if let Some(fp) = input_fp {
+                    self.cse_bindings.insert(fp, input_var.clone());
+                }
 
                 // CSE: hoist subexpressions common to both branches.
                 let (hoisted, hoisted_fps) = self.hoist_common_subexprs(
@@ -306,14 +310,14 @@ impl TranspileContext {
 
                 let cond = match (lower_dead, upper_dead) {
                     (true, true) => quote! { true },
-                    (true, false) => quote! { v < #max },
-                    (false, true) => quote! { v >= #min },
-                    (false, false) => quote! { v >= #min && v < #max },
+                    (true, false) => quote! { #input_var < #max },
+                    (false, true) => quote! { #input_var >= #min },
+                    (false, false) => quote! { #input_var >= #min && #input_var < #max },
                 };
 
                 quote! {{
+                    let #input_var = #input_expr;
                     #(#hoisted)*
-                    let v = #input_expr;
                     if #cond { #in_range } else { #out_range }
                 }}
             }
@@ -321,13 +325,14 @@ impl TranspileContext {
             DensityFunction::IntervalSelect(interval) => {
                 let input_expr = self.gen_expr(&interval.input, input, is_flat);
 
-                let input_fp = if is_cse_candidate(&interval.input) {
-                    let fp = fingerprint(&interval.input);
-                    self.cse_bindings.insert(fp, format_ident!("v"));
-                    Some(fp)
-                } else {
-                    None
-                };
+                let input_var = format_ident!("__branch_input_{}", self.cse_counter);
+                self.cse_counter += 1;
+                let input_fp =
+                    is_cse_candidate(&interval.input).then(|| fingerprint(&interval.input));
+                let input_fp = input_fp.filter(|fp| !self.cse_bindings.contains_key(fp));
+                if let Some(fp) = input_fp {
+                    self.cse_bindings.insert(fp, input_var.clone());
+                }
 
                 let branches: Vec<_> = interval.functions.iter().collect();
                 let (hoisted, hoisted_fps) = self.hoist_common_subexprs(&branches, input, is_flat);
@@ -355,13 +360,13 @@ impl TranspileContext {
                     let threshold = Literal::f32_unsuffixed(*threshold as f32);
                     let else_expr = branch_expr;
                     branch_expr = quote! {
-                        if v < #threshold { #function_expr } else { #else_expr }
+                        if #input_var < #threshold { #function_expr } else { #else_expr }
                     };
                 }
 
                 quote! {{
+                    let #input_var = #input_expr;
                     #(#hoisted)*
-                    let v = #input_expr;
                     #branch_expr
                 }}
             }
@@ -1053,13 +1058,13 @@ impl TranspileContext {
                 // Only when lanes diverge do we eat the both-branches cost.
 
                 let input_simd = self.gen_expr_simd(&rc.input, input, is_flat);
-                let input_fp = (!self.disable_range_choice_input_cse
-                    && is_cse_candidate(&rc.input))
-                .then(|| {
-                    let fp = fingerprint(&rc.input);
-                    self.cse_bindings_simd.insert(fp, format_ident!("__v"));
-                    fp
-                });
+                let input_var = format_ident!("__branch_input_{}", self.cse_counter);
+                self.cse_counter += 1;
+                let input_fp = is_cse_candidate(&rc.input).then(|| fingerprint(&rc.input));
+                let input_fp = input_fp.filter(|fp| !self.cse_bindings_simd.contains_key(fp));
+                if let Some(fp) = input_fp {
+                    self.cse_bindings_simd.insert(fp, input_var.clone());
+                }
                 let (hoisted, hoisted_fps) = self.hoist_common_subexprs_simd(
                     &[&rc.when_in_range, &rc.when_out_of_range],
                     input,
@@ -1079,10 +1084,10 @@ impl TranspileContext {
                 let min = Literal::f32_unsuffixed(rc.min_inclusive as f32);
                 let max = Literal::f32_unsuffixed(rc.max_exclusive as f32);
                 quote! {{
-                    let __v = #input_simd;
+                    let #input_var = #input_simd;
                     #(#hoisted)*
-                    let __in_mask = __v.simd_ge(#f32x::splat(#min))
-                        & __v.simd_lt(#f32x::splat(#max));
+                    let __in_mask = #input_var.simd_ge(#f32x::splat(#min))
+                        & #input_var.simd_lt(#f32x::splat(#max));
                     if __in_mask.all() {
                         #in_range
                     } else if !__in_mask.any() {
@@ -1330,3 +1335,11 @@ impl TranspileContext {
         (bindings, hoisted_fps)
     }
 }
+
+#[cfg(test)]
+#[path = "codegen_expr_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "codegen_expr_imported_tests.rs"]
+mod imported_tests;
