@@ -145,7 +145,6 @@ pub fn use_item(player: &Player, world: &Arc<World>, hand: InteractionHand) -> I
         // Get behavior registries
         let item_behaviors = &*ITEM_BEHAVIORS;
         let item_behavior = item_behaviors.get_behavior(item_ref);
-
         let is_instantly_used = item_behavior.get_use_duration(&stack_before_use, player) <= 0;
 
         let result = item_behavior.use_item(&mut context);
@@ -218,13 +217,13 @@ impl Player {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::use_item;
     use crate::behavior::{InteractionResult, init_behaviors};
     use crate::entity::Entity as _;
     use crate::player::connection::NetworkConnection as _;
     use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
     use glam::DVec3;
+    use std::sync::Arc;
     use steel_protocol::packets::game::SUseItem;
     use steel_registry::{
         RegistryHolderSet,
@@ -334,7 +333,7 @@ mod tests {
         );
         assert_eq!(player.inventory.lock().get_selected_item().count(), 0);
     }
-  
+
     /// A player at full hunger cannot start eating a normal food item —
     /// vanilla `Consumable.canConsume` fails and returns `Fail` without
     /// starting active use.
