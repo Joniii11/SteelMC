@@ -242,6 +242,11 @@ impl ChunkStorage {
         let block_entity_type = REGISTRY.block_entity_types.by_key(block_entity_type_key)?;
 
         if !block_entity_type.is_valid(state.get_block()) {
+            log::warn!(
+                "Skipping block entity {} at {pos:?}: block {} does not accept that type",
+                block_entity_type.key,
+                state.get_block().key,
+            );
             return None;
         }
 
