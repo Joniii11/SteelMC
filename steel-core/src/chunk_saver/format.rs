@@ -58,6 +58,7 @@ pub const REGION_MAGIC: [u8; 4] = *b"STLR";
 /// v20: Added chunk-owned light section persistence.
 /// v21: Matched vanilla scheduled-tick persistence by rebuilding sub-tick order on load.
 /// v22: Preserve Vanilla pending `DUMMY` block entities across chunk stages.
+/// v23: Replaced Noise, Surface, and Carvers with Terrain status; removed persisted carving masks.
 pub const FORMAT_VERSION: u16 = 23;
 
 /// Number of chunks per region side (32×32 = 1024 chunks per region).
