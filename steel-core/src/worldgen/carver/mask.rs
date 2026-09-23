@@ -5,6 +5,12 @@
 //! `WorldCarver` to avoid repeatedly processing the same position when
 //! multiple carver steps overlap.
 
+use std::cell::RefCell;
+
+thread_local! {
+    static CARVING_MASK_WORDS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+}
+
 /// A `16 × height × 16` bitset of local block positions in a chunk.
 #[derive(Debug, Clone)]
 pub struct CarvingMask {
@@ -25,10 +31,12 @@ impl CarvingMask {
         let height = max_y - min_y + 1;
         let total_bits = (256 * height) as usize;
         let lanes = total_bits.div_ceil(64);
+        let mut bits = CARVING_MASK_WORDS.with(|cache| std::mem::take(&mut *cache.borrow_mut()));
+        bits.resize(lanes, 0);
         Self {
             min_y,
             height,
-            bits: vec![0; lanes],
+            bits,
         }
     }
 
@@ -172,6 +180,18 @@ impl CarvingMask {
     }
 }
 
+impl Drop for CarvingMask {
+    fn drop(&mut self) {
+        CARVING_MASK_WORDS.with(|cache| {
+            let mut cached = cache.borrow_mut();
+            if self.bits.capacity() > cached.capacity() {
+                self.bits.clear();
+                std::mem::swap(&mut self.bits, &mut *cached);
+            }
+        });
+    }
+}
+
 #[cfg(test)]
 mod test {
     use steel_worldgen::density_functions::{
@@ -195,6 +215,25 @@ mod test {
         assert!(!mask.get(4, 10, 7));
         assert!(!mask.get(5, 11, 7));
         assert!(!mask.get(5, 10, 8));
+    }
+
+    #[test]
+    fn reused_mask_is_clear_across_height_ranges() {
+        let mut first = CarvingMask::new(OVERWORLD_CARVER_MIN_Y, OVERWORLD_CARVER_MAX_Y);
+        first.set(5, 10, 7);
+        drop(first);
+
+        let mut nether = CarvingMask::for_worldgen_context(
+            NetherNoiseSettings::MIN_Y,
+            NetherNoiseSettings::HEIGHT,
+        );
+        assert!(nether.is_empty());
+        nether.set(5, 10, 7);
+        drop(nether);
+
+        let reused = CarvingMask::new(OVERWORLD_CARVER_MIN_Y, OVERWORLD_CARVER_MAX_Y);
+        assert!(reused.is_empty());
+        assert!(!reused.get(5, 10, 7));
     }
 
     #[test]
