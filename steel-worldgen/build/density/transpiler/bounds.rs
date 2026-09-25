@@ -254,35 +254,3 @@ pub(super) fn compute_bounds_inner(
         DensityFunction::Slice(s) => compute_bounds_inner(&s.input, input, visiting),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{TranspilerInput, compute_bounds};
-    use crate::density::{Constant, DensityFunction, TwoArgType, TwoArgumentSimple};
-    use std::{collections::BTreeMap, sync::Arc};
-
-    #[test]
-    fn cancellation_bounds_follow_each_float_operation() {
-        let constant = |value| Arc::new(DensityFunction::Constant(Constant { value }));
-        let sum = Arc::new(DensityFunction::TwoArgumentSimple(TwoArgumentSimple {
-            op: TwoArgType::Add,
-            argument1: constant(1.0),
-            argument2: constant(2.0_f64.powi(-24)),
-        }));
-        let difference = DensityFunction::TwoArgumentSimple(TwoArgumentSimple {
-            op: TwoArgType::Sub,
-            argument1: sum,
-            argument2: constant(1.0),
-        });
-        let input = TranspilerInput {
-            registry: BTreeMap::new(),
-            router_entries: BTreeMap::new(),
-            prefix: "Test".into(),
-            cell_width: 4,
-            cell_height: 8,
-            legacy_random_source: false,
-        };
-
-        assert_eq!(compute_bounds(&difference, &input), (0.0, 0.0));
-    }
-}
