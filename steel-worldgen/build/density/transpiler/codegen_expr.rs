@@ -189,7 +189,7 @@ impl TranspileContext {
                         let (b_lo, _b_hi) = compute_bounds(&t.argument2, input);
                         if b_lo.is_finite() {
                             // If `a <= b_lo`, then `b >= b_lo >= a`, so `min(a, b) = a`.
-                            let b_lo_lit = Literal::f32_unsuffixed(b_lo as f32);
+                            let b_lo_lit = Literal::f32_unsuffixed(b_lo);
                             quote! {{
                                 let __sc_a = #a;
                                 if __sc_a <= #b_lo_lit {
@@ -211,7 +211,7 @@ impl TranspileContext {
                         let (_b_lo, b_hi) = compute_bounds(&t.argument2, input);
                         if b_hi.is_finite() {
                             // If `a >= b_hi`, then `b <= b_hi <= a`, so `max(a, b) = a`.
-                            let b_hi_lit = Literal::f32_unsuffixed(b_hi as f32);
+                            let b_hi_lit = Literal::f32_unsuffixed(b_hi);
                             quote! {{
                                 let __sc_a = #a;
                                 if __sc_a >= #b_hi_lit {
@@ -305,8 +305,9 @@ impl TranspileContext {
                 // RangeChoice often uses sentinel bounds like `-1_000_000` for
                 // "unbounded below" that the input's actual range never violates.
                 let (in_lo, in_hi) = compute_bounds(&rc.input, input);
-                let lower_dead = in_lo >= rc.min_inclusive;
-                let upper_dead = in_hi < rc.max_exclusive;
+                // Match the f32 thresholds used by the generated comparison.
+                let lower_dead = in_lo >= rc.min_inclusive as f32;
+                let upper_dead = in_hi < rc.max_exclusive as f32;
 
                 let cond = match (lower_dead, upper_dead) {
                     (true, true) => quote! { true },
@@ -1020,7 +1021,7 @@ impl TranspileContext {
                         if b_lo.is_finite() {
                             // If `a <= b_lo` for all lanes, then `b >= b_lo >= a`,
                             // so `min(a, b) = a`; the right operand is skipped.
-                            let b_lo_lit = Literal::f32_unsuffixed(b_lo as f32);
+                            let b_lo_lit = Literal::f32_unsuffixed(b_lo);
                             quote! {{
                                 let __sc_a = #a;
                                 if __sc_a.simd_le(#f32x::splat(#b_lo_lit)).all() {
@@ -1038,7 +1039,7 @@ impl TranspileContext {
                         let a = self.gen_expr_simd(&t.argument1, input, is_flat);
                         let b = self.gen_expr_simd(&t.argument2, input, is_flat);
                         if b_hi.is_finite() {
-                            let b_hi_lit = Literal::f32_unsuffixed(b_hi as f32);
+                            let b_hi_lit = Literal::f32_unsuffixed(b_hi);
                             quote! {{
                                 let __sc_a = #a;
                                 if __sc_a.simd_ge(#f32x::splat(#b_hi_lit)).all() {

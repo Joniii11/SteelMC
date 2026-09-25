@@ -14,16 +14,15 @@ use super::TranspilerInput;
 /// inputs the function can be sampled at. When tight bounds aren't derivable
 /// (e.g., free-form noise with unknown amplitude product, or potentially
 /// unbounded operations like reciprocal), the corresponding side is set to
-/// `f64::NEG_INFINITY` / `f64::INFINITY` and downstream short-circuit
+/// `f32::NEG_INFINITY` / `f32::INFINITY` and downstream short-circuit
 /// optimizations correctly fall through to the unconditional codegen.
 ///
 /// Mirrors the static-bounds analysis used by C2ME's
 /// `MaxShortNode`/`MinShortNode` rewriters, with one extension: we resolve
 /// `Reference` nodes through the build-time registry so cross-function
 /// bounds propagate.
-pub(super) fn compute_bounds(df: &DensityFunction, input: &TranspilerInput) -> (f64, f64) {
-    let (lo, hi) = compute_bounds_inner(df, input, &mut Vec::new());
-    (f64::from(lo), f64::from(hi))
+pub(super) fn compute_bounds(df: &DensityFunction, input: &TranspilerInput) -> (f32, f32) {
+    compute_bounds_inner(df, input, &mut Vec::new())
 }
 
 #[expect(
