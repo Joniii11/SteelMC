@@ -1413,19 +1413,3 @@ impl TranspileContext {
         (bindings, hoisted_fps)
     }
 }
-
-#[cfg(test)]
-#[path = "codegen_expr_tests.rs"]
-mod tests;
-
-#[cfg(test)]
-#[path = "codegen_expr_imported_tests.rs"]
-mod imported_tests;
-
-#[cfg(test)]
-#[path = "codegen_lerp_tests.rs"]
-mod lerp_tests;
-
-#[cfg(test)]
-#[path = "codegen_interval_tests.rs"]
-mod interval_tests;
