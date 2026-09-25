@@ -69,8 +69,34 @@ pub(super) fn compute_bounds_inner(
         | DensityFunction::ShiftB(_)
         | DensityFunction::Shift(_)
         | DensityFunction::Spline(_)
-        | DensityFunction::BlendedNoise(_)
-        | DensityFunction::Lerp(_) => (f32::NEG_INFINITY, f32::INFINITY),
+        | DensityFunction::BlendedNoise(_) => (f32::NEG_INFINITY, f32::INFINITY),
+
+        DensityFunction::Lerp(l) => {
+            let (alpha_lo, alpha_hi) = compute_bounds_inner(&l.alpha, input, visiting);
+            let (first_lo, first_hi) = compute_bounds_inner(&l.first, input, visiting);
+            let (second_lo, second_hi) = compute_bounds_inner(&l.second, input, visiting);
+            let mut lo = f32::INFINITY;
+            let mut hi = f32::NEG_INFINITY;
+            for alpha in [alpha_lo, alpha_hi] {
+                for first in [first_lo, first_hi] {
+                    for second in [second_lo, second_hi] {
+                        let value = if alpha == 0.0 {
+                            first
+                        } else if alpha == 1.0 {
+                            second
+                        } else {
+                            first + alpha * (second - first)
+                        };
+                        if value.is_nan() {
+                            return (f32::NEG_INFINITY, f32::INFINITY);
+                        }
+                        lo = lo.min(value);
+                        hi = hi.max(value);
+                    }
+                }
+            }
+            (lo, hi)
+        }
 
         DensityFunction::TwoArgumentSimple(t) => {
             let (a_lo, a_hi) = compute_bounds_inner(&t.argument1, input, visiting);
