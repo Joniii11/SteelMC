@@ -44,24 +44,35 @@ impl TranspileContext {
                     #body
                 }
             });
-            if !is_flat {
-                let fn_name_simd = named_fn_ident_simd(&name);
-                let body_simd = self.gen_expr_simd(&inner, input, false);
-                let params_simd = self.fn_params_simd_generic();
-                fns.push(quote! {
-                    #[inline]
-                    fn #fn_name_simd<const N: usize>(#params_simd) -> Simd<f32, N> {
-                        #body_simd
-                    }
-                });
-            }
         }
 
         let spline_fns = mem::take(&mut self.spline_fns);
+        let mut fns_simd = Vec::new();
+        for name in self.topo_order.clone() {
+            if self.flat_cached.contains(&name) {
+                continue;
+            }
+            let Some(df) = input.registry.get(&name) else {
+                continue;
+            };
+            let inner = unwrap_markers(df);
+            let fn_name_simd = named_fn_ident_simd(&name);
+            let body_simd = self.gen_expr_simd(inner, input, false);
+            let params_simd = self.fn_params_simd_generic();
+            fns_simd.push(quote! {
+                #[inline]
+                fn #fn_name_simd<const N: usize>(#params_simd) -> Simd<f32, N> {
+                    #body_simd
+                }
+            });
+        }
+        let spline_fns_simd = mem::take(&mut self.spline_fns);
 
         quote! {
             #(#fns)*
             #(#spline_fns)*
+            #(#fns_simd)*
+            #(#spline_fns_simd)*
         }
     }
 
@@ -196,12 +207,18 @@ impl TranspileContext {
         // Phase 2: Generate fill_cell_corner_densities with all channels.
         self.fill_mode = true;
         let mut inner_stmts = Vec::with_capacity(total_count);
-        let mut inner_stmts_simd = Vec::with_capacity(total_count);
         for (i, inner_df) in all_inners.iter().enumerate() {
             let idx = Literal::usize_unsuffixed(i);
             let inner = unwrap_markers(inner_df);
             let expr = self.gen_expr(inner, input, false);
             inner_stmts.push(quote! { out[#idx] = #expr; });
+        }
+        let fill_spline_fns = mem::take(&mut self.spline_fns);
+
+        let mut inner_stmts_simd = Vec::with_capacity(total_count);
+        for (i, inner_df) in all_inners.iter().enumerate() {
+            let idx = Literal::usize_unsuffixed(i);
+            let inner = unwrap_markers(inner_df);
             let expr_simd = self.gen_expr_simd(inner, input, false);
             let value_simd = format_ident!("__values_simd_{i}");
             inner_stmts_simd.push(quote! {
@@ -212,7 +229,7 @@ impl TranspileContext {
             });
         }
         self.fill_mode = false;
-        let fill_spline_fns = mem::take(&mut self.spline_fns);
+        let fill_spline_fns_simd = mem::take(&mut self.spline_fns);
 
         // Phase 3: Generate combine_interpolated for final_density
         let combine_fd_body = if let Some(info) = entries.get("final_density") {
@@ -389,6 +406,7 @@ impl TranspileContext {
             }
 
             #(#fill_spline_fns)*
+            #(#fill_spline_fns_simd)*
             #(#combine_fd_splines)*
             #(#combine_vein_toggle_splines)*
             #(#combine_vein_ridged_splines)*
