@@ -1126,13 +1126,13 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
     .map(|name| {
         let fn_ident = format_ident!("router_{name}");
         let body = if router_entries.contains_key(name) {
-            quote! { f64::from(#fn_ident(self, cache, x as f64, y as f64, z as f64)) }
+            quote! { #fn_ident(self, cache, x as f64, y as f64, z as f64) }
         } else {
             quote! { 0.0 }
         };
         quote! {
             #[inline]
-            fn #fn_ident(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
+            fn #fn_ident(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
                 #body
             }
         }
@@ -1324,40 +1324,40 @@ fn generate_noise_settings(dimension: &str, prefix: &str) -> TokenStream {
             }
 
             #[inline]
-            fn router_final_density(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_final_density(self, cache, x as f64, y as f64, z as f64))
+            fn router_final_density(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_final_density(self, cache, x as f64, y as f64, z as f64)
             }
 
             #[inline]
-            fn router_depth(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_depth(self, cache, x as f64, y as f64, z as f64))
+            fn router_depth(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_depth(self, cache, x as f64, y as f64, z as f64)
             }
 
             #optional_router_fns
 
             #[inline]
-            fn router_erosion(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_erosion(self, cache, x as f64, y as f64, z as f64))
+            fn router_erosion(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_erosion(self, cache, x as f64, y as f64, z as f64)
             }
 
             #[inline]
-            fn router_continentalness(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_continentalness(self, cache, x as f64, y as f64, z as f64))
+            fn router_continentalness(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_continentalness(self, cache, x as f64, y as f64, z as f64)
             }
 
             #[inline]
-            fn router_temperature(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_temperature(self, cache, x as f64, y as f64, z as f64))
+            fn router_temperature(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_temperature(self, cache, x as f64, y as f64, z as f64)
             }
 
             #[inline]
-            fn router_vegetation(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_vegetation(self, cache, x as f64, y as f64, z as f64))
+            fn router_vegetation(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_vegetation(self, cache, x as f64, y as f64, z as f64)
             }
 
             #[inline]
-            fn router_ridges(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f64 {
-                f64::from(router_ridges(self, cache, x as f64, y as f64, z as f64))
+            fn router_ridges(&self, cache: &mut Self::ColumnCache, x: i32, y: i32, z: i32) -> f32 {
+                router_ridges(self, cache, x as f64, y as f64, z as f64)
             }
 
             #[inline]

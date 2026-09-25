@@ -149,7 +149,7 @@ impl OreVeinifier {
             noises.combine_vein_toggle(cache, interpolated, 0, world_y, 0)
         } else {
             cache.ensure(world_x, world_z, noises);
-            noises.router_vein_toggle(cache, world_x, world_y, world_z) as f32
+            noises.router_vein_toggle(cache, world_x, world_y, world_z)
         };
 
         // Select vein type based on sign of vein_toggle
@@ -195,7 +195,7 @@ impl OreVeinifier {
             noises.combine_vein_ridged(cache, interpolated, 0, world_y, 0)
         } else {
             cache.ensure(world_x, world_z, noises);
-            noises.router_vein_ridged(cache, world_x, world_y, world_z) as f32
+            noises.router_vein_ridged(cache, world_x, world_y, world_z)
         };
         if vein_ridged >= 0.0 {
             return None;
@@ -213,7 +213,7 @@ impl OreVeinifier {
         if rng.next_f32() < richness {
             // vein_gap has no Interpolated marker — evaluate directly
             cache.ensure(world_x, world_z, noises);
-            let vein_gap = noises.router_vein_gap(cache, world_x, world_y, world_z) as f32;
+            let vein_gap = noises.router_vein_gap(cache, world_x, world_y, world_z);
             if vein_gap > SKIP_ORE_IF_GAP_BELOW {
                 // Place ore (2% chance of raw ore block)
                 if rng.next_f32() < CHANCE_OF_RAW_ORE_BLOCK {
