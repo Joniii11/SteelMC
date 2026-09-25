@@ -18,7 +18,7 @@ use super::PARAMETER_COUNT;
 use super::types::{Parameter, ParameterPoint, TargetPoint};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-/// Maximum children per tree node. Matches vanilla's `CHILDREN_PER_NODE` = 19.
+/// Maximum children per tree node.
 const CHILDREN_PER_NODE: usize = 19;
 
 /// R-Tree node used during construction only. After building, the tree is

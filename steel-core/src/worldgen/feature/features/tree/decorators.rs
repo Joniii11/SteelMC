@@ -16,6 +16,8 @@ use crate::block_entity::entities::BeehiveBlockEntity;
 const BEEHIVE_WORLDGEN_FACING: Direction = Direction::South;
 const BEEHIVE_SPAWN_DIRECTIONS: [Direction; 3] =
     [Direction::East, Direction::South, Direction::West];
+const COCOA_PER_SIDE_PLACEMENT_CHANCE: f32 = 0.25;
+const SHELF_MUSHROOM_PER_SIDE_PLACEMENT_CHANCE: f32 = 0.25;
 
 impl FeatureDecorationRunner {
     pub(super) fn place_tree_decorators<L: LevelAccessor>(
@@ -418,7 +420,7 @@ impl FeatureDecorationRunner {
 
         for log in logs.into_iter().filter(|pos| pos.y() - tree_y <= 2) {
             for direction in Self::VANILLA_HORIZONTAL_DIRECTIONS {
-                if random.next_f32() > 0.25 {
+                if random.next_f32() > COCOA_PER_SIDE_PLACEMENT_CHANCE {
                     continue;
                 }
 
@@ -484,7 +486,7 @@ impl FeatureDecorationRunner {
             }
 
             for facing in directions {
-                if random.next_f32() <= 0.25
+                if random.next_f32() <= SHELF_MUSHROOM_PER_SIDE_PLACEMENT_CHANCE
                     && Self::try_place_shelf_mushroom_on_standing_tree(
                         region, registry, random, log_pos, facing, placement,
                     )
@@ -513,7 +515,7 @@ impl FeatureDecorationRunner {
 
         for &log_pos in logs {
             for facing in directions {
-                if random.next_f32() <= 0.25 {
+                if random.next_f32() <= SHELF_MUSHROOM_PER_SIDE_PLACEMENT_CHANCE {
                     Self::try_place_shelf_mushroom_on_fallen_log(
                         region, registry, random, log_pos, facing, placement,
                     );

@@ -26,7 +26,7 @@ where
     } else if factor > T::from(1.0) {
         max
     } else {
-        min + factor * (max - min)
+        lerp(factor, min, max)
     }
 }
 

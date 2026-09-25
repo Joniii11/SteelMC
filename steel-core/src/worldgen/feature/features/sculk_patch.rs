@@ -91,6 +91,8 @@ struct SculkChargeCursor {
 
 impl SculkChargeCursor {
     const MAX_CURSOR_DISTANCE: i32 = 1024;
+    const MAX_WORLDGEN_SPREAD: i64 = 12;
+    const MAX_WORLDGEN_SPREAD_SQUARED: i64 = Self::MAX_WORLDGEN_SPREAD * Self::MAX_WORLDGEN_SPREAD;
 
     const fn new(pos: BlockPos, charge: i32) -> Self {
         Self {
@@ -727,7 +729,7 @@ impl FeatureDecorationRunner {
             if spreader.is_world_generation {
                 let dx = i64::from(origin.x()) - i64::from(neighbor.x());
                 let dz = i64::from(origin.z()) - i64::from(neighbor.z());
-                if dx * dx + dz * dz > 144 {
+                if dx * dx + dz * dz > SculkChargeCursor::MAX_WORLDGEN_SPREAD_SQUARED {
                     continue;
                 }
             }

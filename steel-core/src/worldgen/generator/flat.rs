@@ -34,11 +34,8 @@ pub struct FlatChunkGenerator {
 }
 
 impl FlatChunkGenerator {
-    /// Vanilla `FlatLevelSource.getMinY()`.
     pub(crate) const MIN_Y: i32 = 0;
-    /// Vanilla `FlatLevelSource.getGenDepth()`.
     pub(crate) const HEIGHT: i32 = 384;
-    /// Vanilla `FlatLevelSource.getSeaLevel()`.
     pub(crate) const SEA_LEVEL: i32 = -63;
 
     /// Creates a new `FlatChunkGenerator`.

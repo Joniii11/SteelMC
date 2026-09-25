@@ -445,7 +445,7 @@ impl TranspileContext {
                 ///
                 /// After this call, `ensure()` for matching grid points copies from
                 /// the grid (O(1)). Other positions are evaluated at their exact
-                /// coordinates, matching 26.3's generic `minecraft:cache` sampler.
+                /// coordinates.
                 pub fn init_grid(&mut self, chunk_block_x: i32, chunk_block_z: i32,
                                  noises: &#noises) {
                     self.grid_first_quart_x = chunk_block_x >> 2;

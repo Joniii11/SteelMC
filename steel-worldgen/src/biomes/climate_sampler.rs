@@ -64,8 +64,6 @@ impl OverworldClimateSampler {
         let block_y = f64::from(block_y);
         let block_z = f64::from(block_z);
 
-        // Density functions return f64 but vanilla truncates to float before quantizing.
-        // The f64→f32→f64 round-trip through quantize_coord is intentional for parity.
         let temp = overworld::router_temperature(&self.noises, cache, block_x, block_y, block_z);
         let humidity = overworld::router_vegetation(&self.noises, cache, block_x, block_y, block_z);
         let cont =
