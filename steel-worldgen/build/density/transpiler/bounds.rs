@@ -29,6 +29,10 @@ pub(super) fn compute_bounds(df: &DensityFunction, input: &TranspilerInput) -> (
     clippy::too_many_lines,
     reason = "one match arm per DensityFunction variant; splitting the dispatch would obscure the per-variant bounds analysis"
 )]
+#[expect(
+    clippy::float_cmp,
+    reason = "exact alpha endpoints must avoid NaN from arithmetic with unbounded intervals"
+)]
 pub(super) fn compute_bounds_inner(
     df: &DensityFunction,
     input: &TranspilerInput,
