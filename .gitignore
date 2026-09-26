@@ -23,7 +23,6 @@
 CLAUDE.md
 .env
 /minecraft-src
-/minecraft-src-*
 .agents
 skills-lock.json
 docs
