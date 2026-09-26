@@ -17,7 +17,7 @@ use steel_utils::serial::{ReadFrom, WriteTo};
 use steel_utils::{Direction, Identifier};
 
 use crate::sound_event::SoundEventHolder;
-use crate::{REGISTRY, RegistryEntry, RegistryExt, RegistryTags};
+use crate::{REGISTRY, RegistryEntry, RegistryExt};
 
 /// Item block transforms, e.g. shovel flattening dirt into a path.
 ///
@@ -650,7 +650,6 @@ impl HashComponent for BlockTransformerComponent {
 pub struct BlockTransformerRegistry {
     entries_by_id: Vec<BlockTransformerRef>,
     entries_by_key: FxHashMap<Identifier, usize>,
-    tags: RegistryTags,
     allows_registering: bool,
 }
 
@@ -661,7 +660,6 @@ impl BlockTransformerRegistry {
             entries_by_id: Vec::new(),
             entries_by_key: FxHashMap::default(),
             allows_registering: true,
-            tags: RegistryTags::default(),
         }
     }
 }
