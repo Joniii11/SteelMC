@@ -22,7 +22,7 @@ use crate::{
 pub struct Item {
     pub key: Identifier,
     pub components: DataComponentMap,
-    /// The block held by vanilla BlockItem
+    /// The block held by vanilla `BlockItem`
     pub block: Option<BlockRef>,
     /// The item key returned when this item is used in crafting (e.g., "bucket" from `milk_bucket`).
     /// Stored as an Identifier to avoid circular reference issues during initialization.
@@ -172,7 +172,7 @@ impl ItemRegistry {
     ///
     /// The extracted blockItem target identifies the class capability
     #[must_use]
-    pub fn is_block_item(&self, item: ItemRef) -> bool {
+    pub const fn is_block_item(&self, item: ItemRef) -> bool {
         item.block.is_some()
     }
 
