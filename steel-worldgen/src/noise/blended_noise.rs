@@ -1,5 +1,7 @@
 //! Float-based blended terrain noise from vanilla 26.3.
 
+use std::array::from_fn;
+
 use crate::noise::ImprovedNoise;
 use crate::random::RandomSource;
 use std::simd::cmp::SimdPartialEq;
@@ -221,9 +223,8 @@ impl BlendedNoise {
             index += 8;
         }
         while index + 4 <= len {
-            let ys: Simd<f64, 4> = Simd::from_array(std::array::from_fn(|lane| {
-                f64::from(block_ys[index + lane])
-            }));
+            let ys: Simd<f64, 4> =
+                Simd::from_array(from_fn(|lane| f64::from(block_ys[index + lane])));
             out[index..index + 4].copy_from_slice(
                 &self
                     .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
@@ -232,9 +233,8 @@ impl BlendedNoise {
             index += 4;
         }
         if index + 2 <= len {
-            let ys: Simd<f64, 2> = Simd::from_array(std::array::from_fn(|lane| {
-                f64::from(block_ys[index + lane])
-            }));
+            let ys: Simd<f64, 2> =
+                Simd::from_array(from_fn(|lane| f64::from(block_ys[index + lane])));
             out[index..index + 2].copy_from_slice(
                 &self
                     .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))

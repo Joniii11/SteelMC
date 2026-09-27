@@ -3,6 +3,7 @@
 //! This is the base noise generator used by `PerlinNoise` for octave-based noise.
 
 use crate::random::Random;
+use std::ops::{Add, Mul, Neg, Sub};
 use std::simd::Simd;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::{SimdFloat, SimdInt, SimdUint};
@@ -253,6 +254,10 @@ impl ImprovedNoise {
         clippy::too_many_arguments,
         reason = "matches vanilla PerlinNoise.sampleAndLerp"
     )]
+    #[expect(
+        clippy::similar_names,
+        reason = "matching x, y and z corner coordinates use parallel names"
+    )]
     fn sample_and_lerp(
         &self,
         x: i32,
@@ -339,6 +344,10 @@ impl ImprovedNoise {
         clippy::too_many_arguments,
         reason = "mirrors scalar sample_and_lerp with SIMD Y lanes"
     )]
+    #[expect(
+        clippy::similar_names,
+        reason = "matching x, y and z SIMD corner coordinates use parallel names"
+    )]
     #[inline]
     fn sample_and_lerp_y_simd<const N: usize>(
         &self,
@@ -418,10 +427,10 @@ impl ImprovedNoise {
         Simd<f32, N>: SimdFloat<Cast<i32> = Simd<i32, N>>
             + SimdPartialOrd<Mask = Mask<i32, N>>
             + SimdPartialEq<Mask = Mask<i32, N>>
-            + std::ops::Add<Output = Simd<f32, N>>
-            + std::ops::Sub<Output = Simd<f32, N>>
-            + std::ops::Mul<Output = Simd<f32, N>>
-            + std::ops::Neg<Output = Simd<f32, N>>,
+            + Add<Output = Simd<f32, N>>
+            + Sub<Output = Simd<f32, N>>
+            + Mul<Output = Simd<f32, N>>
+            + Neg<Output = Simd<f32, N>>,
     {
         let x = x + Simd::splat(self.xo).cast();
         let y = y + Simd::splat(self.yo).cast();
@@ -541,10 +550,10 @@ impl ImprovedNoise {
         yr_original: Simd<f32, N>,
     ) -> Simd<f32, N>
     where
-        Simd<f32, N>: std::ops::Mul<Output = Simd<f32, N>>
-            + std::ops::Add<Output = Simd<f32, N>>
-            + std::ops::Sub<Output = Simd<f32, N>>
-            + std::ops::Neg<Output = Simd<f32, N>>,
+        Simd<f32, N>: Mul<Output = Simd<f32, N>>
+            + Add<Output = Simd<f32, N>>
+            + Sub<Output = Simd<f32, N>>
+            + Neg<Output = Simd<f32, N>>,
     {
         let x = x.cast::<u8>();
         let y = y.cast::<u8>();
@@ -768,7 +777,7 @@ impl ImprovedNoise {
 
 /// Matches vanilla's shared permutation lookup and typed gradient dot product.
 #[inline]
-fn gradient_hash(p: &[u8; 256], px: i32, py: i32, pz: i32) -> usize {
+const fn gradient_hash(p: &[u8; 256], px: i32, py: i32, pz: i32) -> usize {
     let qx = (px & 0xFF) as u8;
     let qy = (py & 0xFF) as u8;
     let qz = (pz & 0xFF) as u8;
@@ -786,7 +795,7 @@ fn grad_dot_flat(p: &[u8; 256], px: i32, py: i32, pz: i32, fx: f32, fy: f32, fz:
 mod tests {
     use super::*;
     use crate::random::xoroshiro::Xoroshiro;
-    use std::simd::f64x4;
+    use std::simd::{f64x4, f64x8};
 
     #[test]
     fn corner_gradient_batches_match_scalar_at_permutation_boundaries() {
@@ -885,7 +894,7 @@ mod tests {
         let ys = [-64.0, -56.0, -48.0, -40.0, -32.0, -24.0, -16.0, -8.0];
         let simd = noise.smeared_noise_y_simd(
             20_000_068.0,
-            std::simd::f64x8::from_array(ys),
+            f64x8::from_array(ys),
             -19_999_796.0,
             5475.296,
         );
