@@ -6,6 +6,7 @@
 //! multiple carver steps overlap.
 
 use std::cell::RefCell;
+use std::mem;
 
 thread_local! {
     static CARVING_MASK_WORDS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
@@ -31,7 +32,7 @@ impl CarvingMask {
         let height = max_y - min_y + 1;
         let total_bits = (256 * height) as usize;
         let lanes = total_bits.div_ceil(64);
-        let mut bits = CARVING_MASK_WORDS.with(|cache| std::mem::take(&mut *cache.borrow_mut()));
+        let mut bits = CARVING_MASK_WORDS.with(|cache| mem::take(&mut *cache.borrow_mut()));
         bits.resize(lanes, 0);
         Self {
             min_y,
@@ -186,7 +187,7 @@ impl Drop for CarvingMask {
             let mut cached = cache.borrow_mut();
             if self.bits.capacity() > cached.capacity() {
                 self.bits.clear();
-                std::mem::swap(&mut self.bits, &mut *cached);
+                mem::swap(&mut self.bits, &mut *cached);
             }
         });
     }

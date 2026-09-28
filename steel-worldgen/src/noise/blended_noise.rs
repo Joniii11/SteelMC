@@ -2,6 +2,7 @@
 
 use crate::noise::ImprovedNoise;
 use crate::random::RandomSource;
+use std::array;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::num::SimdFloat;
 use std::simd::{Select, Simd};
@@ -210,9 +211,8 @@ impl BlendedNoise {
         // Four-lane batches are faster on baseline targets; retain eight for AVX-512.
         #[cfg(target_feature = "avx512f")]
         while index + 8 <= len {
-            let ys: Simd<f64, 8> = Simd::from_array(std::array::from_fn(|lane| {
-                f64::from(block_ys[index + lane])
-            }));
+            let ys: Simd<f64, 8> =
+                Simd::from_array(array::from_fn(|lane| f64::from(block_ys[index + lane])));
             out[index..index + 8].copy_from_slice(
                 &self
                     .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
@@ -221,9 +221,8 @@ impl BlendedNoise {
             index += 8;
         }
         while index + 4 <= len {
-            let ys: Simd<f64, 4> = Simd::from_array(std::array::from_fn(|lane| {
-                f64::from(block_ys[index + lane])
-            }));
+            let ys: Simd<f64, 4> =
+                Simd::from_array(array::from_fn(|lane| f64::from(block_ys[index + lane])));
             out[index..index + 4].copy_from_slice(
                 &self
                     .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
@@ -232,9 +231,8 @@ impl BlendedNoise {
             index += 4;
         }
         if index + 2 <= len {
-            let ys: Simd<f64, 2> = Simd::from_array(std::array::from_fn(|lane| {
-                f64::from(block_ys[index + lane])
-            }));
+            let ys: Simd<f64, 2> =
+                Simd::from_array(array::from_fn(|lane| f64::from(block_ys[index + lane])));
             out[index..index + 2].copy_from_slice(
                 &self
                     .compute_y_simd(f64::from(block_x), ys, f64::from(block_z))
