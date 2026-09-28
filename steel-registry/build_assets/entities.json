@@ -62,8 +62,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -297,8 +297,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -541,8 +541,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.allay.Allay",
       "class_hierarchy": [
@@ -744,7 +744,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.10000000149011612,
@@ -753,6 +752,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -764,7 +764,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -835,8 +842,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.AreaEffectCloud",
       "class_hierarchy": [
@@ -1051,8 +1058,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.armadillo.Armadillo",
       "class_hierarchy": [
@@ -1276,13 +1283,13 @@
     },
     "attributes": {
       "max_health": 12.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.14,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -1295,6 +1302,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -1370,8 +1384,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.ArmorStand",
       "class_hierarchy": [
@@ -1615,12 +1629,12 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -1632,7 +1646,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -1711,8 +1732,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.arrow.Arrow",
       "class_hierarchy": [
@@ -1943,8 +1964,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.axolotl.Axolotl",
       "class_hierarchy": [
@@ -2184,7 +2205,6 @@
     },
     "attributes": {
       "max_health": 14.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 1.0,
@@ -2192,6 +2212,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -2204,6 +2225,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -2287,8 +2315,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestRaft",
       "class_hierarchy": [
@@ -2522,8 +2550,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Raft",
       "class_hierarchy": [
@@ -2762,8 +2790,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.ambient.Bat",
       "class_hierarchy": [
@@ -2957,13 +2985,13 @@
     },
     "attributes": {
       "max_health": 6.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -2975,7 +3003,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -3071,8 +3106,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.bee.Bee",
       "class_hierarchy": [
@@ -3304,7 +3339,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -3313,6 +3347,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -3325,6 +3360,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -3404,8 +3446,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -3639,8 +3681,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -3887,8 +3929,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Blaze",
       "class_hierarchy": [
@@ -4086,7 +4128,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 48.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
@@ -4094,6 +4135,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -4105,7 +4147,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -4180,8 +4229,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.Display$BlockDisplay",
       "class_hierarchy": [
@@ -4522,8 +4571,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.skeleton.Bogged",
       "class_hierarchy": [
@@ -4725,7 +4774,6 @@
     },
     "attributes": {
       "max_health": 16.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -4733,6 +4781,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -4744,7 +4793,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -4836,8 +4892,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.breeze.Breeze",
       "class_hierarchy": [
@@ -5021,7 +5077,6 @@
     },
     "attributes": {
       "max_health": 30.0,
-      "max_absorption": 0.0,
       "follow_range": 24.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.6299999952316284,
@@ -5029,6 +5084,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -5040,7 +5096,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -5123,8 +5186,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.BreezeWindCharge",
       "class_hierarchy": [
@@ -5319,8 +5382,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.camel.Camel",
       "class_hierarchy": [
@@ -5570,13 +5633,13 @@
     },
     "attributes": {
       "max_health": 32.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.09000000357627869,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -5589,6 +5652,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -5693,8 +5763,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.camel.CamelHusk",
       "class_hierarchy": [
@@ -5948,13 +6018,13 @@
     },
     "attributes": {
       "max_health": 32.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.09000000357627869,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -5967,6 +6037,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -6067,8 +6144,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.feline.Cat",
       "class_hierarchy": [
@@ -6352,7 +6429,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -6360,6 +6436,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -6372,6 +6449,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -6468,8 +6552,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.spider.CaveSpider",
       "class_hierarchy": [
@@ -6671,7 +6755,6 @@
     },
     "attributes": {
       "max_health": 12.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -6679,6 +6762,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -6690,7 +6774,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -6769,8 +6860,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -7004,8 +7095,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -7243,8 +7334,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.MinecartChest",
       "class_hierarchy": [
@@ -7489,8 +7580,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.chicken.Chicken",
       "class_hierarchy": [
@@ -7722,13 +7813,13 @@
     },
     "attributes": {
       "max_health": 4.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -7741,6 +7832,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -7841,8 +7939,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.fish.Cod",
       "class_hierarchy": [
@@ -8048,13 +8146,13 @@
     },
     "attributes": {
       "max_health": 3.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -8066,7 +8164,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -8158,8 +8263,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.golem.CopperGolem",
       "class_hierarchy": [
@@ -8365,13 +8470,13 @@
     },
     "attributes": {
       "max_health": 12.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -8383,7 +8488,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -8462,8 +8574,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": true,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.MinecartCommandBlock",
       "class_hierarchy": [
@@ -8730,8 +8842,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.cow.Cow",
       "class_hierarchy": [
@@ -8967,13 +9079,13 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -8986,6 +9098,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -9078,8 +9197,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.creaking.Creaking",
       "class_hierarchy": [
@@ -9303,7 +9422,6 @@
     },
     "attributes": {
       "max_health": 1.0,
-      "max_absorption": 0.0,
       "follow_range": 32.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.4000000059604645,
@@ -9311,6 +9429,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -9322,7 +9441,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -9414,8 +9540,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Creeper",
       "class_hierarchy": [
@@ -9629,7 +9755,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -9637,6 +9762,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -9648,7 +9774,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -9723,8 +9856,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.Cushion",
       "class_hierarchy": [
@@ -9904,8 +10037,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -10139,8 +10272,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -10391,8 +10524,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.dolphin.Dolphin",
       "class_hierarchy": [
@@ -10624,7 +10757,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 1.2000000476837158,
@@ -10632,6 +10764,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -10643,7 +10776,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -10747,8 +10887,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.Donkey",
       "class_hierarchy": [
@@ -10994,13 +11134,13 @@
     },
     "attributes": {
       "max_health": 53.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.17499999701976776,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.5,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -11013,6 +11153,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -11092,8 +11239,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball",
       "class_hierarchy": [
@@ -11280,8 +11427,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.zombie.Drowned",
       "class_hierarchy": [
@@ -11499,7 +11646,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 35.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
@@ -11507,6 +11653,7 @@
       "attack_knockback": 0.0,
       "armor": 2.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "spawn_reinforcements": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
@@ -11519,7 +11666,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -11602,8 +11756,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg",
       "class_hierarchy": [
@@ -11811,8 +11965,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.ElderGuardian",
       "class_hierarchy": [
@@ -12022,7 +12176,6 @@
     },
     "attributes": {
       "max_health": 80.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -12030,6 +12183,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -12041,7 +12195,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -12133,8 +12294,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Enderman",
       "class_hierarchy": [
@@ -12350,7 +12511,6 @@
     },
     "attributes": {
       "max_health": 40.0,
-      "max_absorption": 0.0,
       "follow_range": 64.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -12358,6 +12518,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -12369,7 +12530,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -12461,8 +12629,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Endermite",
       "class_hierarchy": [
@@ -12646,7 +12814,6 @@
     },
     "attributes": {
       "max_health": 8.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -12654,6 +12821,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -12665,7 +12833,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -12791,8 +12966,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.boss.enderdragon.EnderDragon",
       "class_hierarchy": [
@@ -12982,13 +13157,13 @@
     },
     "attributes": {
       "max_health": 200.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -13000,7 +13175,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 16.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -13083,8 +13265,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl",
       "class_hierarchy": [
@@ -13267,8 +13449,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.boss.enderdragon.EndCrystal",
       "class_hierarchy": [
@@ -13483,8 +13665,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.illager.Evoker",
       "class_hierarchy": [
@@ -13712,7 +13894,6 @@
     },
     "attributes": {
       "max_health": 24.0,
-      "max_absorption": 0.0,
       "follow_range": 12.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.5,
@@ -13720,6 +13901,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -13731,7 +13913,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -13802,8 +13991,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.EvokerFangs",
       "class_hierarchy": [
@@ -13969,8 +14158,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownExperienceBottle",
       "class_hierarchy": [
@@ -14153,8 +14342,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.ExperienceOrb",
       "class_hierarchy": [
@@ -14322,8 +14511,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.EyeOfEnder",
       "class_hierarchy": [
@@ -14494,8 +14683,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": true,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.item.FallingBlockEntity",
       "class_hierarchy": [
@@ -14679,8 +14868,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball",
       "class_hierarchy": [
@@ -14867,8 +15056,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.FireworkRocketEntity",
       "class_hierarchy": [
@@ -15086,8 +15275,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.fox.Fox",
       "class_hierarchy": [
@@ -15339,7 +15528,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 32.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -15347,6 +15535,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 5.0,
@@ -15359,6 +15548,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -15455,8 +15651,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.frog.Frog",
       "class_hierarchy": [
@@ -15690,7 +15886,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 1.0,
@@ -15698,6 +15893,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -15710,6 +15906,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -15789,8 +15992,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.MinecartFurnace",
       "class_hierarchy": [
@@ -16033,8 +16236,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Ghast",
       "class_hierarchy": [
@@ -16224,7 +16427,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 100.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
@@ -16232,6 +16434,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -16243,7 +16446,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 8.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -16354,8 +16564,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.happyghast.HappyGhast",
       "class_hierarchy": [
@@ -16587,7 +16797,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.05,
@@ -16595,6 +16804,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -16607,6 +16817,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 8.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 16.0
     },
     "flags": {
@@ -16699,8 +16916,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Giant",
       "class_hierarchy": [
@@ -16884,7 +17101,6 @@
     },
     "attributes": {
       "max_health": 100.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.5,
@@ -16892,6 +17108,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -16903,7 +17120,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 16.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -16986,8 +17210,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.GlowItemFrame",
       "class_hierarchy": [
@@ -17218,8 +17442,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.squid.GlowSquid",
       "class_hierarchy": [
@@ -17447,13 +17671,13 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -17465,7 +17689,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -17561,8 +17792,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.goat.Goat",
       "class_hierarchy": [
@@ -17802,7 +18033,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
@@ -17810,6 +18040,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -17822,6 +18053,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -17914,8 +18152,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Guardian",
       "class_hierarchy": [
@@ -18121,7 +18359,6 @@
     },
     "attributes": {
       "max_health": 30.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.5,
@@ -18129,6 +18366,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -18140,7 +18378,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -18236,8 +18481,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.hoglin.Hoglin",
       "class_hierarchy": [
@@ -18461,7 +18706,6 @@
     },
     "attributes": {
       "max_health": 40.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.6000000238418579,
       "movement_speed": 0.30000001192092896,
@@ -18469,6 +18713,7 @@
       "attack_knockback": 1.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -18480,7 +18725,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -18563,8 +18815,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.MinecartHopper",
       "class_hierarchy": [
@@ -18813,8 +19065,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.Horse",
       "class_hierarchy": [
@@ -19056,13 +19308,13 @@
     },
     "attributes": {
       "max_health": 53.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.22499999403953552,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.7,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -19075,6 +19327,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -19171,8 +19430,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.zombie.Husk",
       "class_hierarchy": [
@@ -19390,7 +19649,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 35.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
@@ -19398,6 +19656,7 @@
       "attack_knockback": 0.0,
       "armor": 2.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "spawn_reinforcements": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
@@ -19410,7 +19669,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -19518,8 +19784,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.illager.Illusioner",
       "class_hierarchy": [
@@ -19747,7 +20013,6 @@
     },
     "attributes": {
       "max_health": 32.0,
-      "max_absorption": 0.0,
       "follow_range": 18.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.5,
@@ -19755,6 +20020,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -19766,7 +20032,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -19837,8 +20110,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.Interaction",
       "class_hierarchy": [
@@ -20043,8 +20316,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.golem.IronGolem",
       "class_hierarchy": [
@@ -20242,7 +20515,6 @@
     },
     "attributes": {
       "max_health": 100.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 1.0,
       "movement_speed": 0.25,
@@ -20250,6 +20522,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -20261,7 +20534,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -20332,8 +20612,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.item.ItemEntity",
       "class_hierarchy": [
@@ -20505,8 +20785,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.Display$ItemDisplay",
       "class_hierarchy": [
@@ -20838,8 +21118,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.ItemFrame",
       "class_hierarchy": [
@@ -21045,8 +21325,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -21280,8 +21560,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -21511,8 +21791,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": false,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.LeashFenceKnotEntity",
       "class_hierarchy": [
@@ -21670,8 +21950,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": false,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.LightningBolt",
       "class_hierarchy": [
@@ -21858,8 +22138,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.Llama",
       "class_hierarchy": [
@@ -22127,13 +22407,13 @@
     },
     "attributes": {
       "max_health": 53.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.17499999701976776,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.5,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -22146,6 +22426,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -22221,8 +22508,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.LlamaSpit",
       "class_hierarchy": [
@@ -22405,8 +22692,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.cubemob.MagmaCube",
       "class_hierarchy": [
@@ -22630,7 +22917,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
@@ -22638,6 +22924,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -22649,7 +22936,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -22728,8 +23022,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -22963,8 +23257,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -23198,8 +23492,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.Mannequin",
       "class_hierarchy": [
@@ -23416,12 +23710,12 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -23433,7 +23727,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -23504,8 +23805,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.Marker",
       "class_hierarchy": [
@@ -23667,8 +23968,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.Minecart",
       "class_hierarchy": [
@@ -23913,8 +24214,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.cow.MushroomCow",
       "class_hierarchy": [
@@ -24142,13 +24443,13 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -24161,6 +24462,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -24265,8 +24573,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.Mule",
       "class_hierarchy": [
@@ -24512,13 +24820,13 @@
     },
     "attributes": {
       "max_health": 53.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.17499999701976776,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.5,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -24531,6 +24839,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -24635,8 +24950,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.nautilus.Nautilus",
       "class_hierarchy": [
@@ -24892,7 +25207,6 @@
     },
     "attributes": {
       "max_health": 15.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.30000001192092896,
       "movement_speed": 1.0,
@@ -24900,6 +25214,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -24912,6 +25227,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -24991,8 +25313,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -25226,8 +25548,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -25478,8 +25800,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.feline.Ocelot",
       "class_hierarchy": [
@@ -25703,7 +26025,6 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -25711,6 +26032,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -25723,6 +26045,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -25794,8 +26123,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.OminousItemSpawner",
       "class_hierarchy": [
@@ -25971,8 +26300,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.decoration.painting.Painting",
       "class_hierarchy": [
@@ -26170,8 +26499,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -26405,8 +26734,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -26657,8 +26986,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.panda.Panda",
       "class_hierarchy": [
@@ -26922,7 +27251,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.15000000596046448,
@@ -26930,6 +27258,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -26942,6 +27271,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -27038,8 +27374,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.skeleton.Parched",
       "class_hierarchy": [
@@ -27227,7 +27563,6 @@
     },
     "attributes": {
       "max_health": 16.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -27235,6 +27570,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -27246,7 +27582,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -27350,8 +27693,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.parrot.Parrot",
       "class_hierarchy": [
@@ -27607,7 +27950,6 @@
     },
     "attributes": {
       "max_health": 6.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
@@ -27616,6 +27958,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -27628,6 +27971,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -27712,8 +28062,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Phantom",
       "class_hierarchy": [
@@ -27903,7 +28253,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
@@ -27911,6 +28260,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -27922,7 +28272,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -28018,8 +28375,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.pig.Pig",
       "class_hierarchy": [
@@ -28259,13 +28616,13 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -28278,6 +28635,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -28374,8 +28738,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.piglin.Piglin",
       "class_hierarchy": [
@@ -28607,7 +28971,6 @@
     },
     "attributes": {
       "max_health": 16.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.3499999940395355,
@@ -28615,6 +28978,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -28626,7 +28990,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -28722,8 +29093,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.piglin.PiglinBrute",
       "class_hierarchy": [
@@ -28925,7 +29296,6 @@
     },
     "attributes": {
       "max_health": 50.0,
-      "max_absorption": 0.0,
       "follow_range": 12.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.3499999940395355,
@@ -28933,6 +29303,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -28944,7 +29315,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -29048,8 +29426,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.illager.Pillager",
       "class_hierarchy": [
@@ -29273,7 +29651,6 @@
     },
     "attributes": {
       "max_health": 24.0,
-      "max_absorption": 0.0,
       "follow_range": 32.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.3499999940395355,
@@ -29281,6 +29658,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -29292,7 +29670,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -29388,8 +29773,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.polarbear.PolarBear",
       "class_hierarchy": [
@@ -29613,7 +29998,6 @@
     },
     "attributes": {
       "max_health": 30.0,
-      "max_absorption": 0.0,
       "follow_range": 20.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -29621,6 +30005,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -29633,6 +30018,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -29712,8 +30104,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -29947,8 +30339,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -30190,8 +30582,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion",
       "class_hierarchy": [
@@ -30394,8 +30786,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion",
       "class_hierarchy": [
@@ -30607,8 +30999,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.fish.Pufferfish",
       "class_hierarchy": [
@@ -30824,13 +31216,13 @@
     },
     "attributes": {
       "max_health": 3.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -30842,7 +31234,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -30938,8 +31337,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.rabbit.Rabbit",
       "class_hierarchy": [
@@ -31163,7 +31562,6 @@
     },
     "attributes": {
       "max_health": 3.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -31171,6 +31569,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -31183,6 +31582,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -31283,8 +31689,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Ravager",
       "class_hierarchy": [
@@ -31490,7 +31896,6 @@
     },
     "attributes": {
       "max_health": 100.0,
-      "max_absorption": 0.0,
       "follow_range": 32.0,
       "knockback_resistance": 0.75,
       "movement_speed": 0.3,
@@ -31498,6 +31903,7 @@
       "attack_knockback": 1.5,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -31509,7 +31915,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -31609,8 +32022,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.fish.Salmon",
       "class_hierarchy": [
@@ -31830,13 +32243,13 @@
     },
     "attributes": {
       "max_health": 3.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -31848,7 +32261,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -31944,8 +32364,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.sheep.Sheep",
       "class_hierarchy": [
@@ -32169,13 +32589,13 @@
     },
     "attributes": {
       "max_health": 8.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -32188,6 +32608,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -32280,8 +32707,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Shulker",
       "class_hierarchy": [
@@ -32495,13 +32922,13 @@
     },
     "attributes": {
       "max_health": 30.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -32513,7 +32940,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -32588,8 +33022,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.ShulkerBullet",
       "class_hierarchy": [
@@ -32768,8 +33202,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Silverfish",
       "class_hierarchy": [
@@ -32953,7 +33387,6 @@
     },
     "attributes": {
       "max_health": 8.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -32961,6 +33394,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -32972,7 +33406,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -33068,8 +33509,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.skeleton.Skeleton",
       "class_hierarchy": [
@@ -33271,7 +33712,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -33279,6 +33719,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -33290,7 +33731,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -33390,8 +33838,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.SkeletonHorse",
       "class_hierarchy": [
@@ -33619,13 +34067,13 @@
     },
     "attributes": {
       "max_health": 15.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.7,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -33638,6 +34086,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -33734,8 +34189,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.cubemob.Slime",
       "class_hierarchy": [
@@ -33959,7 +34414,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
@@ -33967,6 +34421,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -33978,7 +34433,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -34061,8 +34523,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball",
       "class_hierarchy": [
@@ -34270,8 +34732,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.sniffer.Sniffer",
       "class_hierarchy": [
@@ -34503,13 +34965,13 @@
     },
     "attributes": {
       "max_health": 14.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.10000000149011612,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -34522,6 +34984,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -34605,8 +35074,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball",
       "class_hierarchy": [
@@ -34810,8 +35279,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.golem.SnowGolem",
       "class_hierarchy": [
@@ -35009,13 +35478,13 @@
     },
     "attributes": {
       "max_health": 4.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.20000000298023224,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -35027,7 +35496,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -35106,8 +35582,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": true,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.MinecartSpawner",
       "class_hierarchy": [
@@ -35331,8 +35807,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.arrow.SpectralArrow",
       "class_hierarchy": [
@@ -35545,8 +36021,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.spider.Spider",
       "class_hierarchy": [
@@ -35744,7 +36220,6 @@
     },
     "attributes": {
       "max_health": 16.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -35752,6 +36227,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -35763,7 +36239,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -35842,8 +36325,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.Boat",
       "class_hierarchy": [
@@ -36077,8 +36560,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.boat.ChestBoat",
       "class_hierarchy": [
@@ -36329,8 +36812,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.squid.Squid",
       "class_hierarchy": [
@@ -36540,13 +37023,13 @@
     },
     "attributes": {
       "max_health": 10.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -36558,7 +37041,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -36654,8 +37144,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.skeleton.Stray",
       "class_hierarchy": [
@@ -36843,7 +37333,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -36851,6 +37340,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -36862,7 +37352,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -36958,8 +37455,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Strider",
       "class_hierarchy": [
@@ -37191,13 +37688,13 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.17499999701976776,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -37210,6 +37707,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -37306,8 +37810,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.cubemob.SulfurCube",
       "class_hierarchy": [
@@ -37553,13 +38057,13 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -37572,6 +38076,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 8.0
     },
     "flags": {
@@ -37668,8 +38179,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.frog.Tadpole",
       "class_hierarchy": [
@@ -37885,13 +38396,13 @@
     },
     "attributes": {
       "max_health": 6.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 1.0,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -37904,6 +38415,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -37979,8 +38497,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.Display$TextDisplay",
       "class_hierarchy": [
@@ -38328,8 +38846,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.item.PrimedTnt",
       "class_hierarchy": [
@@ -38513,8 +39031,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.vehicle.minecart.MinecartTNT",
       "class_hierarchy": [
@@ -38767,8 +39285,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.TraderLlama",
       "class_hierarchy": [
@@ -39040,13 +39558,13 @@
     },
     "attributes": {
       "max_health": 53.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.17499999701976776,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.5,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -39059,6 +39577,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -39138,8 +39663,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.arrow.ThrownTrident",
       "class_hierarchy": [
@@ -39382,8 +39907,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.fish.TropicalFish",
       "class_hierarchy": [
@@ -39603,13 +40128,13 @@
     },
     "attributes": {
       "max_health": 3.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -39621,7 +40146,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -39717,8 +40249,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.turtle.Turtle",
       "class_hierarchy": [
@@ -39950,13 +40482,13 @@
     },
     "attributes": {
       "max_health": 30.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -39969,6 +40501,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -40061,8 +40600,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Vex",
       "class_hierarchy": [
@@ -40260,7 +40799,6 @@
     },
     "attributes": {
       "max_health": 14.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
@@ -40268,6 +40806,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -40279,7 +40818,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -40375,8 +40921,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.npc.villager.Villager",
       "class_hierarchy": [
@@ -40626,13 +41172,13 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.5,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -40644,7 +41190,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -40748,8 +41301,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.illager.Vindicator",
       "class_hierarchy": [
@@ -40959,7 +41512,6 @@
     },
     "attributes": {
       "max_health": 24.0,
-      "max_absorption": 0.0,
       "follow_range": 12.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.3499999940395355,
@@ -40967,6 +41519,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -40978,7 +41531,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -41074,8 +41634,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.npc.wanderingtrader.WanderingTrader",
       "class_hierarchy": [
@@ -41299,13 +41859,13 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.7,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -41317,7 +41877,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -41409,8 +41976,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.warden.Warden",
       "class_hierarchy": [
@@ -41608,7 +42175,6 @@
     },
     "attributes": {
       "max_health": 500.0,
-      "max_absorption": 0.0,
       "follow_range": 24.0,
       "knockback_resistance": 1.0,
       "movement_speed": 0.30000001192092896,
@@ -41616,6 +42182,7 @@
       "attack_knockback": 1.5,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -41627,7 +42194,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -41710,8 +42284,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.WindCharge",
       "class_hierarchy": [
@@ -41906,8 +42480,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Witch",
       "class_hierarchy": [
@@ -42127,7 +42701,6 @@
     },
     "attributes": {
       "max_health": 26.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -42135,6 +42708,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -42146,7 +42720,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -42238,8 +42819,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.boss.wither.WitherBoss",
       "class_hierarchy": [
@@ -42461,7 +43042,6 @@
     },
     "attributes": {
       "max_health": 300.0,
-      "max_absorption": 0.0,
       "follow_range": 40.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.6000000238418579,
@@ -42470,6 +43050,7 @@
       "attack_knockback": 0.0,
       "armor": 4.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -42481,7 +43062,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -42577,8 +43165,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.skeleton.WitherSkeleton",
       "class_hierarchy": [
@@ -42766,7 +43354,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.25,
@@ -42774,6 +43361,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -42785,7 +43373,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -42864,8 +43459,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull",
       "class_hierarchy": [
@@ -43070,8 +43665,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.wolf.Wolf",
       "class_hierarchy": [
@@ -43355,7 +43950,6 @@
     },
     "attributes": {
       "max_health": 8.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.30000001192092896,
@@ -43363,6 +43957,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -43375,6 +43970,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -43467,8 +44069,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.Zoglin",
       "class_hierarchy": [
@@ -43666,7 +44268,6 @@
     },
     "attributes": {
       "max_health": 40.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.6000000238418579,
       "movement_speed": 0.30000001192092896,
@@ -43674,6 +44275,7 @@
       "attack_knockback": 1.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -43685,7 +44287,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -43777,8 +44386,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.zombie.Zombie",
       "class_hierarchy": [
@@ -43992,7 +44601,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 35.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
@@ -44000,6 +44608,7 @@
       "attack_knockback": 0.0,
       "armor": 2.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "spawn_reinforcements": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
@@ -44012,7 +44621,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -44112,8 +44728,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.equine.ZombieHorse",
       "class_hierarchy": [
@@ -44341,13 +44957,13 @@
     },
     "attributes": {
       "max_health": 25.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.22499999403953552,
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.7,
       "gravity": 0.08,
       "safe_fall_distance": 6.0,
@@ -44360,6 +44976,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -44464,8 +45087,8 @@
     "summonable": true,
     "allowed_in_peaceful": true,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.animal.nautilus.ZombieNautilus",
       "class_hierarchy": [
@@ -44735,7 +45358,6 @@
     },
     "attributes": {
       "max_health": 15.0,
-      "max_absorption": 0.0,
       "follow_range": 16.0,
       "knockback_resistance": 0.30000001192092896,
       "movement_speed": 1.100000023841858,
@@ -44743,6 +45365,7 @@
       "attack_knockback": 0.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
       "safe_fall_distance": 3.0,
@@ -44755,6 +45378,13 @@
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
       "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0,
       "tempt_range": 10.0
     },
     "flags": {
@@ -44851,8 +45481,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.zombie.ZombieVillager",
       "class_hierarchy": [
@@ -45105,7 +45735,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 35.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
@@ -45113,6 +45742,7 @@
       "attack_knockback": 0.0,
       "armor": 2.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "spawn_reinforcements": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
@@ -45125,7 +45755,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -45221,8 +45858,8 @@
     "summonable": true,
     "allowed_in_peaceful": false,
     "can_serialize": true,
-    "can_spawn_far_from_player": false,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": false,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.monster.zombie.ZombifiedPiglin",
       "class_hierarchy": [
@@ -45440,7 +46077,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "follow_range": 35.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.23000000417232513,
@@ -45448,6 +46084,7 @@
       "attack_knockback": 0.0,
       "armor": 2.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "spawn_reinforcements": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
@@ -45460,7 +46097,14 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 0.0,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     },
     "flags": {
       "is_pushable": false,
@@ -45539,8 +46183,8 @@
     "summonable": false,
     "allowed_in_peaceful": true,
     "can_serialize": false,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.player.Player",
       "class_hierarchy": [
@@ -45766,7 +46410,6 @@
     },
     "attributes": {
       "max_health": 20.0,
-      "max_absorption": 0.0,
       "knockback_resistance": 0.0,
       "movement_speed": 0.10000000149011612,
       "attack_damage": 1.0,
@@ -45774,6 +46417,7 @@
       "attack_speed": 4.0,
       "armor": 0.0,
       "armor_toughness": 0.0,
+      "max_absorption": 0.0,
       "luck": 0.0,
       "jump_strength": 0.41999998688697815,
       "gravity": 0.08,
@@ -45792,7 +46436,15 @@
       "water_movement_efficiency": 0.0,
       "burning_time": 1.0,
       "explosion_knockback_resistance": 0.0,
-      "movement_efficiency": 0.0
+      "movement_efficiency": 0.0,
+      "camera_distance": 4.0,
+      "waypoint_transmit_range": 6.0E7,
+      "waypoint_receive_range": 6.0E7,
+      "bounciness": 0.0,
+      "air_drag_modifier": 1.0,
+      "friction_modifier": 1.0,
+      "name_tag_distance": 64.0,
+      "below_name_distance": 10.0
     }
   },
   {
@@ -45854,8 +46506,8 @@
     "summonable": false,
     "allowed_in_peaceful": true,
     "can_serialize": false,
-    "can_spawn_far_from_player": true,
     "only_op_can_set_nbt": false,
+    "can_spawn_far_from_player": true,
     "synched_data": {
       "java_class": "net.minecraft.world.entity.projectile.FishingHook",
       "class_hierarchy": [
