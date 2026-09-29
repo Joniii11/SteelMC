@@ -46,7 +46,6 @@ fn float_noise_matches_pre1_extractor() -> Result<(), serde_json::Error> {
             Sampler::FrozenTemperature => {
                 let mut random = RandomSource::Legacy(LegacyRandom::from_seed(3456));
                 PerlinSimplexNoise::new(&mut random, &[-2, -1, 0]).get_value(x * 0.05, z * 0.05)
-                    as f32
             }
         };
         assert_eq!(

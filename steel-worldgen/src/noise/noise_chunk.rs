@@ -226,10 +226,6 @@ impl<N: DimensionNoises> NoiseChunk<N> {
         clippy::too_many_lines,
         reason = "keeps the cell interpolation and block traversal together"
     )]
-    #[expect(
-        clippy::similar_names,
-        reason = "coordinate and corner names mirror vanilla's interpolation formula"
-    )]
     pub fn fill<F>(
         &mut self,
         noises: &N,
