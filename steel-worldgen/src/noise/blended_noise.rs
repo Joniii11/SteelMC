@@ -1,7 +1,5 @@
 //! Float-based blended terrain noise from vanilla 26.3.
 
-use std::array::from_fn;
-
 use crate::noise::ImprovedNoise;
 use crate::random::RandomSource;
 use std::array;
