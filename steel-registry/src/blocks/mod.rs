@@ -1280,6 +1280,34 @@ mod tests {
     }
 
     #[test]
+    fn property_iterator_preserves_mixed_radix_values_when_skipping() {
+        let registry = create_test_registry();
+        let block = registry
+            .by_key(&Identifier::vanilla_static("oak_stairs"))
+            .expect("oak_stairs should exist");
+        let base = registry.get_base_state_id(block);
+
+        for offset in 0..block.state_count() {
+            let state = BlockStateId(base.0 + offset);
+            let indices = BlockRegistry::decode_property_indices(block, offset);
+            let expected = block
+                .properties
+                .iter()
+                .zip(indices)
+                .map(|(property, index)| {
+                    (property.get_name(), property.value_name_from_index(index))
+                })
+                .collect::<Vec<_>>();
+
+            assert_eq!(registry.properties(state).collect::<Vec<_>>(), expected);
+            for (skip, &value) in expected.iter().enumerate() {
+                assert_eq!(registry.properties(state).nth(skip), Some(value));
+            }
+            assert_eq!(registry.properties(state).last(), expected.last().copied());
+        }
+    }
+
+    #[test]
     fn test_properties_default_state() {
         let registry = create_test_registry();
         let redstone_wire = registry
