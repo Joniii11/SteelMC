@@ -254,9 +254,12 @@ impl ImprovedNoise {
         clippy::too_many_arguments,
         reason = "matches vanilla PerlinNoise.sampleAndLerp"
     )]
-    #[expect(
-        clippy::similar_names,
-        reason = "matching x, y and z corner coordinates use parallel names"
+    #[cfg_attr(
+        not(target_feature = "avx512f"),
+        expect(
+            clippy::similar_names,
+            reason = "coordinate offsets mirror vanilla's eight Perlin corners"
+        )
     )]
     fn sample_and_lerp(
         &self,
@@ -346,7 +349,7 @@ impl ImprovedNoise {
     )]
     #[expect(
         clippy::similar_names,
-        reason = "matching x, y and z SIMD corner coordinates use parallel names"
+        reason = "coordinate offsets mirror vanilla's eight Perlin corners"
     )]
     #[inline]
     fn sample_and_lerp_y_simd<const N: usize>(

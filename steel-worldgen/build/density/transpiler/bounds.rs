@@ -31,7 +31,7 @@ pub(super) fn compute_bounds(df: &DensityFunction, input: &TranspilerInput) -> (
 )]
 #[expect(
     clippy::float_cmp,
-    reason = "exact alpha endpoints must avoid NaN from arithmetic with unbounded intervals"
+    reason = "exact lerp endpoints avoid NaNs when the other bound is infinite"
 )]
 pub(super) fn compute_bounds_inner(
     df: &DensityFunction,
