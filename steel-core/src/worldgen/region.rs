@@ -383,31 +383,21 @@ impl<'a> WorldGenRegion<'a> {
         chunk_x: i32,
         chunk_z: i32,
         status: ChunkStatus,
-        f: impl FnOnce(WorldGenChunkRef<'_>, Option<usize>) -> R,
+        f: impl FnOnce(WorldGenChunkRef<'_>) -> R,
     ) -> R {
         let Some(cache_index) = self.chunk_cache_index(chunk_x, chunk_z) else {
             let chunk = self.chunk(chunk_x, chunk_z, status);
-            return f(chunk, None);
+            return f(chunk);
         };
 
-        {
-            let chunks = self.chunks.borrow();
-            if let Some(Some(cached)) = chunks.get(cache_index)
-                && status <= cached.verified_status
-            {
-                return f(
-                    WorldGenChunkRef {
-                        holder: cached.holder,
-                        chunk: cached.chunk,
-                        access_mode: cached.access_mode,
-                    },
-                    Some(cache_index),
-                );
-            }
-        }
+        let cache_needs_update = self.chunks.borrow().get(cache_index).is_none_or(|cached| {
+            cached
+                .as_ref()
+                .is_none_or(|cached| status > cached.verified_status)
+        });
 
-        let chunk = self.chunk(chunk_x, chunk_z, status);
-        {
+        if cache_needs_update {
+            let chunk = self.chunk(chunk_x, chunk_z, status);
             let mut chunks = self.chunks.borrow_mut();
             let Some(slot) = chunks.get_mut(cache_index) else {
                 panic!("Worldgen region cache index {cache_index} escaped its storage");
@@ -428,14 +418,11 @@ impl<'a> WorldGenRegion<'a> {
         let Some(Some(cached)) = chunks.get(cache_index) else {
             panic!("Worldgen region cache failed to store chunk ({chunk_x}, {chunk_z})");
         };
-        f(
-            WorldGenChunkRef {
-                holder: cached.holder,
-                chunk: cached.chunk,
-                access_mode: cached.access_mode,
-            },
-            Some(cache_index),
-        )
+        f(WorldGenChunkRef {
+            holder: cached.holder,
+            chunk: cached.chunk,
+            access_mode: cached.access_mode,
+        })
     }
 
     fn chunk_cache_index(&self, chunk_x: i32, chunk_z: i32) -> Option<usize> {
@@ -458,7 +445,7 @@ impl<'a> WorldGenRegion<'a> {
     pub fn block_state(&self, pos: BlockPos) -> BlockStateId {
         let chunk_x = SectionPos::block_to_section_coord(pos.x());
         let chunk_z = SectionPos::block_to_section_coord(pos.z());
-        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk| {
             chunk.chunk.get_block_state(pos)
         })
     }
@@ -471,7 +458,7 @@ impl<'a> WorldGenRegion<'a> {
     pub fn block_entity(&self, pos: BlockPos) -> Option<SharedBlockEntity> {
         let chunk_x = SectionPos::block_to_section_coord(pos.x());
         let chunk_z = SectionPos::block_to_section_coord(pos.z());
-        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk| {
             let block_entity = match chunk.access_mode {
                 WorldGenAccessMode::ReadOnlyFull => {
                     FullChunkRef::from_full_context(chunk.chunk).get_block_entity(pos)
@@ -502,7 +489,7 @@ impl<'a> WorldGenRegion<'a> {
         let local_quart_x = (quart_x & 3) as usize;
         let local_quart_z = (quart_z & 3) as usize;
 
-        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Biomes, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Biomes, |chunk| {
             let sections = chunk.chunk.sections();
             let (section_index, local_quart_y) =
                 Self::biome_quart_y_indices(self.min_y(), sections.sections.len(), quart_y);
@@ -530,7 +517,7 @@ impl<'a> WorldGenRegion<'a> {
         else {
             return false;
         };
-        let changed_proto = self.with_cached_chunk(chunk_x, chunk_z, status, |chunk, _| {
+        let changed_proto = self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             if !chunk.access_mode.allows_writes() {
                 // Vanilla exposes an already-Full dependency through
                 // `ImposterProtoChunk(false)`, whose block writes are no-ops.
@@ -601,7 +588,7 @@ impl<'a> WorldGenRegion<'a> {
             return false;
         }
 
-        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             if !chunk.access_mode.allows_writes() {
                 return false;
             }
@@ -625,7 +612,7 @@ impl<'a> WorldGenRegion<'a> {
             return false;
         };
 
-        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             if chunk.access_mode.allows_writes() {
                 chunk.chunk.remove_block_entity(pos);
             }
@@ -642,7 +629,7 @@ impl<'a> WorldGenRegion<'a> {
         let pos = BlockPos::from(entity.position());
         let (chunk_x, chunk_z, status) = self.dependency_chunk_for_pos(pos, "add entity");
 
-        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             if chunk.access_mode.allows_writes() {
                 chunk.chunk.add_entity(entity)
             } else {
@@ -666,7 +653,7 @@ impl<'a> WorldGenRegion<'a> {
         priority: TickPriority,
     ) -> bool {
         let (chunk_x, chunk_z, status) = self.dependency_chunk_for_pos(pos, "schedule block tick");
-        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             if chunk.access_mode.allows_writes() {
                 chunk.chunk.schedule_block_tick(pos, block, priority);
             }
@@ -692,7 +679,7 @@ impl<'a> WorldGenRegion<'a> {
         priority: TickPriority,
     ) -> bool {
         let (chunk_x, chunk_z, status) = self.dependency_chunk_for_pos(pos, "schedule fluid tick");
-        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, status, |chunk| {
             if chunk.access_mode.allows_writes() {
                 chunk.chunk.schedule_fluid_tick(pos, fluid, priority);
             }
@@ -713,7 +700,7 @@ impl<'a> WorldGenRegion<'a> {
     pub fn mark_pos_for_postprocessing(&self, pos: BlockPos) {
         let chunk_x = SectionPos::block_to_section_coord(pos.x());
         let chunk_z = SectionPos::block_to_section_coord(pos.z());
-        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk, _| {
+        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk| {
             if chunk.access_mode.allows_writes() {
                 chunk.chunk.mark_pos_for_postprocessing(pos);
             }
@@ -731,34 +718,38 @@ impl<'a> WorldGenRegion<'a> {
         let chunk_z = SectionPos::block_to_section_coord(z);
         let local_x = (x & 15) as usize;
         let local_z = (z & 15) as usize;
-        self.with_cached_chunk(
-            chunk_x,
-            chunk_z,
-            ChunkStatus::Empty,
-            |chunk, cache_index| match chunk.access_mode {
+        self.with_cached_chunk(chunk_x, chunk_z, ChunkStatus::Empty, |chunk| {
+            match chunk.access_mode {
                 WorldGenAccessMode::ReadOnlyFull => {
                     chunk.full_imposter_height_at(heightmap_type, local_x, local_z)
                 }
                 WorldGenAccessMode::WritableProto => self.cached_proto_height_at(
                     chunk.chunk,
                     heightmap_type,
-                    cache_index,
+                    chunk_x,
+                    chunk_z,
                     local_x + local_z * 16,
                 ),
-            },
-        )
+            }
+        })
     }
 
     fn cached_proto_height_at(
         &self,
         proto: &Chunk,
         heightmap_type: HeightmapType,
-        cache_index: Option<usize>,
+        chunk_x: i32,
+        chunk_z: i32,
         column_index: usize,
     ) -> i32 {
-        let Some(cache_index) =
-            cache_index.filter(|_| CachedWorldgenHeightmaps::supports(heightmap_type))
-        else {
+        if !CachedWorldgenHeightmaps::supports(heightmap_type) {
+            return proto.generation_height_at(
+                heightmap_type,
+                column_index % 16,
+                column_index / 16,
+            );
+        }
+        let Some(cache_index) = self.chunk_cache_index(chunk_x, chunk_z) else {
             return proto.generation_height_at(
                 heightmap_type,
                 column_index % 16,
