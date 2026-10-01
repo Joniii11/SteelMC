@@ -195,7 +195,7 @@ impl FeatureDecorationRunner {
         for chunk_z in center.0.y - 1..=center.0.y + 1 {
             for chunk_x in center.0.x - 1..=center.0.x + 1 {
                 let chunk = region.chunk(chunk_x, chunk_z, ChunkStatus::Biomes);
-                chunk.sections().for_each_biome_id(|biome_id| {
+                chunk.sections().for_each_biome_palette_value(|biome_id| {
                     let biome_id = usize::from(biome_id);
                     if self
                         .source_biome_lookup

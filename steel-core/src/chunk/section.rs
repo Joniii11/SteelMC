@@ -330,7 +330,7 @@ impl Sections {
         biomes.into_boxed_slice()
     }
 
-    /// Visits every biome palette value in section order while holding each
+    /// Visits every biome cell in section order while holding each
     /// section's read lock once.
     pub fn for_each_biome_id(&self, mut visitor: impl FnMut(u16)) {
         for holder in &self.sections {
@@ -342,6 +342,15 @@ impl Sections {
                     }
                 }
             }
+        }
+    }
+
+    /// Visits present biome values while holding each section's read lock once.
+    /// Values may repeat across sections or within a section in `Building` mode.
+    pub(crate) fn for_each_biome_palette_value(&self, mut visitor: impl FnMut(u16)) {
+        for holder in &self.sections {
+            let guard = holder.read();
+            guard.biomes.for_each_palette_value(&mut visitor);
         }
     }
 

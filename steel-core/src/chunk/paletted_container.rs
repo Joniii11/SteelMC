@@ -241,6 +241,24 @@ impl<V: Hash + Eq + Copy + Default + Debug, const DIM: usize> PalettedContainer<
         }
     }
 
+    /// Visits each present palette value once. In `Building` mode, visits every
+    /// cube cell instead, so values may repeat.
+    pub(crate) fn for_each_palette_value(&self, mut visitor: impl FnMut(V)) {
+        match self {
+            Self::Homogeneous(value) => visitor(*value),
+            Self::Heterogeneous(data) => {
+                for &(value, _) in &data.palette {
+                    visitor(value);
+                }
+            }
+            Self::Building(cube) => {
+                for &value in cube.iter().flatten().flatten() {
+                    visitor(value);
+                }
+            }
+        }
+    }
+
     /// Collects all values in the container in y, z, x order.
     #[must_use]
     pub fn collect_values(&self) -> Vec<V> {
