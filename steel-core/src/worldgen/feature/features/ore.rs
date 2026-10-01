@@ -223,6 +223,8 @@ impl FeatureDecorationRunner {
         pending_no_air_sections: &mut SmallVec<[PendingOreSection; 8]>,
     ) -> u64 {
         let mut placed = 0_u64;
+        let mut y_distances = Vec::new();
+        let mut z_distances = Vec::new();
 
         for node in vein_nodes {
             let radius = node[3];
@@ -242,6 +244,17 @@ impl FeatureDecorationRunner {
                 continue;
             }
 
+            y_distances.clear();
+            for y in y_min..=y_max {
+                let distance = (f64::from(y) + 0.5 - node[1]) / radius;
+                y_distances.push((y, distance * distance));
+            }
+            z_distances.clear();
+            for z in z_min..=z_max {
+                let distance = (f64::from(z) + 0.5 - node[2]) / radius;
+                z_distances.push((z, distance * distance));
+            }
+
             for x in x_min..=x_max {
                 let x_offset = i64::from(x) - i64::from(x_start);
                 let x_distance = (f64::from(x) + 0.5 - node[0]) / radius;
@@ -250,18 +263,16 @@ impl FeatureDecorationRunner {
                     continue;
                 }
 
-                for y in y_min..=y_max {
+                for &(y, y_distance_squared) in &y_distances {
                     let y_offset = i64::from(y) - i64::from(y_start);
-                    let y_distance = (f64::from(y) + 0.5 - node[1]) / radius;
-                    let x_y_distance_squared = x_distance_squared + y_distance * y_distance;
+                    let x_y_distance_squared = x_distance_squared + y_distance_squared;
                     if x_y_distance_squared >= 1.0 {
                         continue;
                     }
 
-                    for z in z_min..=z_max {
+                    for &(z, z_distance_squared) in &z_distances {
                         let z_offset = i64::from(z) - i64::from(z_start);
-                        let z_distance = (f64::from(z) + 0.5 - node[2]) / radius;
-                        if x_y_distance_squared + z_distance * z_distance >= 1.0 {
+                        if x_y_distance_squared + z_distance_squared >= 1.0 {
                             continue;
                         }
 
