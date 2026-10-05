@@ -17,8 +17,6 @@ pub enum VerticalAnchor {
 impl VerticalAnchor {
     /// Resolve this anchor to a world Y coordinate.
     ///
-    /// Matches vanilla's `VerticalAnchor.resolveY(WorldGenerationContext)`.
-    ///
     /// # Panics
     ///
     /// Panics on [`Self::RelativeToSeaLevel`], which vanilla resolves from
