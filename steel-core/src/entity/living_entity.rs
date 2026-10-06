@@ -4,9 +4,11 @@ use steel_registry::stat::vanilla_stat_types;
 use steel_registry::{DyeColor, vanilla_custom_stats};
 
 use super::*;
-use crate::behavior::{InventoryTickContext, MOB_EFFECT_BEHAVIORS};
+use crate::behavior::{BLOCK_BEHAVIORS, InventoryTickContext, MOB_EFFECT_BEHAVIORS};
 use crate::entity::consume_effect::apply_consume_effect;
 use crate::entity::damage::RecentDamageSource;
+
+const BED_SLEEP_POSITION_OFFSET: f64 = 0.125;
 
 /// A trait for living entities that can take damage, heal, and die.
 ///
@@ -2915,13 +2917,24 @@ pub trait LivingEntity: Entity {
                 entity_id: self.id(),
             });
         };
+        let block_state = world.get_block_state(bed_position);
+
+        let Some(sleep_height) = BLOCK_BEHAVIORS
+            .get_behavior(block_state.get_block())
+            .get_sleep_height(block_state, world.as_ref(), bed_position)
+        else {
+            return Err(EntityMoveError::InvalidSleepPosition {
+                entity_id: self.id(),
+                bed_position,
+            });
+        };
+
         self.try_set_position(DVec3::new(
             f64::from(bed_position.x()) + 0.5,
-            f64::from(bed_position.y()) + 0.6875,
+            f64::from(bed_position.y()) + sleep_height + BED_SLEEP_POSITION_OFFSET,
             f64::from(bed_position.z()) + 0.5,
         ))?;
 
-        let block_state = world.get_block_state(bed_position);
         if block_state.is_bed() {
             world.set_block(
                 bed_position,
@@ -2949,6 +2962,9 @@ pub trait LivingEntity: Entity {
                     state.set_value(&BlockStateProperties::OCCUPIED, false),
                     UpdateFlags::UPDATE_ALL,
                 );
+                BLOCK_BEHAVIORS
+                    .get_behavior(state.get_block())
+                    .on_stop_sleeping(state, &world, bed_position);
                 let stand_up = BedBlock::find_standup_position(
                     &world,
                     self.as_entity_event_source(),
