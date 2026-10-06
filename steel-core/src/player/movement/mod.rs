@@ -258,8 +258,7 @@ impl Player {
 
     /// Applies a client-reported position and rotation to the player.
     ///
-    /// Matches vanilla `ServerGamePacketListenerImpl.handlePlayerPositionChange()`, shared by
-    /// the movement packet and the teleport acknowledgement.
+    /// Shared by the movement packet and the teleport acknowledgement.
     #[expect(
         clippy::too_many_lines,
         reason = "matches vanilla handlePlayerPositionChange; splitting would hurt readability"
