@@ -18,6 +18,7 @@ use crate::behavior::{InteractionResult, UseOnContext};
 use crate::block_state_provider::BlockStateProviderEvaluator;
 use crate::entity::{Entity as _, LivingEntity as _};
 use crate::inventory::equipment::EquipmentSlot;
+use crate::player::Player;
 use crate::world::game_event::GameEventContext;
 
 use super::copper_chest_events::emit_connected_chest_block_change;
@@ -99,10 +100,11 @@ pub(crate) fn use_on(context: &mut UseOnContext) -> InteractionResult {
                 .level_event(event, pos, 0, Some(context.player.id()));
         }
 
+        let player: &Player = context.player;
         context.world.game_event(
             &vanilla_game_events::BLOCK_CHANGE,
             pos,
-            &GameEventContext::new(Some(context.player), Some(new_state)),
+            &GameEventContext::new(Some(player), Some(new_state)),
         );
 
         if transform.transform_type == TransformType::CopperChest
@@ -163,12 +165,13 @@ fn drop_loot(transform: &BlockTransformData, context: &UseOnContext, old_state: 
     let pos = context.hit_result.block_pos;
     let tool = context.inv.with_item(|item| item.clone());
 
+    let player: &Player = context.player;
     let drops = drop_from_block_interact_loot_table(
         table,
         old_state,
         context.world.get_block_entity(pos),
         Some(&tool),
-        Some(context.player),
+        Some(player),
         &mut rand::rng(),
     );
 
