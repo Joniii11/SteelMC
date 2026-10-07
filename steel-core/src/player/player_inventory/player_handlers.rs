@@ -20,6 +20,7 @@ use steel_protocol::packets::game::{
     SContainerClick, SContainerClose, SContainerSlotStateChanged, SRenameItem, SSetBeacon,
     SSetCarriedItem, SSetCreativeModeSlot,
 };
+use steel_registry::data_components::vanilla_components::SwingAnimation;
 use steel_registry::item_stack::ItemStack;
 use steel_registry::mob_effect::MobEffectRef;
 use steel_registry::stat::vanilla_stat_types;
@@ -981,16 +982,18 @@ impl Player {
         let removed = {
             let mut inventory = self.inventory.lock();
             let selected_count = inventory.get_selected_item().count();
-            if selected_count == 0 {
-                return;
-            }
             inventory.split_item_in_hand(
                 InteractionHand::MainHand,
                 if all { selected_count } else { 1 },
             )
         };
 
+        if !removed.is_empty() {
+            self.swing(InteractionHand::MainHand, SwingAnimation::DEFAULT, false);
+        }
+
         let _ = self.drop_item(removed, false, true);
+        self.reset_attack_strength_ticker();
     }
 
     /// Drops an item into the world.
