@@ -222,6 +222,11 @@ impl Player {
             self.disconnect(translations::MULTIPLAYER_DISCONNECT_INVALID_PLAYER_MOVEMENT.msg());
             return;
         }
+        if packet.has_pos && !self.movement.lock().record_position_packet() {
+            self.disconnect(translations::MULTIPLAYER_DISCONNECT_INVALID_PLAYER_MOVEMENT.msg());
+            return;
+        }
+
         if self.has_won_game() {
             return;
         }
