@@ -2908,10 +2908,6 @@ pub trait LivingEntity: Entity {
 
     /// Starts sleeping at the given bed position.
     fn start_sleeping(&self, bed_position: BlockPos) -> Result<(), EntityMoveError> {
-        if self.is_passenger() {
-            self.stop_riding();
-        }
-
         let Some(world) = self.level() else {
             return Err(EntityMoveError::NotLive {
                 entity_id: self.id(),
@@ -2928,6 +2924,10 @@ pub trait LivingEntity: Entity {
                 bed_position,
             });
         };
+
+        if self.is_passenger() {
+            self.stop_riding();
+        }
 
         self.try_set_position(DVec3::new(
             f64::from(bed_position.x()) + 0.5,
