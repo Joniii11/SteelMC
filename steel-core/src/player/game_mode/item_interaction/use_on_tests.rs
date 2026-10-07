@@ -19,13 +19,14 @@ use crate::block_entity::entities::{SignBlockEntity, SignText};
 use crate::entity::{Entity as _, entities::ItemEntity};
 use crate::inventory::container::Container as _;
 use crate::player::Player;
-use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
-use crate::world::World;
+use crate::test_support::{
+    TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
+};
 
 use super::use_item_on;
 
 struct Interaction {
-    world: Arc<World>,
+    world_fixture: TestWorld,
     player: Arc<Player>,
     pos: BlockPos,
 }
@@ -34,12 +35,13 @@ impl Interaction {
     fn new(name: &'static str) -> Self {
         init_vanilla_registry();
         init_behaviors();
-        let world = fresh_test_world(name);
-        insert_ready_full_chunk(&world, ChunkPos::new(0, 0));
-        let player = TestPlayerBuilder::new(Arc::clone(&world), "ItemUse", 1).build();
+        let world_fixture = fresh_test_world(name);
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+        let player = TestPlayerBuilder::new(Arc::clone(world), "ItemUse", 1).build();
         player.base().set_position_local(DVec3::new(8.5, 64.0, 6.5));
         Self {
-            world,
+            world_fixture,
             player,
             pos: BlockPos::new(8, 64, 8),
         }
@@ -47,7 +49,8 @@ impl Interaction {
 
     fn block(&self, state: BlockStateId) {
         assert!(
-            self.world
+            self.world_fixture
+                .world
                 .set_block(self.pos, state, UpdateFlags::UPDATE_ALL)
         );
     }
@@ -59,7 +62,7 @@ impl Interaction {
     fn use_on(&self, hand: InteractionHand) -> InteractionResult {
         use_item_on(
             &self.player,
-            &self.world,
+            &self.world_fixture.world,
             hand,
             &BlockHitResult {
                 block_pos: self.pos,
@@ -148,7 +151,11 @@ fn extra_remainder_drops_when_the_inventory_is_full() {
         InteractionResult::Success
     );
     assert_eq!(interaction.count(&vanilla_items::DIAMOND), 0);
-    let entities = interaction.world.entity_manager().get_accessible_entities();
+    let entities = interaction
+        .world_fixture
+        .world
+        .entity_manager()
+        .get_accessible_entities();
     let drops: Vec<_> = entities
         .iter()
         .filter_map(|entity| entity.downcast_ref::<ItemEntity>())
@@ -206,7 +213,7 @@ fn sign_applicators_count_once_without_item_use_component_side_effects() {
     ];
     for item in applicators {
         let interaction = Interaction::new("use_on_sign_side_effects");
-        assert!(interaction.world.set_block(
+        assert!(interaction.world_fixture.world.set_block(
             interaction.pos.below(),
             vanilla_blocks::STONE.default_state(),
             UpdateFlags::UPDATE_ALL

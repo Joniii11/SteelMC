@@ -15,11 +15,12 @@ use crate::behavior::{
 use crate::entity::{Entity as _, entities::ItemEntity};
 use crate::inventory::container::Container as _;
 use crate::player::Player;
-use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
-use crate::world::World;
+use crate::test_support::{
+    TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
+};
 
 struct Interaction {
-    world: Arc<World>,
+    world_fixture: TestWorld,
     player: Arc<Player>,
     pos: BlockPos,
 }
@@ -28,15 +29,21 @@ impl Interaction {
     fn new(name: &'static str) -> Self {
         init_vanilla_registry();
         init_behaviors();
-        let world = fresh_test_world(name);
-        insert_ready_full_chunk(&world, ChunkPos::new(0, 0));
+        let world_fixture = fresh_test_world(name);
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::new(0, 0));
         let pos = BlockPos::new(8, 64, 8);
-        let player = TestPlayerBuilder::new(Arc::clone(&world), "Transformer", 1).build();
-        Self { world, player, pos }
+        let player = TestPlayerBuilder::new(Arc::clone(world), "Transformer", 1).build();
+        Self {
+            world_fixture,
+            player,
+            pos,
+        }
     }
 
     fn block(&self, pos: BlockPos, state: BlockStateId) {
-        self.world
+        self.world_fixture
+            .world
             .set_block(pos, state, UpdateFlags::UPDATE_KNOWN_SHAPE);
     }
 
@@ -60,7 +67,7 @@ impl Interaction {
                 inside: false,
                 world_border_hit: false,
             },
-            &self.world,
+            &self.world_fixture.world,
             Arc::clone(&self.player.inventory),
         );
         ITEM_BEHAVIORS.get_behavior(item).use_on(&mut context)
@@ -77,16 +84,27 @@ fn rooted_dirt_drops_loot_from_each_clicked_face_even_with_a_block_above() {
     for face in Direction::ALL {
         interaction.block(interaction.pos, vanilla_blocks::ROOTED_DIRT.default_state());
         interaction.tool(&vanilla_items::WOODEN_HOE);
-        let before = interaction.world.entity_manager().get_accessible_entities();
+        let before = interaction
+            .world_fixture
+            .world
+            .entity_manager()
+            .get_accessible_entities();
         assert_eq!(
             interaction.use_on(face, InteractionHand::MainHand),
             InteractionResult::Success
         );
         assert_eq!(
-            interaction.world.get_block_state(interaction.pos),
+            interaction
+                .world_fixture
+                .world
+                .get_block_state(interaction.pos),
             vanilla_blocks::DIRT.default_state()
         );
-        let entities = interaction.world.entity_manager().get_accessible_entities();
+        let entities = interaction
+            .world_fixture
+            .world
+            .entity_manager()
+            .get_accessible_entities();
         let dropped: Vec<_> = entities
             .iter()
             .filter(|entity| !before.iter().any(|old| old.id() == entity.id()))
@@ -140,7 +158,7 @@ fn copper_door_transforms_both_halves_without_restoring_the_old_neighbor_shape()
             (lower_pos, DoubleBlockHalf::Lower),
             (lower_pos.above(), DoubleBlockHalf::Upper),
         ] {
-            let state = interaction.world.get_block_state(pos);
+            let state = interaction.world_fixture.world.get_block_state(pos);
             assert_eq!(state.get_block(), &vanilla_blocks::EXPOSED_COPPER_DOOR);
             assert_eq!(
                 state.get_value(&BlockStateProperties::DOUBLE_BLOCK_HALF),
@@ -216,11 +234,17 @@ fn copper_chest_transforms_both_halves_and_preserves_independent_properties() {
             let expected_clicked = target.default_state().with_properties_of(clicked);
             let expected_neighbor = target.default_state().with_properties_of(neighbor);
             assert_eq!(
-                interaction.world.get_block_state(interaction.pos),
+                interaction
+                    .world_fixture
+                    .world
+                    .get_block_state(interaction.pos),
                 expected_clicked
             );
             assert_eq!(
-                interaction.world.get_block_state(neighbor_pos),
+                interaction
+                    .world_fixture
+                    .world
+                    .get_block_state(neighbor_pos),
                 expected_neighbor
             );
         }
