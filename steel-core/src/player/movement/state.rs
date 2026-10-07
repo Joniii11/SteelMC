@@ -17,6 +17,8 @@ pub struct MovementState {
     received_position_this_tick: bool,
     /// Entity id of the controlled root vehicle tracked this tick.
     client_vehicle_id: Option<i32>,
+    /// Server tick of the last correction for a non controlling passenger
+    pub(in crate::player) vehicle_position_last_reset_at: i32,
     /// Latest vanilla client input snapshot sent by the player.
     last_client_input: PlayerInput,
 }
@@ -30,6 +32,7 @@ impl MovementState {
             received_movement_this_tick: false,
             received_position_this_tick: false,
             client_vehicle_id: None,
+            vehicle_position_last_reset_at: 0,
             last_client_input: PlayerInput::EMPTY,
         }
     }
