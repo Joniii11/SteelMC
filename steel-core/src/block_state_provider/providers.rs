@@ -158,12 +158,9 @@ impl BlockStateProviderEvaluator {
                 let sampled =
                     Self::sample_block_state_provider(level, registry, random, source, pos);
 
-                match registry.blocks.by_state_id(sampled) {
-                    Some(target_block) => registry
-                        .blocks
-                        .copy_matching_properties(level.get_block_state(pos), target_block),
-                    None => sampled,
-                }
+                registry
+                    .blocks
+                    .with_properties_of(sampled, level.get_block_state(pos))
             }
             BlockStateProviderKind::RandomBlock { blocks } => {
                 Self::sample_random_block(registry, random, blocks)

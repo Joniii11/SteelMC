@@ -176,22 +176,31 @@ fn copper_door_transforms_both_halves_without_restoring_the_old_neighbor_shape()
 #[test]
 fn copper_chest_transforms_both_halves_and_preserves_independent_properties() {
     let interaction = Interaction::new("transformer_copper_chest");
-    let facing = Direction::West;
-    for clicked_is_left in [false, true] {
+    for (facing, clicked_is_left) in Direction::HORIZONTAL
+        .into_iter()
+        .flat_map(|facing| [false, true].map(|left| (facing, left)))
+    {
         let connected_direction = if clicked_is_left {
             facing.rotate_y_clockwise()
         } else {
             facing.rotate_y_counter_clockwise()
         };
         let neighbor_pos = interaction.pos.relative(connected_direction);
-        for (source, target) in [
+        for (source, target, tool) in [
             (
                 &vanilla_blocks::WEATHERED_COPPER_CHEST,
                 &vanilla_blocks::EXPOSED_COPPER_CHEST,
+                &vanilla_items::WOODEN_AXE,
             ),
             (
                 &vanilla_blocks::WAXED_WEATHERED_COPPER_CHEST,
                 &vanilla_blocks::WEATHERED_COPPER_CHEST,
+                &vanilla_items::WOODEN_AXE,
+            ),
+            (
+                &vanilla_blocks::WEATHERED_COPPER_CHEST,
+                &vanilla_blocks::WAXED_WEATHERED_COPPER_CHEST,
+                &vanilla_items::HONEYCOMB,
             ),
         ] {
             for direction in Direction::HORIZONTAL {
@@ -226,7 +235,7 @@ fn copper_chest_transforms_both_halves_and_preserves_independent_properties() {
                 .set_value(&BlockStateProperties::WATERLOGGED, false);
             interaction.block(interaction.pos, clicked);
             interaction.block(neighbor_pos, neighbor);
-            interaction.tool(&vanilla_items::WOODEN_AXE);
+            interaction.tool(tool);
             assert_eq!(
                 interaction.use_on(Direction::Up, InteractionHand::MainHand),
                 InteractionResult::Success
