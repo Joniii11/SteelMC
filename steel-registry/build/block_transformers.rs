@@ -84,12 +84,10 @@ fn block_transform_token(value: &Value) -> TokenStream {
             .as_bool()
             .unwrap_or_else(|| panic!("consume_on_use must be a boolean"))
     });
-    let item_damage_per_use = transform.get("item_damage_per_use").map_or(0, |value| {
-        let value = value
-            .as_i64()
-            .unwrap_or_else(|| panic!("item_damage_per_use must be an integer"));
-        i32::try_from(value)
-            .unwrap_or_else(|_| panic!("item_damage_per_use must fit an i32: {value}"))
+    let item_damage_per_use = transform.get("item_damage_per_use").map_or(0, |_| {
+        let damage = required_i32(transform, "item_damage_per_use");
+        assert!(damage >= 0, "item_damage_per_use must be nonnegative");
+        damage
     });
 
     let block_transform = path("BlockTransformData");
@@ -243,6 +241,10 @@ pub(crate) fn build() -> TokenStream {
         let content = fs::read_to_string(&path).unwrap();
         let transforms: Vec<Value> = serde_json::from_str(&content)
             .unwrap_or_else(|error| panic!("failed to parse {name}: {error}"));
+        assert!(
+            (1..=200).contains(&transforms.len()),
+            "block transformer {name} must contain between 1 and 200 transforms"
+        );
         entries.push((name, transforms));
     }
     entries.sort_by(|(a, _), (b, _)| a.cmp(b));
