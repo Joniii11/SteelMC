@@ -220,6 +220,7 @@ fn sign_applicators_count_once_without_item_use_component_side_effects() {
         ));
         interaction.block(vanilla_blocks::OAK_SIGN.default_state());
         let entity = interaction
+            .world_fixture
             .world
             .get_block_entity(interaction.pos)
             .expect("sign entity");
