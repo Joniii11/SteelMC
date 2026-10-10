@@ -54,10 +54,13 @@ impl InteractionResult {
         )
     }
 
-    /// Returns true when vanilla requests the server to broadcast the swing.
+    /// Returns whether the interaction starts a predicted or serveronly swing
     #[must_use]
-    pub const fn should_swing_server(self) -> bool {
-        matches!(self, InteractionResult::SuccessServer)
+    pub const fn should_swing(self) -> bool {
+        matches!(
+            self,
+            InteractionResult::Success | InteractionResult::SuccessServer
+        )
     }
 
     /// Returns true for vanilla `InteractionResult.Success` variants that run
