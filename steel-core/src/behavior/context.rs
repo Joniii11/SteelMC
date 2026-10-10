@@ -824,7 +824,7 @@ mod tests {
         assert!(InteractionResult::Consume.should_apply_item_use_side_effects());
         assert!(InteractionResult::SuccessWithoutItem.consumes_action());
         assert!(!InteractionResult::SuccessWithoutItem.should_apply_item_use_side_effects());
-        assert!(!InteractionResult::SuccessWithoutItem.should_swing_server());
+        assert!(!InteractionResult::SuccessWithoutItem.should_swing());
         assert!(!InteractionResult::Fail.should_apply_item_use_side_effects());
         assert!(!InteractionResult::Pass.should_apply_item_use_side_effects());
         assert!(!InteractionResult::TryEmptyHandInteraction.should_apply_item_use_side_effects());
