@@ -1,7 +1,7 @@
 use steel_protocol::packets::game::RelativeMovement;
 use steel_registry::blocks::properties::BlockStateProperties;
 use steel_registry::{init_vanilla_registry, vanilla_damage_types, vanilla_entities};
-use steel_utils::random::legacy_random::LegacyRandom;
+use steel_utils::random::{Random as _, legacy_random::LegacyRandom};
 use steel_utils::types::UpdateFlags;
 use steel_utils::{ChunkPos, Identifier};
 
@@ -48,25 +48,11 @@ fn priming_applies_vanilla_float_tau_launch_motion() {
     // Java's `Math.sin` may differ from Rust's in the final bits.
     const INITIAL_MOTION_TOLERANCE: f64 = 1.0e-12;
 
-    let fixture = fresh_test_world("primed_tnt_initial_motion");
-    let world = &fixture.world;
-    world.set_random_seed_for_test(SEED);
-
-    let entity = PrimedTntEntity::primed(
-        &vanilla_entities::TNT,
-        next_entity_id(),
-        test_tnt_position(),
-        world,
-        None,
-    );
-
-    let velocity = entity.velocity();
+    let mut random = LegacyRandom::from_seed(SEED as u64);
+    let velocity = PrimedTntEntity::initial_velocity(random.next_f64());
     assert!((velocity.x - EXPECTED_INITIAL_MOTION_X).abs() <= INITIAL_MOTION_TOLERANCE);
     assert_eq!(velocity.y.to_bits(), f64::from(0.2_f32).to_bits());
     assert!((velocity.z - EXPECTED_INITIAL_MOTION_Z).abs() <= INITIAL_MOTION_TOLERANCE);
-    let mut expected = LegacyRandom::from_seed(SEED as u64);
-    let _ = expected.next_f64();
-    assert_eq!(world.with_random(Random::next_i64), expected.next_i64());
 }
 
 #[test]

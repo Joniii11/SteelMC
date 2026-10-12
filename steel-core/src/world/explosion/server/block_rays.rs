@@ -4,7 +4,6 @@ use std::sync::LazyLock;
 
 use glam::DVec3;
 use steel_registry::blocks::block_state_ext::BlockStateExt as _;
-use steel_utils::random::Random;
 use steel_utils::{BlockPos, BlockStateId};
 
 use crate::world::explosion::{
@@ -118,20 +117,6 @@ impl ExplosionWorldBounds {
 }
 
 impl ServerExplosion<'_> {
-    pub(super) fn calculate_exploded_positions_from_level_random(&self) -> Vec<BlockPos> {
-        let Some(calculator) = self.immutable_calculator_for_rays() else {
-            return self.calculate_exploded_positions_sequential(|| {
-                self.world.with_random(Random::next_f32)
-            });
-        };
-
-        let powers = self
-            .world
-            .with_random(|random| self.draw_immutable_ray_powers(|| random.next_f32()));
-        self.calculate_immutable_ray_powers(&powers, calculator)
-    }
-
-    #[cfg(test)]
     pub(super) fn calculate_exploded_positions(
         &self,
         mut next_float: impl FnMut() -> f32,

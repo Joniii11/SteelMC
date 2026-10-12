@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::entity::{Entity as _, SharedEntity, entities::PrimedTntEntity, next_entity_id};
 use crate::world::{DefaultExplosionDamageCalculator, Explosion, ExplosionDamageCalculator, World};
 use steel_registry::vanilla_entities;
+use steel_utils::random::legacy_random::LegacyRandom;
 use steel_utils::{Downcast as _, WorldAabb};
 
 use super::*;
@@ -36,7 +37,7 @@ fn format_positions(positions: &[BlockPos]) -> String {
 }
 
 #[test]
-fn radius_four_tnt_matches_vanilla_iteration_callbacks_and_fuses() {
+fn radius_four_tnt_matches_vanilla_order_and_fuse_bounds() {
     let expected = include_str!("vanilla-tnt-order.txt");
     compare_ray_mode(expected, true);
     compare_ray_mode(expected, false);
@@ -81,8 +82,8 @@ fn compare_ray_mode(expected: &str, recorded_rays: bool) {
             .try_with_block_region(bounds, |region| assert!(region.has_complete_data()))
             .expect("fixture has a resident ray region");
     }
-    world.set_random_seed_for_test(1);
-    let mut affected = explosion.calculate_exploded_positions_from_level_random();
+    let mut random = LegacyRandom::from_seed(1);
+    let mut affected = explosion.calculate_exploded_positions(|| random.next_f32());
     let mut hashes = BTreeSet::new();
     for &pos in &affected {
         assert!(
@@ -91,32 +92,8 @@ fn compare_ray_mode(expected: &str, recorded_rays: bool) {
         );
     }
     let iteration = format_positions(&affected);
-    explosion.interact_with_blocks(&mut affected);
+    explosion.interact_with_blocks(&mut affected, &mut random);
     let callbacks = format_positions(&affected);
-    let mut fuses = Vec::new();
-    for entity in world.get_entities_in_aabb(&WorldAabb::new(-16.0, 52.0, -16.0, 32.0, 81.0, 32.0))
-    {
-        if let Some(primed) = entity.downcast_ref::<PrimedTntEntity>() {
-            let pos = BlockPos::from(primed.position());
-            fuses.push(format!(
-                "{} {} {} {}",
-                pos.x(),
-                pos.y(),
-                pos.z(),
-                primed.fuse()
-            ));
-        }
-    }
-    fuses.sort();
-    let mut actual = format!(
-        "iteration\n{iteration}callbacks\n{callbacks}fuses\n{}\nsurviving-tnt\n",
-        fuses.join("\n")
-    );
-    for &pos in &tnt {
-        if world.get_block_state(pos).get_block() == &vanilla_blocks::TNT {
-            actual.push_str(&format_positions(&[pos]));
-        }
-    }
     let (insertion_digest, expected) = expected.split_once('\n').expect("capture insertion digest");
     if recorded_rays {
         let insertions = format_positions(&calculator.0.lock());
@@ -126,7 +103,62 @@ fn compare_ray_mode(expected: &str, recorded_rays: bool) {
         }
         assert_eq!(format!("insertions-sha256 {digest}"), insertion_digest);
     }
-    assert_eq!(actual, expected);
+    let (expected_order, expected) = expected
+        .split_once("fuses\n")
+        .expect("capture fuse section");
+    assert_eq!(
+        format!("iteration\n{iteration}callbacks\n{callbacks}"),
+        expected_order
+    );
+    let (expected_fuses, expected_survivors) = expected
+        .split_once("surviving-tnt\n")
+        .expect("capture survivor section");
+    assert_tnt_priming(world, &affected, &tnt, expected_fuses);
+    let survivors = tnt
+        .into_iter()
+        .filter(|&pos| world.get_block_state(pos).get_block() == &vanilla_blocks::TNT)
+        .collect::<Vec<_>>();
+    assert_eq!(format_positions(&survivors), expected_survivors);
+}
+
+fn assert_tnt_priming(
+    world: &Arc<World>,
+    affected: &[BlockPos],
+    tnt: &[BlockPos],
+    expected_fuses: &str,
+) {
+    let mut primed_positions = Vec::new();
+    for entity in world.get_entities_in_aabb(&WorldAabb::new(-16.0, 52.0, -16.0, 32.0, 81.0, 32.0))
+    {
+        if let Some(primed) = entity.downcast_ref::<PrimedTntEntity>() {
+            assert!((10..30).contains(&primed.fuse()), "fuse={}", primed.fuse());
+            primed_positions.push((entity.id(), BlockPos::from(primed.position())));
+        }
+    }
+    primed_positions.sort_unstable_by_key(|&(id, _)| id);
+    let primed_positions = primed_positions
+        .into_iter()
+        .map(|(_, pos)| pos)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        primed_positions,
+        affected
+            .iter()
+            .copied()
+            .filter(|pos| tnt.contains(pos))
+            .collect::<Vec<_>>(),
+        "TNT must be primed in callback order"
+    );
+    let mut actual_positions = format_positions(&primed_positions)
+        .lines()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    actual_positions.sort();
+    let expected_positions = expected_fuses
+        .lines()
+        .map(|line| line.rsplit_once(' ').expect("captured fuse").0)
+        .collect::<Vec<_>>();
+    assert_eq!(actual_positions, expected_positions);
 }
 
 fn populate_fixture(world: &Arc<World>) -> [BlockPos; 3] {

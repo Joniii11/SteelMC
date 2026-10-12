@@ -17,8 +17,8 @@ const FIRE_CHANCE_DENOMINATOR: i32 = 3;
 const MAX_DROPS_PER_COMBINED_STACK: i32 = 16;
 
 impl ServerExplosion<'_> {
-    pub(super) fn interact_with_blocks(&self, affected: &mut [BlockPos]) {
-        self.world.with_random(|random| random.shuffle(affected));
+    pub(super) fn interact_with_blocks(&self, affected: &mut [BlockPos], random: &mut impl Random) {
+        random.shuffle(affected);
         let mut stacks = Vec::new();
         let mut full_chunks = LocalFullChunkHolderCache::new();
 
@@ -38,10 +38,9 @@ impl ServerExplosion<'_> {
         }
     }
 
-    pub(super) fn create_fire(&self, affected: &[BlockPos]) {
+    pub(super) fn create_fire(&self, affected: &[BlockPos], random: &mut impl Random) {
         self.create_fire_with(affected, || {
-            self.world
-                .with_random(|random| random.next_i32_bounded(FIRE_CHANCE_DENOMINATOR))
+            random.next_i32_bounded(FIRE_CHANCE_DENOMINATOR)
         });
     }
 

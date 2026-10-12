@@ -6,6 +6,7 @@ use glam::DVec3;
 use rustc_hash::FxHashMap;
 use steel_registry::vanilla_game_rules::MOB_GRIEFING;
 use steel_registry::{vanilla_damage_types, vanilla_entities, vanilla_game_events};
+use steel_utils::random::{Random as _, legacy_random::LegacyRandom};
 
 use crate::entity::damage::DamageSource;
 use crate::entity::{Entity, SharedEntity};
@@ -89,13 +90,15 @@ impl<'a> ServerExplosion<'a> {
             self.center,
             &GameEventContext::new(self.source.as_deref(), None),
         );
-        let mut affected = self.calculate_exploded_positions_from_level_random();
+        // Live randomness is scoped to each blast rather than stored on the world.
+        let mut random = LegacyRandom::from_seed(rand::random());
+        let mut affected = self.calculate_exploded_positions(|| random.next_f32());
         self.hurt_entities();
         if self.interacts_with_blocks() {
-            self.interact_with_blocks(&mut affected);
+            self.interact_with_blocks(&mut affected, &mut random);
         }
         if self.fire {
-            self.create_fire(&affected);
+            self.create_fire(&affected, &mut random);
         }
         affected.len()
     }

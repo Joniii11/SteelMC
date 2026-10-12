@@ -265,8 +265,6 @@ pub struct World {
     pub(crate) game_time: Arc<GameTime>,
     /// Per-world saved data storage.
     pub(crate) saved_data: SavedDataManager,
-    /// Vanilla's live per-level random source.
-    random: SyncMutex<RandomSource>,
     /// Runtime world border state.
     world_border: SyncMutex<WorldBorder>,
     /// Vanilla sleeping player counts for night-skip checks.
@@ -322,16 +320,6 @@ pub struct World {
 }
 
 impl World {
-    /// Runs an operation against Vanilla's live per-level random source.
-    pub(crate) fn with_random<T>(&self, operation: impl FnOnce(&mut RandomSource) -> T) -> T {
-        operation(&mut self.random.lock())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_random_seed_for_test(&self, seed: i64) {
-        *self.random.lock() = RandomSource::Legacy(LegacyRandom::from_seed(seed as u64));
-    }
-
     /// Creates a new world with custom configuration.
     ///
     /// This allows specifying storage backend (disk or RAM-only) and other options.
@@ -452,9 +440,6 @@ impl World {
                 game_time: level_data.game_time_handle(),
                 level_data: SyncRwLock::new(level_data),
                 saved_data,
-                random: SyncMutex::new(RandomSource::Legacy(LegacyRandom::from_seed(
-                    rand::random::<u64>(),
-                ))),
                 world_border: SyncMutex::new(world_border),
                 sleep_status: SyncMutex::new(sleep_status::SleepStatus::default()),
                 view_distance,

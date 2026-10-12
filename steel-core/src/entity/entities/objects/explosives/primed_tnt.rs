@@ -16,7 +16,6 @@ use steel_registry::vanilla_blocks;
 use steel_registry::vanilla_entity_data::PrimedTntEntityData;
 use steel_registry::vanilla_game_rules::TNT_EXPLODES;
 use steel_utils::locks::SyncMutex;
-use steel_utils::random::Random;
 use steel_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey};
 
 use crate::block_entity::block_state_nbt;
@@ -168,15 +167,19 @@ impl PrimedTntEntity {
         owner: Option<&dyn Entity>,
     ) -> Self {
         let entity = Self::new(entity_type, id, position, Arc::downgrade(world));
-        // Vanilla narrows 2π to `float` before Java widens it for this multiplication.
-        let angle = world.with_random(Random::next_f64) * f64::from(TAU);
-        entity.set_velocity(DVec3::new(
+        entity.set_velocity(Self::initial_velocity(rand::random()));
+        entity.state.lock().owner = owner.map(|owner| EntityReference::from_uuid(owner.uuid()));
+        entity
+    }
+
+    fn initial_velocity(random: f64) -> DVec3 {
+        // Vanilla narrows 2π to float before multiplying by the random sample.
+        let angle = random * f64::from(TAU);
+        DVec3::new(
             -angle.sin() * INITIAL_HORIZONTAL_SPEED,
             f64::from(INITIAL_VERTICAL_SPEED),
             -angle.cos() * INITIAL_HORIZONTAL_SPEED,
-        ));
-        entity.state.lock().owner = owner.map(|owner| EntityReference::from_uuid(owner.uuid()));
-        entity
+        )
     }
 
     /// Creates a primed TNT entity from saved data.
@@ -221,8 +224,8 @@ impl PrimedTntEntity {
 
     /// Returns Vanilla's shortened chain-reaction fuse for `fuse`.
     #[must_use]
-    pub fn get_random_short_fuse(world: &World, fuse: i32) -> i32 {
-        world.with_random(|random| random.next_i32_bounded((fuse / 4).max(1))) + fuse / 8
+    pub fn get_random_short_fuse(fuse: i32) -> i32 {
+        rand::random_range(0..(fuse / 4).max(1)) + fuse / 8
     }
 
     fn owner_reference(&self) -> Option<EntityReference> {
