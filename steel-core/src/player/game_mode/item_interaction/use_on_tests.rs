@@ -10,11 +10,15 @@ use steel_registry::item_stack::ItemStack;
 use steel_registry::items::ItemRef;
 use steel_registry::stat::vanilla_stat_types;
 use steel_registry::{ItemStackTemplate, init_vanilla_registry, vanilla_blocks, vanilla_items};
-use steel_utils::types::{InteractionHand, SignTextSlot, UpdateFlags};
+use steel_utils::types::{GameType, InteractionHand, SignTextSlot, UpdateFlags};
 use steel_utils::{BlockPos, BlockStateId, ChunkPos, Direction, Downcast as _};
 use text_components::TextComponent;
+use uuid::Uuid;
 
-use crate::behavior::{BlockHitResult, InteractionResult, init_behaviors};
+use crate::behavior::{
+    BlockHitResult, InteractionResult, blocks::facing_text_slot, init_behaviors,
+};
+use crate::block_entity::SharedBlockEntity;
 use crate::block_entity::entities::{SignBlockEntity, SignText};
 use crate::entity::{Entity as _, entities::ItemEntity};
 use crate::inventory::container::Container as _;
@@ -53,6 +57,39 @@ impl Interaction {
                 .world
                 .set_block(self.pos, state, UpdateFlags::UPDATE_ALL)
         );
+    }
+
+    fn sign(&self, state: BlockStateId, with_text: bool, glowing: bool) -> SharedBlockEntity {
+        for direction in [
+            Direction::Down,
+            Direction::Up,
+            Direction::North,
+            Direction::South,
+            Direction::West,
+            Direction::East,
+        ] {
+            self.world_fixture.world.set_block(
+                direction.relative(self.pos),
+                vanilla_blocks::STONE.default_state(),
+                UpdateFlags::UPDATE_ALL,
+            );
+        }
+        self.block(state);
+        let entity = self
+            .world_fixture
+            .world
+            .get_block_entity(self.pos)
+            .expect("sign entity");
+        let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
+        for slot in [SignTextSlot::Front, SignTextSlot::Back] {
+            let mut text = SignText::new();
+            if with_text {
+                text.set_message(0, TextComponent::plain("Read me"));
+            }
+            text.has_glowing_text = glowing;
+            sign.set_text(text, slot);
+        }
+        entity
     }
 
     fn hold(&self, hand: InteractionHand, stack: ItemStack) {
@@ -211,43 +248,139 @@ fn sign_applicators_count_once_without_item_use_component_side_effects() {
         &vanilla_items::INK_SAC,
         &vanilla_items::HONEYCOMB,
     ];
-    for item in applicators {
-        let interaction = Interaction::new("use_on_sign_side_effects");
-        assert!(interaction.world_fixture.world.set_block(
-            interaction.pos.below(),
-            vanilla_blocks::STONE.default_state(),
-            UpdateFlags::UPDATE_ALL
-        ));
-        interaction.block(vanilla_blocks::OAK_SIGN.default_state());
-        let entity = interaction
-            .world_fixture
-            .world
-            .get_block_entity(interaction.pos)
-            .expect("sign entity");
-        let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
-        for slot in [SignTextSlot::Front, SignTextSlot::Back] {
-            let mut text = SignText::new();
-            text.set_message(0, TextComponent::plain("Read me"));
-            sign.set_text(text, slot);
-            if item == &*vanilla_items::INK_SAC {
-                assert!(sign.set_glowing(slot, true));
+    for block in [
+        &vanilla_blocks::OAK_SIGN,
+        &vanilla_blocks::OAK_WALL_SIGN,
+        &vanilla_blocks::OAK_HANGING_SIGN,
+        &vanilla_blocks::OAK_WALL_HANGING_SIGN,
+    ] {
+        for (item, hand) in applicators.into_iter().flat_map(|item| {
+            [InteractionHand::MainHand, InteractionHand::OffHand]
+                .into_iter()
+                .map(move |hand| (item, hand))
+        }) {
+            let interaction = Interaction::new("use_on_sign_side_effects");
+            let entity = interaction.sign(
+                block.default_state(),
+                true,
+                item == &*vanilla_items::INK_SAC,
+            );
+            let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
+            let mut stack = ItemStack::with_count(item, 1);
+            stack.set(USE_COOLDOWN, UseCooldown::new(1.0, None));
+            stack.set(
+                USE_REMAINDER,
+                UseRemainder::new(ItemStackTemplate::new(&vanilla_items::DIAMOND)),
+            );
+            let before_use = stack.clone();
+            interaction.hold(hand, stack);
+
+            let result = interaction.use_on(hand);
+
+            assert_eq!(result, InteractionResult::Success);
+            assert!(result.should_swing());
+            assert_eq!(sign.get_player_who_may_edit(), None);
+            if item == &*vanilla_items::HONEYCOMB {
+                assert!(sign.is_waxed());
+            } else {
+                let slot = facing_text_slot(
+                    block.default_state(),
+                    interaction.pos,
+                    &interaction.player,
+                );
+                assert_eq!(
+                    sign.get_text(slot).has_glowing_text,
+                    item == &*vanilla_items::GLOW_INK_SAC
+                );
             }
+            assert_eq!(interaction.used(item), 1);
+            assert_eq!(interaction.count(item), 0);
+            assert_eq!(interaction.count(&vanilla_items::DIAMOND), 0);
+            assert!(!interaction.player.is_item_on_cooldown(&before_use));
         }
-        let mut stack = ItemStack::with_count(item, 2);
-        stack.set(USE_COOLDOWN, UseCooldown::new(1.0, None));
-        stack.set(
-            USE_REMAINDER,
-            UseRemainder::new(ItemStackTemplate::new(&vanilla_items::DIAMOND)),
-        );
-        let before_use = stack.clone();
-        interaction.hold(InteractionHand::OffHand, stack);
-        assert_eq!(
-            interaction.use_on(InteractionHand::OffHand),
-            InteractionResult::SuccessWithoutItem
-        );
-        assert_eq!(interaction.used(item), 1);
-        assert_eq!(interaction.count(item), 1);
-        assert_eq!(interaction.count(&vanilla_items::DIAMOND), 0);
-        assert!(!interaction.player.is_item_on_cooldown(&before_use));
     }
+}
+
+#[test]
+fn sneaking_bypasses_sign_applicators_in_both_hands() {
+    for (item, hand) in [
+        &*vanilla_items::GLOW_INK_SAC,
+        &*vanilla_items::INK_SAC,
+        &*vanilla_items::HONEYCOMB,
+    ]
+    .into_iter()
+    .flat_map(|item| {
+        [InteractionHand::MainHand, InteractionHand::OffHand]
+            .into_iter()
+            .map(move |hand| (item, hand))
+    }) {
+        let interaction = Interaction::new("sneaking_sign_applicator");
+        let glowing = item == &*vanilla_items::INK_SAC;
+        let entity = interaction.sign(vanilla_blocks::OAK_SIGN.default_state(), true, glowing);
+        let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
+        interaction.player.set_crouching(true);
+        interaction.hold(hand, ItemStack::with_count(item, 2));
+
+        assert_eq!(interaction.use_on(hand), InteractionResult::Pass);
+
+        assert_eq!(interaction.count(item), 2);
+        assert_eq!(interaction.used(item), 0);
+        assert!(!sign.is_waxed());
+        assert_eq!(sign.get_player_who_may_edit(), None);
+        for slot in [SignTextSlot::Front, SignTextSlot::Back] {
+            assert_eq!(sign.get_text(slot).has_glowing_text, glowing);
+        }
+    }
+}
+
+#[test]
+fn glow_ink_rejections_do_not_consume_or_change_the_sign() {
+    for (with_text, waxed, other_editor) in [
+        (false, false, false),
+        (true, true, false),
+        (true, false, true),
+    ] {
+        let interaction = Interaction::new("rejected_sign_applicator");
+        let entity = interaction.sign(vanilla_blocks::OAK_SIGN.default_state(), with_text, false);
+        let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
+        if waxed {
+            assert!(sign.wax());
+        }
+        if other_editor {
+            sign.set_player_who_may_edit(Some(Uuid::nil()));
+        }
+        interaction.hold(
+            InteractionHand::MainHand,
+            ItemStack::with_count(&vanilla_items::GLOW_INK_SAC, 2),
+        );
+
+        interaction.use_on(InteractionHand::MainHand);
+
+        assert_eq!(interaction.count(&vanilla_items::GLOW_INK_SAC), 2);
+        assert_eq!(interaction.used(&vanilla_items::GLOW_INK_SAC), 0);
+        for slot in [SignTextSlot::Front, SignTextSlot::Back] {
+            assert!(!sign.get_text(slot).has_glowing_text);
+        }
+    }
+}
+
+#[test]
+fn honeycomb_can_wax_blank_signs_without_consuming_in_creative() {
+    let interaction = Interaction::new("creative_blank_sign_waxing");
+    let entity = interaction.sign(vanilla_blocks::OAK_SIGN.default_state(), false, false);
+    let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
+    interaction.player.set_game_mode(GameType::Creative);
+    interaction.hold(
+        InteractionHand::MainHand,
+        ItemStack::new(&vanilla_items::HONEYCOMB),
+    );
+
+    let result = interaction.use_on(InteractionHand::MainHand);
+
+    assert_eq!(result, InteractionResult::Success);
+    assert!(result.should_swing());
+    assert!(sign.is_waxed());
+    assert_eq!(sign.get_player_who_may_edit(), None);
+    assert_eq!(interaction.count(&vanilla_items::HONEYCOMB), 1);
+    assert_eq!(interaction.used(&vanilla_items::HONEYCOMB), 1);
 }

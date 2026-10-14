@@ -15,11 +15,12 @@ use steel_registry::item_stack::ItemStack;
 use steel_registry::items::ItemRef;
 use steel_registry::stat::vanilla_stat_types;
 use steel_registry::{REGISTRY, RegistryEntry, RegistryExt, sound_events, vanilla_game_events};
-use steel_utils::types::InteractionHand;
+use steel_utils::types::{InteractionHand, SignTextSlot};
 use text_components::TextComponent;
 
 use crate::behavior::items::{DefaultItemBehavior, SpawnEggItem, block_transformer};
 use crate::behavior::{InteractionResult, InventoryTickContext, UseItemContext, UseOnContext};
+use crate::block_entity::entities::{SignBlockEntity, SignText};
 use crate::entity::consume_effect::apply_consume_effect;
 use crate::entity::damage::DamageSource;
 use crate::entity::{Entity, LivingEntity, LivingEntityRef, SharedEntity};
@@ -27,6 +28,24 @@ use crate::player::{Player, player_inventory::EquipmentSwapResult};
 use crate::world::World;
 
 pub use steel_registry::data_components::vanilla_components::ItemUseAnimation;
+
+/// Item capability applied by a sign before its editor fallback.
+pub trait SignApplicator: Send + Sync {
+    /// Returns whether this item can change the selected sign text.
+    fn can_apply_to_sign(&self, text: &SignText, _item: &ItemStack, _player: &Player) -> bool {
+        text.has_message()
+    }
+
+    /// Applies the change; the sign handles consumption, statistics and updates.
+    fn try_apply_to_sign(
+        &self,
+        world: &World,
+        sign: &SignBlockEntity,
+        slot: SignTextSlot,
+        item: &ItemStack,
+        player: &Player,
+    ) -> bool;
+}
 
 /// Trait defining the behavior of an item.
 ///
@@ -252,6 +271,11 @@ pub trait ItemBehavior: Send + Sync {
 
     /// Returns this item behavior as a `SpawnEggItem`.
     fn as_spawn_egg(&self) -> Option<&SpawnEggItem> {
+        None
+    }
+
+    /// Returns the capability used by sign block interactions.
+    fn as_sign_applicator(&self) -> Option<&dyn SignApplicator> {
         None
     }
 }
