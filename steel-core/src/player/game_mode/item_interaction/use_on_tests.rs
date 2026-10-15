@@ -366,7 +366,9 @@ fn honeycomb_can_wax_blank_signs_without_consuming_in_creative() {
     let interaction = Interaction::new("creative_blank_sign_waxing");
     let entity = interaction.sign(vanilla_blocks::OAK_SIGN.default_state(), false, false);
     let sign = entity.downcast_ref::<SignBlockEntity>().expect("sign");
-    interaction.player.set_game_mode(GameType::Creative);
+    interaction
+        .player
+        .restore_game_modes(GameType::Creative, None);
     interaction.hold(
         InteractionHand::MainHand,
         ItemStack::new(&vanilla_items::HONEYCOMB),
