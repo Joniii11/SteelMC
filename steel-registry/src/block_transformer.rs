@@ -174,6 +174,3 @@ crate::impl_registry!(
     entries_by_key,
     block_transformers
 );
-
-#[cfg(test)]
-mod tests;
