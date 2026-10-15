@@ -283,11 +283,8 @@ fn sign_applicators_count_once_without_item_use_component_side_effects() {
             if item == &*vanilla_items::HONEYCOMB {
                 assert!(sign.is_waxed());
             } else {
-                let slot = facing_text_slot(
-                    block.default_state(),
-                    interaction.pos,
-                    &interaction.player,
-                );
+                let slot =
+                    facing_text_slot(block.default_state(), interaction.pos, &interaction.player);
                 assert_eq!(
                     sign.get_text(slot).has_glowing_text,
                     item == &*vanilla_items::GLOW_INK_SAC
