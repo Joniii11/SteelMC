@@ -102,16 +102,17 @@ mod tests {
     fn may_use_item_at_tests_the_block_behind_the_placement_face() {
         init_vanilla_registry();
         init_behaviors();
-        let world = fresh_test_world("adventure_mode_may_use_item_at");
+        let world_fixture = fresh_test_world("adventure_mode_may_use_item_at");
+        let world = &world_fixture.world;
         let clicked_pos = BlockPos::new(1, 64, 0);
-        insert_ready_full_chunk(&world, ChunkPos::from_block_pos(clicked_pos));
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(clicked_pos));
         assert!(world.set_block(
             clicked_pos,
             vanilla_blocks::STONE.default_state(),
             UpdateFlags::UPDATE_ALL,
         ));
 
-        let player = TestPlayerBuilder::new(Arc::clone(&world), "TestPlayer", 1).build();
+        let player = TestPlayerBuilder::new(Arc::clone(world), "TestPlayer", 1).build();
         player.restore_game_modes(GameType::Adventure, None);
         player
             .abilities
@@ -143,9 +144,10 @@ mod tests {
     fn block_in_world_predicates_ignore_component_matchers() {
         init_vanilla_registry();
         init_behaviors();
-        let world = fresh_test_world("adventure_mode_ignores_component_matchers");
+        let world_fixture = fresh_test_world("adventure_mode_ignores_component_matchers");
+        let world = &world_fixture.world;
         let pos = BlockPos::new(1, 64, 0);
-        insert_ready_full_chunk(&world, ChunkPos::from_block_pos(pos));
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(pos));
         assert!(world.set_block(
             pos,
             vanilla_blocks::OAK_LOG.default_state(),
@@ -177,6 +179,6 @@ mod tests {
             AdventureModePredicate::new(vec![predicate]).expect("one block predicate is valid"),
         );
 
-        assert!(can_break(&item, &world, pos));
+        assert!(can_break(&item, world, pos));
     }
 }

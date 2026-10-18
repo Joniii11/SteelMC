@@ -258,7 +258,6 @@ mod tests {
     use crate::player::connection::NetworkConnection as _;
     use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
     use glam::DVec3;
-    use std::sync::Arc;
     use steel_protocol::packets::game::SUseItem;
     use steel_registry::{
         RegistryHolderSet,
@@ -309,17 +308,18 @@ mod tests {
 
     #[test]
     fn adventure_mode_requires_can_place_on_before_item_use() {
-        let world = fresh_test_world("adventure_mode_can_place_on");
+        let world_fixture = fresh_test_world("adventure_mode_can_place_on");
+        let world = &world_fixture.world;
         init_behaviors();
         let pos = BlockPos::new(1, 64, 0);
-        insert_ready_full_chunk(&world, ChunkPos::from_block_pos(pos));
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(pos));
         assert!(world.set_block(
             pos,
             vanilla_blocks::STONE.default_state(),
             UpdateFlags::UPDATE_ALL,
         ));
 
-        let player = TestPlayerBuilder::new(Arc::clone(&world), "TestPlayer", 1).build();
+        let player = TestPlayerBuilder::new(Arc::clone(world), "TestPlayer", 1).build();
         player.restore_game_modes(GameType::Adventure, None);
         player
             .abilities
@@ -340,7 +340,7 @@ mod tests {
             .lock()
             .set_selected_item(ItemStack::new(&vanilla_items::DIRT));
         assert!(
-            !use_item_on(&player, &world, InteractionHand::MainHand, &hit_result).consumes_action()
+            !use_item_on(&player, world, InteractionHand::MainHand, &hit_result).consumes_action()
         );
         assert_eq!(
             world.get_block_state(pos.above()),
@@ -361,7 +361,7 @@ mod tests {
         player.inventory.lock().set_selected_item(dirt);
 
         assert!(
-            use_item_on(&player, &world, InteractionHand::MainHand, &hit_result).consumes_action()
+            use_item_on(&player, world, InteractionHand::MainHand, &hit_result).consumes_action()
         );
         assert_eq!(
             world.get_block_state(pos.above()),

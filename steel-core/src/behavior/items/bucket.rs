@@ -412,16 +412,17 @@ mod tests {
     fn adventure_buckets_require_can_place_on_and_fail_when_denied() {
         init_vanilla_registry();
         init_behaviors();
-        let world = fresh_test_world("adventure_bucket_restriction");
+        let world_fixture = fresh_test_world("adventure_bucket_restriction");
+        let world = &world_fixture.world;
         let pos = BlockPos::new(0, 65, 2);
-        insert_ready_full_chunk(&world, ChunkPos::from_block_pos(pos));
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(pos));
         assert!(world.set_block(
             pos,
             vanilla_blocks::WATER.default_state(),
             UpdateFlags::UPDATE_ALL,
         ));
 
-        let player = TestPlayerBuilder::new(Arc::clone(&world), "TestPlayer", 1).build();
+        let player = TestPlayerBuilder::new(Arc::clone(world), "TestPlayer", 1).build();
         player.base().set_position_local(DVec3::new(0.5, 64.0, 0.5));
         player.set_rotation((0.0, 0.0));
         player.restore_game_modes(GameType::Adventure, None);
@@ -435,7 +436,7 @@ mod tests {
             .lock()
             .set_selected_item(ItemStack::new(&vanilla_items::BUCKET));
         assert_eq!(
-            use_item(&player, &world, InteractionHand::MainHand),
+            use_item(&player, world, InteractionHand::MainHand),
             InteractionResult::Fail
         );
         assert_eq!(
@@ -455,7 +456,7 @@ mod tests {
             AdventureModePredicate::new(vec![predicate]).expect("one block predicate is valid"),
         );
         player.inventory.lock().set_selected_item(allowed_bucket);
-        assert!(use_item(&player, &world, InteractionHand::MainHand).consumes_action());
+        assert!(use_item(&player, world, InteractionHand::MainHand).consumes_action());
         assert_eq!(
             world.get_block_state(pos),
             vanilla_blocks::AIR.default_state()
@@ -471,7 +472,7 @@ mod tests {
             .lock()
             .set_selected_item(ItemStack::new(&vanilla_items::WATER_BUCKET));
         assert_eq!(
-            use_item(&player, &world, InteractionHand::MainHand),
+            use_item(&player, world, InteractionHand::MainHand),
             InteractionResult::Fail
         );
         assert_eq!(

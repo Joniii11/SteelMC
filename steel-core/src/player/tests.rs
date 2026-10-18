@@ -1466,16 +1466,17 @@ fn block_action_restriction_precedes_redstone_ore_attack() {
 fn block_action_restriction_is_rechecked_before_block_destruction() {
     init_vanilla_registry();
     init_behaviors();
-    let world = fresh_test_world("block_action_restriction_before_destruction");
+    let world_fixture = fresh_test_world("block_action_restriction_before_destruction");
+    let world = &world_fixture.world;
     let pos = BlockPos::new(1, 64, 0);
-    insert_ready_full_chunk(&world, ChunkPos::from_block_pos(pos));
+    insert_ready_full_chunk(world, ChunkPos::from_block_pos(pos));
     assert!(world.set_block(
         pos,
         vanilla_blocks::STONE.default_state(),
         UpdateFlags::UPDATE_ALL,
     ));
 
-    let player = test_player(Arc::clone(&world));
+    let player = test_player(Arc::clone(world));
     player.base.set_position_local(DVec3::new(1.0, 64.0, 0.0));
     player.restore_game_modes(GameType::Adventure, None);
     player
@@ -1500,13 +1501,13 @@ fn block_action_restriction_is_rechecked_before_block_destruction() {
         let mut breaking = player.block_breaking.lock();
         breaking.handle_block_break_action(
             &player,
-            &world,
+            world,
             pos,
             BlockBreakAction::Start,
             Direction::Up,
         );
         for _ in 0..3 {
-            breaking.tick(&player, &world);
+            breaking.tick(&player, world);
         }
     }
 
@@ -1516,7 +1517,7 @@ fn block_action_restriction_is_rechecked_before_block_destruction() {
         .set_selected_item(ItemStack::new(&vanilla_items::DIAMOND_PICKAXE));
     player.block_breaking.lock().handle_block_break_action(
         &player,
-        &world,
+        world,
         pos,
         BlockBreakAction::Stop,
         Direction::Up,
