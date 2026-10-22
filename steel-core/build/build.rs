@@ -15,7 +15,7 @@ mod candle_cakes;
 mod common;
 mod entities;
 mod items;
-mod strippables;
+mod skull_type;
 mod waxables;
 mod weathering;
 
@@ -58,12 +58,12 @@ pub fn main() {
         weathering::build(),
     );
     write_if_changed(
-        format!("{behavior_out_dir}/strippables.rs"),
-        strippables::build(),
-    );
-    write_if_changed(
         format!("{entity_out_dir}/entities.rs"),
         entities::build(&classes.entities),
+    );
+    write_if_changed(
+        format!("{behavior_out_dir}/skull_types.rs"),
+        skull_type::build(),
     );
 
     println!("cargo:rerun-if-changed={manifest_dir}/build/classes.json");

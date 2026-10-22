@@ -2,11 +2,25 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+use super::{
+    ClientInformation, DEATH_DURATION, DROP_SPAM_THROTTLER_INCREMENT_STEP,
+    DROP_SPAM_THROTTLER_THRESHOLD, MenuRemovalStatus, Player, PlayerConnection,
+    PlayerPermissionState, ResetReason,
+    connection::NetworkConnection,
+    experience::Experience,
+    experience::first_point_level_up_sound,
+    game_mode::block_breaking::BlockBreakAction,
+    player_data::{PersistentEnderPearl, PersistentPlayerData, PersistentRootVehicle},
+    player_inventory::MenuItemDisposition,
+    sleep::BedSleepingProblem,
+};
 use crate::behavior::{InteractionResult, init_behaviors};
 use crate::chunk_saver::PersistentEntity;
 use crate::entity::{
     DEFAULT_MAX_AIR_SUPPLY, Entity, EntitySyncedData, LivingEntity, SharedEntity,
-    damage::DamageSource, entities::ItemEntity, next_entity_id,
+    damage::DamageSource,
+    entities::{EndermiteEntity, ItemEntity},
+    next_entity_id,
 };
 use crate::inventory::{
     click::{Click, DragKind, QuickCraft},
@@ -38,6 +52,7 @@ use steel_registry::{
     RegistryHolderSet, entity_data::EntityData, init_vanilla_registry, item_stack::ItemStack,
     vanilla_attributes, vanilla_blocks, vanilla_custom_stats, vanilla_damage_types,
     vanilla_enchantments, vanilla_entities, vanilla_game_rules, vanilla_items, vanilla_menu_types,
+    vanilla_world_clocks,
 };
 use steel_utils::codec::VarInt;
 use steel_utils::locks::{IntoShared as _, SyncMutex};
@@ -47,19 +62,6 @@ use steel_utils::{BlockPos, ChunkPos, Downcast as _, DowncastType, DowncastTypeK
 use text_components::TextComponent;
 use uuid::Uuid;
 
-use super::{
-    ClientInformation, DEATH_DURATION, DROP_SPAM_THROTTLER_INCREMENT_STEP,
-    DROP_SPAM_THROTTLER_THRESHOLD, MenuRemovalStatus, Player, PlayerConnection,
-    PlayerPermissionState, ResetReason,
-    connection::NetworkConnection,
-    experience::Experience,
-    experience::first_point_level_up_sound,
-    game_mode::block_breaking::BlockBreakAction,
-    lifecycle::nullable_game_mode_id,
-    player_data::{PersistentEnderPearl, PersistentPlayerData, PersistentRootVehicle},
-    player_inventory::MenuItemDisposition,
-};
-
 const PLAYER_MAIN_HAND_METADATA_INDEX: u8 = 15;
 const PLAYER_MODEL_CUSTOMIZATION_METADATA_INDEX: u8 = 16;
 const BYTE_ENTITY_DATA_SERIALIZER_ID: i32 = 0;
@@ -67,6 +69,7 @@ const HUMANOID_ARM_ENTITY_DATA_SERIALIZER_ID: i32 = 42;
 
 const MODEL_CUSTOMIZATION_WITH_HIGH_BIT_SET: u8 = 0xff;
 const CAPE_LEFT_SLEEVE_LEFT_PANTS_MASK: u8 = 0b0001_0101;
+const NIGHT_TIME: i64 = 18_000;
 
 #[test]
 fn client_information_initializes_player_cosmetic_metadata() {
@@ -757,7 +760,12 @@ fn end_credits_removes_all_menus_before_detaching() {
 
     assert!(player.has_won_game());
     assert!(!player.has_container_open());
-    assert!(world.players.get_by_uuid(&player.gameprofile.id).is_none());
+    assert!(
+        world
+            .players
+            .get_by_uuid(&player.gameprofile.id())
+            .is_none()
+    );
     assert_eq!(replacement_removals.load(Ordering::Relaxed), 0);
     let inventory = player.inventory.lock();
     for (item, expected) in [(&vanilla_items::STONE, 2), (&vanilla_items::DIRT, 3)] {
@@ -1278,12 +1286,6 @@ fn equipment_detection_coalesces_before_tracker_drain() {
 }
 
 #[test]
-fn nullable_game_mode_id_matches_vanilla_encoding() {
-    assert_eq!(nullable_game_mode_id(None), -1);
-    assert_eq!(nullable_game_mode_id(Some(GameType::Creative)), 1);
-}
-
-#[test]
 fn clear_matching_items_uses_inventory_crafting_then_carried_order() {
     init_vanilla_registry();
     let player = test_player(Arc::clone(test_world()));
@@ -1462,6 +1464,73 @@ fn block_action_restriction_precedes_redstone_ore_attack() {
         world
             .get_block_state(pos)
             .get_value(&BlockStateProperties::LIT)
+    );
+}
+
+#[test]
+fn block_action_restriction_is_rechecked_before_block_destruction() {
+    init_vanilla_registry();
+    init_behaviors();
+    let world_fixture = fresh_test_world("block_action_restriction_before_destruction");
+    let world = &world_fixture.world;
+    let pos = BlockPos::new(1, 64, 0);
+    insert_ready_full_chunk(world, ChunkPos::from_block_pos(pos));
+    assert!(world.set_block(
+        pos,
+        vanilla_blocks::STONE.default_state(),
+        UpdateFlags::UPDATE_ALL,
+    ));
+
+    let player = test_player(Arc::clone(world));
+    player.base.set_position_local(DVec3::new(1.0, 64.0, 0.0));
+    player.restore_game_modes(GameType::Adventure, None);
+    player
+        .abilities
+        .lock()
+        .update_for_game_mode(GameType::Adventure);
+
+    let predicate = BlockPredicate::new(
+        Some(RegistryHolderSet::Direct(vec![&vanilla_blocks::STONE])),
+        None,
+        None,
+        DataComponentMatchers::ANY,
+    );
+    let mut allowed_tool = ItemStack::new(&vanilla_items::DIAMOND_PICKAXE);
+    allowed_tool.set(
+        CAN_BREAK,
+        AdventureModePredicate::new(vec![predicate]).expect("one block predicate is valid"),
+    );
+    player.inventory.lock().set_selected_item(allowed_tool);
+
+    {
+        let mut breaking = player.block_breaking.lock();
+        breaking.handle_block_break_action(
+            &player,
+            world,
+            pos,
+            BlockBreakAction::Start,
+            Direction::Up,
+        );
+        for _ in 0..3 {
+            breaking.tick(&player, world);
+        }
+    }
+
+    player
+        .inventory
+        .lock()
+        .set_selected_item(ItemStack::new(&vanilla_items::DIAMOND_PICKAXE));
+    player.block_breaking.lock().handle_block_break_action(
+        &player,
+        world,
+        pos,
+        BlockBreakAction::Stop,
+        Direction::Up,
+    );
+
+    assert_eq!(
+        world.get_block_state(pos),
+        vanilla_blocks::STONE.default_state()
     );
 }
 
@@ -1672,6 +1741,57 @@ fn throttle_player_dropping_items_from_creative_menu() {
     Arc::clone(&player).tick();
     player.handle_set_creative_mode_slot(packet);
     check_drop_count(DROPS_ALLOWED_BEFORE_THROTTLE + 2);
+}
+
+#[test]
+fn monster_prevents_rest_blocks_sleeping_near_a_bed() {
+    init_vanilla_registry();
+    init_behaviors();
+    let world_fixture = fresh_test_world("monster_prevents_rest");
+    let world = &world_fixture.world;
+    insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+    world.set_clock_total_ticks(&vanilla_world_clocks::OVERWORLD, NIGHT_TIME);
+    let bed_pos = BlockPos::new(8, 65, 8);
+    assert!(world.set_block(
+        bed_pos,
+        vanilla_blocks::WHITE_BED.default_state(),
+        UpdateFlags::UPDATE_ALL,
+    ));
+    let player = test_player(Arc::clone(world));
+    player.base.set_position_local(DVec3::new(8.5, 65.0, 8.5));
+
+    assert!(
+        player
+            .start_sleep_in_bed(
+                bed_pos,
+                &world.dimension_type.bed_rule,
+                &vanilla_custom_stats::SLEEP_IN_BED
+            )
+            .is_ok()
+    );
+    assert!(player.is_sleeping());
+    player.stop_sleep_in_bed(false, false);
+
+    let endermite: SharedEntity = Arc::new(EndermiteEntity::new(
+        &vanilla_entities::ENDERMITE,
+        next_entity_id(),
+        DVec3::new(11.0, 65.0, 8.0),
+        Arc::downgrade(world),
+    ));
+    world
+        .try_add_entity(Arc::clone(&endermite))
+        .expect("test endermite should attach to the loaded chunk");
+
+    let result = player.start_sleep_in_bed(
+        bed_pos,
+        &world.dimension_type.bed_rule,
+        &vanilla_custom_stats::SLEEP_IN_BED,
+    );
+    assert!(
+        matches!(result, Err(BedSleepingProblem::NotSafe(_))),
+        "a monster nearby must yield the not-safe problem, got {result:?}"
+    );
+    assert!(!player.is_sleeping());
 }
 
 #[test]

@@ -4,6 +4,7 @@
 //! Vanilla reads `EnvironmentAttributes.EYEBLOSSOM_OPEN`, which Steel lacks
 //! (the same gap documented on `EyeblossomBlock`).
 
+use crate::player::player_inventory::Prediction;
 use std::sync::{Arc, LazyLock};
 
 use rustc_hash::FxHashMap;
@@ -18,6 +19,7 @@ use steel_utils::types::{InteractionHand, UpdateFlags};
 use steel_utils::{BlockPos, BlockStateId, Direction, Identifier};
 
 use crate::behavior::{BlockBehavior, BlockPlaceContext, InteractionResult, InventoryAccess};
+use crate::block_entity::SharedBlockEntity;
 use crate::entity::ai::path::PathComputationType;
 use crate::player::Player;
 use crate::world::game_event::GameEventContext;
@@ -107,7 +109,10 @@ impl BlockBehavior for FlowerPotBlock {
             return InteractionResult::Consume;
         }
 
-        player.add_item_or_drop(ItemStack::new(REGISTRY.items.by_block(self.potted)));
+        player.add_item_or_drop(
+            ItemStack::new(REGISTRY.items.by_block(self.potted)),
+            Prediction::Predicted,
+        );
         world.set_block(
             pos,
             vanilla_blocks::FLOWER_POT.default_state(),
@@ -125,6 +130,7 @@ impl BlockBehavior for FlowerPotBlock {
         &self,
         block: BlockRef,
         _state: BlockStateId,
+        _block_entity: Option<SharedBlockEntity>,
         _include_data: bool,
     ) -> Option<ItemStack> {
         let item = if self.is_empty() {
@@ -319,6 +325,7 @@ mod tests {
             .get_clone_item_stack(
                 &vanilla_blocks::FLOWER_POT,
                 vanilla_blocks::FLOWER_POT.default_state(),
+                None,
                 false,
             )
             .expect("flower pot always yields a clone stack");
@@ -328,6 +335,7 @@ mod tests {
             .get_clone_item_stack(
                 &vanilla_blocks::POTTED_DANDELION,
                 vanilla_blocks::POTTED_DANDELION.default_state(),
+                None,
                 false,
             )
             .expect("potted flower pot always yields a clone stack");

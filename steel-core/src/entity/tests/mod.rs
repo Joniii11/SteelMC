@@ -29,6 +29,7 @@ use steel_utils::{
     BlockPos, BlockStateId, ChunkPos, Direction, Identifier, SectionPos, WorldAabb, axis::Axis,
     block_util::FoundRectangle,
 };
+use steel_worldgen::density_functions::overworld::OverworldNoiseSettings;
 use text_components::{Modifier as _, TextComponent, format::Color, interactivity::ClickEvent};
 use uuid::Uuid;
 
@@ -1076,11 +1077,15 @@ impl LevelReader for EmptyTestLevel {
     }
 
     fn min_y(&self) -> i32 {
-        -64
+        OverworldNoiseSettings::MIN_Y
     }
 
     fn height(&self) -> i32 {
-        384
+        OverworldNoiseSettings::HEIGHT
+    }
+
+    fn sea_level(&self) -> i32 {
+        OverworldNoiseSettings::SEA_LEVEL
     }
 }
 
@@ -1173,6 +1178,7 @@ fn closest_direction_with_blocked_neighbors(
 }
 
 mod damage;
+mod death_loot;
 mod equipment_and_freezing;
 mod fall_and_fluids;
 mod living_state;

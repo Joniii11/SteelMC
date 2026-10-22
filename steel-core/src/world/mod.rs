@@ -33,7 +33,8 @@ use steel_protocol::packets::game::{
     CBlockDestruction, CChangeDifficulty, CGameEvent, CInitializeBorder, CLevelEvent,
     CLevelParticles, CPlayerChat, CSetBorderCenter, CSetBorderLerpSize, CSetBorderSize,
     CSetBorderWarningDelay, CSetBorderWarningDistance, CSetEntityData, CSetEntityLink,
-    CSetEquipment, CSound, CSystemChat, CUpdateAttributes, GameEventType, SoundSource,
+    CSetEquipment, CSound, CSystemChat, CUpdateAttributes, GameEventType, RandomizationType,
+    SoundSource,
 };
 use steel_protocol::utils::ConnectionProtocol;
 use steel_protocol::{
@@ -709,6 +710,10 @@ impl LevelReader for World {
             .is_face_sturdy(state, self, pos, direction, support_type)
     }
 
+    fn sky_darkening(&self) -> u8 {
+        World::sky_darkening(self)
+    }
+
     fn raw_brightness(&self, pos: BlockPos, sky_darkening: u8) -> u8 {
         let sky_light = if self.dimension_type.has_skylight {
             self.light_value_at(LightLayer::Sky, pos)
@@ -739,6 +744,10 @@ impl LevelReader for World {
     fn height(&self) -> i32 {
         self.get_height()
     }
+
+    fn sea_level(&self) -> i32 {
+        self.sea_level
+    }
 }
 
 impl LevelReader for Arc<World> {
@@ -759,6 +768,10 @@ impl LevelReader for Arc<World> {
     ) -> bool {
         self.as_ref()
             .is_face_sturdy_for(state, pos, direction, support_type)
+    }
+
+    fn sky_darkening(&self) -> u8 {
+        self.as_ref().sky_darkening()
     }
 
     fn raw_brightness(&self, pos: BlockPos, sky_darkening: u8) -> u8 {
@@ -790,6 +803,10 @@ impl LevelReader for Arc<World> {
 
     fn height(&self) -> i32 {
         self.as_ref().get_height()
+    }
+
+    fn sea_level(&self) -> i32 {
+        self.as_ref().sea_level
     }
 }
 

@@ -13,6 +13,7 @@ use simdnbt::owned::{NbtCompound, NbtTag};
 use steel_protocol::packets::game::{CRemoveMobEffect, CUpdateMobEffect, MobEffectPacketFlags};
 use steel_registry::RegistryEntry;
 use steel_registry::attribute::AttributeRef;
+use steel_registry::data_components::vanilla_components::SwingAnimation;
 use steel_registry::entity_data::ParticleList;
 use steel_registry::entity_type::EntityTypeRef;
 use steel_registry::item_stack::ItemStack;
@@ -494,11 +495,17 @@ impl Default for LivingRotationState {
     }
 }
 
-/// Vanilla arm-swing animation state stored on `LivingEntity`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SwingDescription {
+    hand: InteractionHand,
+    animation: SwingAnimation,
+    duration_ticks: i32,
+}
+
+/// Arm-swing animation state stored on a living entity.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LivingSwingState {
-    swinging: bool,
-    swinging_arm: Option<InteractionHand>,
+    current_swing: Option<SwingDescription>,
     swing_time: i32,
     old_attack_anim: f32,
     attack_anim: f32,
@@ -509,8 +516,7 @@ impl LivingSwingState {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            swinging: false,
-            swinging_arm: None,
+            current_swing: None,
             swing_time: 0,
             old_attack_anim: 0.0,
             attack_anim: 0.0,
@@ -520,13 +526,16 @@ impl LivingSwingState {
     /// Returns whether an arm-swing animation is currently playing.
     #[must_use]
     pub const fn swinging(self) -> bool {
-        self.swinging
+        self.current_swing.is_some()
     }
 
     /// Returns which hand is currently swinging, if any.
     #[must_use]
     pub const fn swinging_arm(self) -> Option<InteractionHand> {
-        self.swinging_arm
+        match self.current_swing {
+            Some(swing) => Some(swing.hand),
+            None => None,
+        }
     }
 
     /// Returns ticks elapsed in the current arm-swing animation.
@@ -535,7 +544,7 @@ impl LivingSwingState {
         self.swing_time
     }
 
-    /// Returns the previous-tick attack animation progress, used for render interpolation.
+    /// Returns the previous-tick animation progress for interpolation.
     #[must_use]
     pub const fn old_attack_anim(self) -> f32 {
         self.old_attack_anim
@@ -555,7 +564,7 @@ impl Default for LivingSwingState {
 }
 
 /// Vanilla active item-use state stored on `LivingEntity`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActiveItemUseState {
     hand: InteractionHand,
     item: ItemRef,
@@ -773,10 +782,7 @@ impl LivingEntityBase {
 
     /// Collects equipment changes against Vanilla's previous-tick snapshots.
     pub fn collect_equipment_changes(&self) -> Vec<(EquipmentSlot, ItemStack, ItemStack)> {
-        let current_items: [ItemStack; EquipmentSlot::ALL.len()] = {
-            let equipment = self.equipment.lock();
-            array::from_fn(|index| equipment.get_ref(EquipmentSlot::ALL[index]).clone())
-        };
+        let current_items = self.equipment.lock().snapshot();
         let mut last_items = self.last_equipment_items.lock();
         let mut changes = Vec::new();
 
@@ -891,45 +897,54 @@ impl LivingEntityBase {
         state.rotation.y_body_rot_o = state.rotation.y_body_rot;
     }
 
-    /// Copies the current attack animation progress into the previous-tick
-    /// snapshot for render interpolation.
-    pub fn advance_attack_animation_for_base_tick(&self) {
-        let mut state = self.state.lock();
-        state.swing.old_attack_anim = state.swing.attack_anim;
-    }
-
-    /// Starts a new arm swing unless one is already more than halfway
-    /// through; returns whether it started.
-    pub fn start_swing(&self, hand: InteractionHand, current_swing_duration: i32) -> bool {
+    /// Starts a swing when the active animation's restart gate allows it.
+    pub fn start_swing(
+        &self,
+        hand: InteractionHand,
+        animation: SwingAnimation,
+        duration_ticks: i32,
+    ) -> bool {
         let mut state = self.state.lock();
         let swing = &mut state.swing;
-        if swing.swinging && swing.swing_time < current_swing_duration / 2 && swing.swing_time >= 0
+        if let Some(current) = swing.current_swing
+            && swing.swing_time <= current.duration_ticks / 2
+            && swing.swing_time > 0
         {
             return false;
         }
 
-        swing.swing_time = -1;
-        swing.swinging = true;
-        swing.swinging_arm = Some(hand);
+        let description = SwingDescription {
+            hand,
+            animation,
+            duration_ticks,
+        };
+        if swing.current_swing != Some(description) {
+            swing.old_attack_anim = 0.0;
+            swing.attack_anim = 0.0;
+        }
+        swing.current_swing = Some(description);
+        swing.swing_time = 0;
         true
     }
 
-    /// Advances the swing timer and attack-animation progress while
-    /// swinging, resetting once the animation completes.
-    pub fn update_swing_time(&self, current_swing_duration: i32) {
+    /// Advances the swing animation at the start of the living entity's base tick.
+    pub fn tick_swing_state(&self) {
         let mut state = self.state.lock();
         let swing = &mut state.swing;
-        if swing.swinging {
-            swing.swing_time += 1;
-            if swing.swing_time >= current_swing_duration {
-                swing.swing_time = 0;
-                swing.swinging = false;
-            }
-        } else {
-            swing.swing_time = 0;
+        swing.old_attack_anim = swing.attack_anim;
+        let Some(current) = swing.current_swing else {
+            swing.attack_anim = 0.0;
+            return;
+        };
+        if current.duration_ticks > 0 {
+            swing.attack_anim = (swing.swing_time as f32 / current.duration_ticks as f32).min(1.0);
         }
-
-        swing.attack_anim = swing.swing_time as f32 / current_swing_duration as f32;
+        let finished = swing.swing_time > current.duration_ticks;
+        swing.swing_time += 1;
+        if finished {
+            swing.current_swing = None;
+            swing.attack_anim = 0.0;
+        }
     }
 
     /// Returns vanilla `LivingEntity.absorptionAmount` for non-player living entities.
@@ -984,6 +999,10 @@ impl LivingEntityBase {
         let mut attributes = self.attributes.lock();
         let mut installed_modifiers = self.equipment_attribute_modifiers.lock();
 
+        #[expect(
+            clippy::iter_with_drain,
+            reason = "keeps the slot's allocation for the modifiers installed below"
+        )]
         for key in installed_modifiers[slot_index].drain(..) {
             attributes.remove_modifier(key.attribute, &key.id);
         }
@@ -1234,11 +1253,11 @@ impl LivingEntityBase {
 
     /// Refreshes the cached movement speed from the `MOVEMENT_SPEED` attribute.
     pub fn refresh_speed_from_attributes(&self) {
-        if let Some(speed) = self
+        let speed = self
             .attributes
             .lock()
-            .get_value(vanilla_attributes::MOVEMENT_SPEED)
-        {
+            .get_value(vanilla_attributes::MOVEMENT_SPEED);
+        if let Some(speed) = speed {
             self.state.lock().speed = speed as f32;
         }
     }
@@ -1477,6 +1496,16 @@ impl LivingEntityBase {
             .floor() as i32
     }
 
+    /// Returns the remaining hurt-cooldown ticks.
+    pub fn invulnerable_time(&self) -> i32 {
+        self.state.lock().invulnerable_time
+    }
+
+    /// Sets the remaining hurt-cooldown ticks.
+    pub fn set_invulnerable_time(&self, invulnerable_time: i32) {
+        self.state.lock().invulnerable_time = invulnerable_time;
+    }
+
     /// Decrements remaining invulnerability ticks by one if any are active.
     pub fn decrement_invulnerable_time(&self) {
         let mut state = self.state.lock();
@@ -1520,6 +1549,11 @@ impl LivingEntityBase {
         state.last_hurt_by_player = Some(player_uuid);
         state.last_hurt_by_player_entity = None;
         state.last_hurt_by_player_memory_time = time_to_remember;
+    }
+
+    /// Sets the remaining memory time without touching the remembered player.
+    pub fn set_last_hurt_by_player_memory_time(&self, time_to_remember: i32) {
+        self.state.lock().last_hurt_by_player_memory_time = time_to_remember;
     }
 
     /// Remembers the live player independently of which world it occupies.

@@ -73,7 +73,7 @@ impl PacketProcessor {
         packet: ScheduledPlayPacket,
         payload_bytes: usize,
     ) {
-        let player_id = player.gameprofile.id;
+        let player_id = player.gameprofile.id();
         let lane_key = PlayerPacketLaneKey::new(&player.session);
         if player.connection.closed() {
             self.queued.discard_lane(lane_key);
@@ -334,8 +334,7 @@ where
         let (player_packets, player_bytes) = state
             .lanes
             .get(&key)
-            .map(|lane| (lane.outstanding_packets, lane.outstanding_bytes))
-            .unwrap_or_default();
+            .map_or_default(|lane| (lane.outstanding_packets, lane.outstanding_bytes));
         if player_packets >= self.limits.per_player_packets {
             return Err(PacketAdmissionError::PlayerPacketLimit);
         }
@@ -1055,6 +1054,7 @@ mod tests {
         time::Duration,
     };
 
+    use steel_utils::TICKS_PER_SECOND;
     use tokio::time::timeout;
 
     use crate::{
@@ -1189,10 +1189,9 @@ mod tests {
     #[test]
     fn production_limit_allows_a_watchdog_window_of_mounted_client_traffic() {
         const VANILLA_WATCHDOG_SECONDS: usize = 60;
-        const CLIENT_TICKS_PER_SECOND: usize = 20;
         const MOUNTED_PACKETS_PER_CLIENT_TICK: usize = 4;
         const EXPECTED_PACKETS: usize =
-            VANILLA_WATCHDOG_SECONDS * CLIENT_TICKS_PER_SECOND * MOUNTED_PACKETS_PER_CLIENT_TICK;
+            VANILLA_WATCHDOG_SECONDS * TICKS_PER_SECOND as usize * MOUNTED_PACKETS_PER_CLIENT_TICK;
 
         let queue = PacketQueue::new();
         for packet in 0..EXPECTED_PACKETS {

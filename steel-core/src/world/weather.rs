@@ -17,6 +17,8 @@ use super::{
     obfuscate_biome_seed, vanilla_dimension_types,
 };
 
+use crate::chunk::light::MAX_LIGHT_LEVEL;
+
 static BIOME_TEMPERATURE_NOISE: LazyLock<PerlinSimplexNoise> = LazyLock::new(|| {
     let mut random = RandomSource::Legacy(LegacyRandom::from_seed(1234));
     PerlinSimplexNoise::new(&mut random, &[0])
@@ -166,7 +168,7 @@ impl World {
 
     /// Sets this world's weather timers and flags.
     ///
-    /// Minecraft 26.2 owns this state at server scope. Steel intentionally owns
+    /// Vanilla owns this state at server scope. Steel intentionally owns
     /// it per world so multiple worlds in one domain can have independent weather.
     pub(crate) fn set_weather_parameters(
         &self,
@@ -259,6 +261,12 @@ impl World {
         environment::sun_angle_degrees(self.dimension_type, level_data.world_clocks())
     }
 
+    /// Whether the environment currently permits daylight burning.
+    pub fn monsters_burn(&self) -> bool {
+        let level_data = self.level_data.read();
+        environment::monsters_burn(self.dimension_type, level_data.world_clocks())
+    }
+
     /// Returns sky-layer light after the current sky darkening is subtracted.
     ///
     /// Mirrors vanilla `LevelReader.getEffectiveSkyBrightness` without allowing
@@ -290,20 +298,19 @@ impl World {
             && self.dimension_type.key != vanilla_dimension_types::THE_END.key
     }
 
-    /// Returns whether the position has unobstructed sky exposure.
-    ///
-    /// Live worlds use the motion-blocking heightmap until Steel has a full
-    /// live sky-light engine.
+    /// Whether sky light is full, independent of time-of-day darkening.
     pub fn can_see_sky(&self, pos: BlockPos) -> bool {
-        if !self.dimension_type.has_skylight {
+        self.light_value_at(LightLayer::Sky, pos) >= MAX_LIGHT_LEVEL
+    }
+
+    /// Requires full sky light and an unobstructed motion-blocking heightmap.
+    /// The light check excludes water; the heightmap excludes glass roofs.
+    pub(super) fn can_see_sky_for_precipitation(&self, pos: BlockPos) -> bool {
+        if !self.can_see_sky(pos) {
             return false;
         }
         self.height_at(HeightmapType::MotionBlocking, pos.x(), pos.z())
             .is_some_and(|height| height <= pos.y())
-    }
-
-    pub(super) fn can_see_sky_for_precipitation(&self, pos: BlockPos) -> bool {
-        self.can_see_sky(pos)
     }
 
     pub(crate) fn biome_at(&self, pos: BlockPos) -> Option<BiomeRef> {
@@ -379,19 +386,23 @@ impl World {
         let modified_temp = match biome.temperature_modifier {
             TemperatureModifier::None => biome.temperature,
             TemperatureModifier::Frozen => {
-                let large = FROZEN_BIOME_TEMPERATURE_NOISE
-                    .get_value(f64::from(pos.x()) * 0.05, f64::from(pos.z()) * 0.05)
-                    * 7.0;
-                let edge =
-                    BIOME_INFO_NOISE.get_value(f64::from(pos.x()) * 0.2, f64::from(pos.z()) * 0.2);
+                let large = f64::from(
+                    FROZEN_BIOME_TEMPERATURE_NOISE
+                        .get_value(f64::from(pos.x()) * 0.05, f64::from(pos.z()) * 0.05)
+                        * 7.0,
+                );
+                let edge = f64::from(
+                    BIOME_INFO_NOISE.get_value(f64::from(pos.x()) * 0.2, f64::from(pos.z()) * 0.2),
+                );
                 if large + edge < 0.3 {
-                    let small = BIOME_INFO_NOISE
-                        .get_value(f64::from(pos.x()) * 0.09, f64::from(pos.z()) * 0.09);
-                    if small < 0.8 {
-                        return 0.2;
-                    }
+                    let small = f64::from(
+                        BIOME_INFO_NOISE
+                            .get_value(f64::from(pos.x()) * 0.09, f64::from(pos.z()) * 0.09),
+                    );
+                    if small < 0.8 { 0.2 } else { biome.temperature }
+                } else {
+                    biome.temperature
                 }
-                biome.temperature
             }
         };
 
@@ -400,10 +411,10 @@ impl World {
             return modified_temp;
         }
 
-        let noise = BIOME_TEMPERATURE_NOISE
-            .get_value(f64::from(pos.x()) / 8.0, f64::from(pos.z()) / 8.0)
-            as f32
-            * 8.0;
+        let noise = BIOME_TEMPERATURE_NOISE.get_value(
+            f64::from(pos.x() as f32 / 8.0),
+            f64::from(pos.z() as f32 / 8.0),
+        ) * 8.0;
         modified_temp - (noise + pos.y() as f32 - snow_level as f32) * 0.05 / 40.0
     }
 }
