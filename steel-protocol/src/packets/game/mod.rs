@@ -126,10 +126,10 @@ pub use c_container_set_slot::CContainerSetSlot;
 pub use c_cooldown::CCooldown;
 pub use c_damage_event::CDamageEvent;
 pub use c_entity_event::CEntityEvent;
+pub use c_entity_position_sync::{CEntityPositionSync, PositionPath, PositionStep};
 pub use c_explode::{
     CExplode, ExplosionParticleInfo, ExplosionParticlePalette, ExplosionParticleWeightError,
 };
-pub use c_entity_position_sync::{CEntityPositionSync, PositionPath, PositionStep};
 pub use c_game_event::CGameEvent;
 pub use c_game_event::GameEventType;
 pub use c_hurt_animation::CHurtAnimation;
