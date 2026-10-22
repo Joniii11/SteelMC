@@ -21,8 +21,8 @@ use crate::entity::{
     Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntityMoveError, EntitySyncedData,
     ItemFrame, SharedEntity,
 };
-use crate::world::{Explosion, World};
 use crate::physics::{MoveResult, MoverType};
+use crate::world::{Explosion, World};
 
 /// Item frame state needed by end-city structure markers.
 ///
@@ -280,7 +280,7 @@ impl Entity for ItemFrameEntity {
     fn synced_data(&self) -> Option<&dyn EntitySyncedData> {
         Some(&self.entity_data)
     }
-  
+
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {
         self.hurt_block_attached_entity(world, source, amount)
     }
