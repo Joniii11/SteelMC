@@ -91,9 +91,7 @@ fn swing_entities(
 ) -> Result<(i32, TextComponent), CommandSyntaxError> {
     let living_targets = targets
         .iter()
-        .filter_map(|target| {
-            target.as_living_entity().map(|living| (target, living))
-        })
+        .filter_map(|target| target.as_living_entity().map(|living| (target, living)))
         .collect::<Vec<_>>();
 
     if living_targets.is_empty() {
