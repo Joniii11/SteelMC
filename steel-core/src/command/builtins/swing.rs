@@ -84,7 +84,6 @@ fn swing_targets(
     Ok(result)
 }
 
-
 fn swing_entities(
     targets: &[SharedEntity],
     hand: InteractionHand,
