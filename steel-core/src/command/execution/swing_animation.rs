@@ -12,7 +12,7 @@ use crate::command::brigadier::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct SwingAnimationParser;
 
-// SAFETY: This Steel-owned key uniquely identifies this concrete parser.
+// SAFETY: this key is steel owned and uniqely identifies this concrete parser
 unsafe impl DowncastType for SwingAnimationParser {
     const TYPE_KEY: DowncastTypeKey = DowncastTypeKey::new("steel:command/parser/swing_animation");
 }
@@ -20,7 +20,7 @@ unsafe impl DowncastType for SwingAnimationParser {
 #[derive(Debug)]
 pub(super) struct SwingAnimationValue(pub(super) SwingAnimationType);
 
-// SAFETY: This Steel-owned key uniquely identifies this animation value wrapper.
+// SAFETY: this key is steel owned and uniqely identifies this concrete parser
 unsafe impl DowncastType for SwingAnimationValue {
     const TYPE_KEY: DowncastTypeKey = DowncastTypeKey::new("steel:command/value/swing_animation");
 }

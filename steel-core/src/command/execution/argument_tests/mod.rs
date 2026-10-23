@@ -178,4 +178,3 @@ mod item_predicate;
 mod item_stack;
 mod resources_world;
 mod selector_time;
-mod swing_animation;

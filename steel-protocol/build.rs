@@ -1,4 +1,4 @@
-//! Compiles extracted vanilla command parser IDs into the command packet encoder.
+//! compiles extracted vanilla command parser ID into the command packet encoder
 
 use std::{env, error::Error, fmt::Write as _, fs, path::PathBuf};
 
