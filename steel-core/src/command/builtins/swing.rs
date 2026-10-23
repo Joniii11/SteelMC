@@ -84,6 +84,7 @@ fn swing_targets(
     Ok(result)
 }
 
+
 fn swing_entities(
     targets: &[SharedEntity],
     hand: InteractionHand,
@@ -91,7 +92,9 @@ fn swing_entities(
 ) -> Result<(i32, TextComponent), CommandSyntaxError> {
     let living_targets = targets
         .iter()
-        .filter(|target| target.as_living_entity().is_some())
+        .filter_map(|target| {
+            target.as_living_entity().map(|living| (target, living))
+        })
         .collect::<Vec<_>>();
 
     if living_targets.is_empty() {
@@ -104,13 +107,11 @@ fn swing_entities(
         CommandSyntaxError::dynamic("Target count exceeds the command result range")
     })?;
 
-    for target in &living_targets {
-        if let Some(living) = target.as_living_entity() {
-            living.swing(hand, animation, true);
-        }
+    for (_, living) in &living_targets {
+        living.swing(hand, animation, true);
     }
 
-    let message = if let [target] = living_targets.as_slice() {
+    let message = if let [(target, _)] = living_targets.as_slice() {
         translations::COMMANDS_SWING_SUCCESS_SINGLE
             .message([target.display_name()])
             .component()
