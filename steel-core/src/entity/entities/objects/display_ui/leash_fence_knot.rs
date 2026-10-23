@@ -255,6 +255,13 @@ impl Entity for LeashFenceKnotEntity {
         self.is_pickable_block_attached_entity()
     }
 
+    fn ignore_explosion(&self, explosion: &dyn Explosion) -> bool {
+        explosion
+            .direct_source_entity()
+            .is_some_and(Entity::is_in_water)
+            || !explosion.should_affect_blocklike_entities()
+    }
+
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {
         self.hurt_block_attached_entity(world, source, amount)
     }
@@ -313,13 +320,6 @@ impl BlockAttachedEntity for LeashFenceKnotEntity {
         self.base()
             .set_bounding_box(Self::knot_bounding_box(self.entity_type, pos));
         Ok(())
-    }
-
-    fn ignore_explosion(&self, explosion: &dyn Explosion) -> bool {
-        explosion
-            .direct_source_entity()
-            .is_some_and(Entity::is_in_water)
-            || !explosion.should_affect_blocklike_entities()
     }
 }
 
