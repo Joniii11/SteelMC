@@ -44,5 +44,10 @@ flate2.workspace = true
 replace_with.workspace = true
 text_components.workspace = true
 
+[build-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+heck.workspace = true
+
 [lints]
 workspace = true

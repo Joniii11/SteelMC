@@ -2831,6 +2831,7 @@ dependencies = [
  "cfb8",
  "flate2",
  "glam",
+ "heck",
  "log",
  "replace_with",
  "rustc-hash 2.1.3",

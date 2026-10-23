@@ -344,7 +344,12 @@ pub enum ArgumentType {
     LootTable,
     LootPredicate,
     LootModifier,
+    ContextFloatProvider,
+    ContextIntProvider,
+    SlotSource,
     Dialog,
+    Feature,
+    SwingAnimation,
     Uuid,
 }
 
@@ -355,69 +360,7 @@ pub enum ArgumentStringTypeBehavior {
     GreedyPhrase,
 }
 
-impl ArgumentType {
-    const fn discriminant(&self) -> i32 {
-        match self {
-            Self::Bool => 0,
-            Self::Float { .. } => 1,
-            Self::Double { .. } => 2,
-            Self::Integer { .. } => 3,
-            Self::Long { .. } => 4,
-            Self::String { .. } => 5,
-            Self::Entity { .. } => 6,
-            Self::GameProfile => 7,
-            Self::BlockPos => 8,
-            Self::ColumnPos => 9,
-            Self::Vec3 => 10,
-            Self::Vec2 => 11,
-            Self::BlockState => 12,
-            Self::BlockPredicate => 13,
-            Self::ItemStack => 14,
-            Self::ItemPredicate => 15,
-            Self::Color => 16,
-            Self::HexColor => 17,
-            Self::Component => 18,
-            Self::Style => 19,
-            Self::Message => 20,
-            Self::Nbt => 21,
-            Self::NbtTag => 22,
-            Self::NbtPath => 23,
-            Self::Objective => 24,
-            Self::ObjectiveCriteria => 25,
-            Self::Operation => 26,
-            Self::Particle => 27,
-            Self::Angle => 28,
-            Self::Rotation => 29,
-            Self::ScoreboardSlot => 30,
-            Self::ScoreHolder { .. } => 31,
-            Self::Swizzle => 32,
-            Self::Team => 33,
-            Self::ItemSlot => 34,
-            Self::ItemSlots => 35,
-            Self::ResourceLocation => 36,
-            Self::Function => 37,
-            Self::EntityAnchor => 38,
-            Self::IntRange => 39,
-            Self::FloatRange => 40,
-            Self::Dimension => 41,
-            Self::Gamemode => 42,
-            Self::Time { .. } => 43,
-            Self::ResourceOrTag { .. } => 44,
-            Self::ResourceOrTagKey { .. } => 45,
-            Self::Resource { .. } => 46,
-            Self::ResourceKey { .. } => 47,
-            Self::ResourceSelector { .. } => 48,
-            Self::TemplateMirror => 49,
-            Self::TemplateRotation => 50,
-            Self::Heightmap => 51,
-            Self::LootTable => 52,
-            Self::LootPredicate => 53,
-            Self::LootModifier => 54,
-            Self::Dialog => 55,
-            Self::Uuid => 56,
-        }
-    }
-}
+include!(concat!(env!("OUT_DIR"), "/command_argument_types.rs"));
 
 impl WriteTo for ArgumentType {
     fn write(&self, writer: &mut impl Write) -> Result<()> {
@@ -520,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn command_argument_tail_uses_the_26_2_registry_ids() {
+    fn command_argument_tail_uses_the_26_3_registry_ids() {
         for (argument, expected) in [
             (ArgumentType::TemplateMirror, 49),
             (ArgumentType::TemplateRotation, 50),
@@ -528,8 +471,13 @@ mod tests {
             (ArgumentType::LootTable, 52),
             (ArgumentType::LootPredicate, 53),
             (ArgumentType::LootModifier, 54),
-            (ArgumentType::Dialog, 55),
-            (ArgumentType::Uuid, 56),
+            (ArgumentType::ContextFloatProvider, 55),
+            (ArgumentType::ContextIntProvider, 56),
+            (ArgumentType::SlotSource, 57),
+            (ArgumentType::Dialog, 58),
+            (ArgumentType::Feature, 59),
+            (ArgumentType::SwingAnimation, 60),
+            (ArgumentType::Uuid, 61),
         ] {
             let mut encoded = Vec::new();
             assert!(argument.write(&mut encoded).is_ok());
