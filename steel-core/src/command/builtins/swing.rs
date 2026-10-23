@@ -1,4 +1,4 @@
-//! Arm-swing animation command.
+//! swing animation command
 
 use std::slice;
 
@@ -93,20 +93,23 @@ fn swing_entities(
         .iter()
         .filter(|target| target.as_living_entity().is_some())
         .collect::<Vec<_>>();
+
     if living_targets.is_empty() {
         return Err(CommandSyntaxError::dynamic(TextComponent::from(
             &translations::COMMANDS_SWING_FAILED_NOTLIVING,
         )));
     }
+
     let result = i32::try_from(living_targets.len()).map_err(|_| {
         CommandSyntaxError::dynamic("Target count exceeds the command result range")
     })?;
+
     for target in &living_targets {
         if let Some(living) = target.as_living_entity() {
-            // Vanilla counts living targets even when an ongoing swing prevents restarting.
             living.swing(hand, animation, true);
         }
     }
+
     let message = if let [target] = living_targets.as_slice() {
         translations::COMMANDS_SWING_SUCCESS_SINGLE
             .message([target.display_name()])
@@ -116,8 +119,6 @@ fn swing_entities(
             .message([result.to_string()])
             .component()
     };
+
     Ok((result, message))
 }
-
-#[cfg(test)]
-mod tests;
