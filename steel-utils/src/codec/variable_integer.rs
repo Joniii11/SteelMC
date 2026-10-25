@@ -68,12 +68,14 @@ impl VarInt {
     }
 
     /// Sets the `VarInt` in front of a `FrontVec`.
+    /// `varint_size` must match [`Self::written_size`] for this value
     ///
     /// # Panics
     /// - If the size exceeds [`Self::MAX_SIZE`] or the reserved front space.
+    /// - in debug builds if `varint_size` does not match the encoded size
     pub fn set_in_front(self, vec: &mut FrontVec, varint_size: usize) {
-        let size = Self::written_size(self.0);
-        let continuation = 0x0080_8080_8080_8080_u64 >> ((8 - size) * 8);
+        debug_assert_eq!(varint_size, Self::written_size(self.0));
+        let continuation = 0x0080_8080_8080_8080_u64 >> ((8 - varint_size) * 8);
         let bytes = (pack_payload(u64::from(self.0 as u32)) | continuation).to_le_bytes();
 
         vec.set_in_front(&bytes[..Self::MAX_SIZE][..varint_size]);
