@@ -14,6 +14,13 @@ use steel_math::{
     lerp2_simd, lerp3, lerp3_simd, smoothstep, smoothstep_derivative, smoothstep_simd,
 };
 
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "ssse3"
+))]
+mod gradient_lut;
+
 /// Improved Perlin noise generator.
 ///
 /// This implements the improved Perlin noise algorithm as used in Minecraft.
@@ -254,13 +261,6 @@ impl ImprovedNoise {
         clippy::too_many_arguments,
         reason = "matches vanilla PerlinNoise.sampleAndLerp"
     )]
-    #[cfg_attr(
-        not(target_feature = "avx512f"),
-        expect(
-            clippy::similar_names,
-            reason = "coordinate offsets mirror vanilla's eight Perlin corners"
-        )
-    )]
     fn sample_and_lerp(
         &self,
         x: i32,
@@ -277,22 +277,23 @@ impl ImprovedNoise {
 
         #[cfg(not(target_feature = "avx512f"))]
         let [d000, d100, d010, d110, d001, d101, d011, d111] = {
-            let x1 = x.wrapping_add(1);
-            let y1 = y.wrapping_add(1);
-            let z1 = z.wrapping_add(1);
-            let relative_x1 = relative_x - 1.0;
-            let relative_y1 = relative_y - 1.0;
-            let relative_z1 = relative_z - 1.0;
+            #[cfg(all(
+                target_arch = "x86_64",
+                target_feature = "avx2",
+                target_feature = "ssse3"
+            ))]
+            if relative_x.is_finite() && relative_y.is_finite() && relative_z.is_finite() {
+                self.corner_gradients_avx2(x, y, z, relative_x, relative_y, relative_z)
+            } else {
+                self.corner_gradients_scalar(x, y, z, relative_x, relative_y, relative_z)
+            }
 
-            let d000 = grad_dot_flat(&self.p, x, y, z, relative_x, relative_y, relative_z);
-            let d100 = grad_dot_flat(&self.p, x1, y, z, relative_x1, relative_y, relative_z);
-            let d010 = grad_dot_flat(&self.p, x, y1, z, relative_x, relative_y1, relative_z);
-            let d110 = grad_dot_flat(&self.p, x1, y1, z, relative_x1, relative_y1, relative_z);
-            let d001 = grad_dot_flat(&self.p, x, y, z1, relative_x, relative_y, relative_z1);
-            let d101 = grad_dot_flat(&self.p, x1, y, z1, relative_x1, relative_y, relative_z1);
-            let d011 = grad_dot_flat(&self.p, x, y1, z1, relative_x, relative_y1, relative_z1);
-            let d111 = grad_dot_flat(&self.p, x1, y1, z1, relative_x1, relative_y1, relative_z1);
-            [d000, d100, d010, d110, d001, d101, d011, d111]
+            #[cfg(not(all(
+                target_arch = "x86_64",
+                target_feature = "avx2",
+                target_feature = "ssse3"
+            )))]
+            self.corner_gradients_scalar(x, y, z, relative_x, relative_y, relative_z)
         };
         let x_alpha = smoothstep(relative_x);
         let y_alpha = smoothstep(original_relative_y);
@@ -300,6 +301,83 @@ impl ImprovedNoise {
         let xz0 = lerp2(x_alpha, y_alpha, d000, d100, d010, d110);
         let xz1 = lerp2(x_alpha, y_alpha, d001, d101, d011, d111);
         lerp(z_alpha, xz0, xz1)
+    }
+
+    #[cfg(any(test, not(target_feature = "avx512f")))]
+    #[expect(
+        clippy::similar_names,
+        reason = "coordinate offsets mirror vanilla's eight Perlin corners"
+    )]
+    #[inline]
+    fn corner_gradients_scalar(
+        &self,
+        x: i32,
+        y: i32,
+        z: i32,
+        relative_x: f32,
+        relative_y: f32,
+        relative_z: f32,
+    ) -> [f32; 8] {
+        let x1 = x.wrapping_add(1);
+        let y1 = y.wrapping_add(1);
+        let z1 = z.wrapping_add(1);
+        let relative_x1 = relative_x - 1.0;
+        let relative_y1 = relative_y - 1.0;
+        let relative_z1 = relative_z - 1.0;
+
+        let d000 = grad_dot_flat(&self.p, x, y, z, relative_x, relative_y, relative_z);
+        let d100 = grad_dot_flat(&self.p, x1, y, z, relative_x1, relative_y, relative_z);
+        let d010 = grad_dot_flat(&self.p, x, y1, z, relative_x, relative_y1, relative_z);
+        let d110 = grad_dot_flat(&self.p, x1, y1, z, relative_x1, relative_y1, relative_z);
+        let d001 = grad_dot_flat(&self.p, x, y, z1, relative_x, relative_y, relative_z1);
+        let d101 = grad_dot_flat(&self.p, x1, y, z1, relative_x1, relative_y, relative_z1);
+        let d011 = grad_dot_flat(&self.p, x, y1, z1, relative_x, relative_y1, relative_z1);
+        let d111 = grad_dot_flat(&self.p, x1, y1, z1, relative_x1, relative_y1, relative_z1);
+        [d000, d100, d010, d110, d001, d101, d011, d111]
+    }
+
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "ssse3"
+    ))]
+    #[cfg(any(test, not(target_feature = "avx512f")))]
+    #[inline]
+    fn corner_gradients_avx2(
+        &self,
+        x: i32,
+        y: i32,
+        z: i32,
+        relative_x: f32,
+        relative_y: f32,
+        relative_z: f32,
+    ) -> [f32; 8] {
+        let x = x as u8;
+        let hashes = self
+            .column_corner_hashes(
+                self.p[x as usize],
+                self.p[x.wrapping_add(1) as usize],
+                y as u8,
+                z as u8,
+            )
+            .map(|hash| hash as u8);
+        let x1 = relative_x - 1.0;
+        let y1 = relative_y - 1.0;
+        let z1 = relative_z - 1.0;
+
+        gradient_lut::dot(
+            hashes,
+            Simd::from_array([
+                relative_x, x1, relative_x, x1, relative_x, x1, relative_x, x1,
+            ]),
+            Simd::from_array([
+                relative_y, relative_y, y1, y1, relative_y, relative_y, y1, y1,
+            ]),
+            Simd::from_array([
+                relative_z, relative_z, relative_z, relative_z, z1, z1, z1, z1,
+            ]),
+        )
+        .to_array()
     }
 
     /// Batches the two Z faces while sharing their X/Y permutation lookups.
@@ -422,6 +500,50 @@ impl ImprovedNoise {
         let x0 = self.p[x as usize];
         let x1 = self.p[x.wrapping_add(1) as usize];
         let ys = ys.cast::<u8>();
+
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "ssse3"
+        ))]
+        if N == 8
+            && !SHARED_Y
+            && relative_x.is_finite()
+            && relative_z.is_finite()
+            && relative_ys.is_finite().all()
+        {
+            let mut corners = [[0_u8; 8]; 8];
+            for lane in 0..8 {
+                let hashes = self.column_corner_hashes(x0, x1, ys[lane], z);
+                for corner in 0..8 {
+                    corners[corner][lane] = hashes[corner] as u8;
+                }
+            }
+
+            let xs = Simd::<f32, 8>::splat(relative_x);
+            let zs = Simd::<f32, 8>::splat(relative_z);
+            let ys = Simd::<f32, 8>::from_slice(relative_ys.as_array());
+            let original_ys = Simd::<f32, 8>::from_slice(original_relative_ys.as_array());
+            let one = Simd::splat(1.0);
+            let [h000, h100, h010, h110, h001, h101, h011, h111] = corners;
+
+            let d000 = gradient_lut::dot(h000, xs, ys, zs);
+            let d100 = gradient_lut::dot(h100, xs - one, ys, zs);
+            let d010 = gradient_lut::dot(h010, xs, ys - one, zs);
+            let d110 = gradient_lut::dot(h110, xs - one, ys - one, zs);
+            let d001 = gradient_lut::dot(h001, xs, ys, zs - one);
+            let d101 = gradient_lut::dot(h101, xs - one, ys, zs - one);
+            let d011 = gradient_lut::dot(h011, xs, ys - one, zs - one);
+            let d111 = gradient_lut::dot(h111, xs - one, ys - one, zs - one);
+
+            let x_alpha = smoothstep_simd(xs);
+            let y_alpha = smoothstep_simd(original_ys);
+            let z_alpha = smoothstep_simd(zs);
+            let xz0 = lerp2_simd(x_alpha, y_alpha, d000, d100, d010, d110);
+            let xz1 = lerp2_simd(x_alpha, y_alpha, d001, d101, d011, d111);
+            let result = lerp_simd(z_alpha, xz0, xz1);
+            return Simd::from_slice(result.as_array());
+        }
 
         let mut h000 = [0_usize; N];
         let mut h100 = [0_usize; N];
@@ -884,6 +1006,115 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "ssse3"
+    ))]
+    #[test]
+    fn scalar_corner_lut_matches_original_gradients() {
+        let mut random = Xoroshiro::from_seed(42);
+        let noise = ImprovedNoise::new(&mut random);
+        let relative = [
+            [-0.0, 0.0, -0.0],
+            [0.0, -0.0, 0.0],
+            [0.125, 0.25, 0.75],
+            [f32::from_bits(1), -f32::MIN_POSITIVE, f32::MAX],
+        ];
+
+        for x in [-257, -1, 0, 255, i32::MAX] {
+            for y in [-256, 0, 256, i32::MAX] {
+                for z in [-1, 0, 255, i32::MAX] {
+                    for [rx, ry, rz] in relative {
+                        let actual = noise.corner_gradients_avx2(x, y, z, rx, ry, rz);
+                        let expected = noise.corner_gradients_scalar(x, y, z, rx, ry, rz);
+                        assert_eq!(actual.map(f32::to_bits), expected.map(f32::to_bits));
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "ssse3"
+    ))]
+    #[test]
+    fn mixed_y_gradient_lut_matches_scalar_at_permutation_boundaries() {
+        let mut random = Xoroshiro::from_seed(42);
+        let noise = ImprovedNoise::new(&mut random);
+        let ys = [-257, -1, 0, 1, 255, 256, 512, i32::MAX];
+        let original_ys = [-0.0, 0.0, f32::from_bits(1), 0.125, 0.25, 0.5, 0.75, 0.9375];
+
+        for y_offset in [0.0, 3.0] {
+            let relative_ys = original_ys.map(|y| y - y_offset);
+            for x in [-257, 0, 255, i32::MAX] {
+                for z in [-256, -1, 256, i32::MAX] {
+                    for relative_x in [-0.0, 0.0, 0.125, 0.9] {
+                        let actual = noise.sample_and_lerp_y_simd_kernel::<8, false>(
+                            x,
+                            Simd::from_array(ys),
+                            z,
+                            relative_x,
+                            Simd::from_array(relative_ys),
+                            0.75,
+                            Simd::from_array(original_ys),
+                        );
+
+                        for lane in 0..8 {
+                            let [d000, d100, d010, d110, d001, d101, d011, d111] = noise
+                                .corner_gradients_scalar(
+                                    x,
+                                    ys[lane],
+                                    z,
+                                    relative_x,
+                                    relative_ys[lane],
+                                    0.75,
+                                );
+                            let x_alpha = smoothstep(relative_x);
+                            let y_alpha = smoothstep(original_ys[lane]);
+                            let z_alpha = smoothstep(0.75);
+                            let expected = lerp(
+                                z_alpha,
+                                lerp2(x_alpha, y_alpha, d000, d100, d010, d110),
+                                lerp2(x_alpha, y_alpha, d001, d101, d011, d111),
+                            );
+                            assert_eq!(actual[lane].to_bits(), expected.to_bits());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_feature = "avx512f"))]
+    #[test]
+    fn nonfinite_corner_inputs_keep_scalar_fallback_bits() {
+        let mut random = Xoroshiro::from_seed(42);
+        let noise = ImprovedNoise::new(&mut random);
+        let nan = f32::from_bits(0x7fc0_1234);
+        for [x, y, z] in [
+            [nan, 0.25, 0.75],
+            [0.125, f32::INFINITY, 0.75],
+            [f32::NEG_INFINITY, 0.25, 0.75],
+            [0.125, 0.25, -nan],
+        ] {
+            let [d000, d100, d010, d110, d001, d101, d011, d111] =
+                noise.corner_gradients_scalar(-257, 255, 256, x, y, z);
+            let xa = smoothstep(x);
+            let ya = smoothstep(y);
+            let za = smoothstep(z);
+            let expected = lerp(
+                za,
+                lerp2(xa, ya, d000, d100, d010, d110),
+                lerp2(xa, ya, d001, d101, d011, d111),
+            );
+            let actual = noise.sample_and_lerp(-257, 255, 256, x, y, z, y);
+            assert_eq!(actual.to_bits(), expected.to_bits());
         }
     }
 
