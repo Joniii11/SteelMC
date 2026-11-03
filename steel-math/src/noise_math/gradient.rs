@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul, Neg, Sub};
 use std::simd::Simd;
-#[cfg(target_feature = "avx512f")]
+#[cfg(any(test, target_feature = "avx512f"))]
 use std::simd::{
     Select,
     cmp::{SimdPartialEq, SimdPartialOrd},
@@ -56,20 +56,8 @@ where
 {
     #[cfg(target_feature = "avx512f")]
     {
-        let hash_lanes = Simd::<i64, N>::from_array(hashes.map(|value| (value & 15) as i64));
-        let u_component = hash_lanes.simd_lt(Simd::splat(8)).select(x, y);
-        let v_component = hash_lanes.simd_lt(Simd::splat(4)).select(
-            y,
-            (hash_lanes.simd_eq(Simd::splat(12)) | hash_lanes.simd_eq(Simd::splat(14)))
-                .select(x, z),
-        );
-        let signed_u = (hash_lanes & Simd::splat(1))
-            .simd_eq(Simd::splat(0))
-            .select(u_component, -u_component);
-        let signed_v = (hash_lanes & Simd::splat(2))
-            .simd_eq(Simd::splat(0))
-            .select(v_component, -v_component);
-        signed_u + signed_v
+        let [gx, gy, gz] = gradient_components_simd(hashes);
+        (gx * x + gy * y) + gz * z
     }
 
     #[cfg(not(target_feature = "avx512f"))]
@@ -80,6 +68,29 @@ where
         let gz = Simd::from_array(gradients.map(|gradient| gradient[2]));
         gx * x + gy * y + gz * z
     }
+}
+
+#[cfg(any(test, target_feature = "avx512f"))]
+#[inline]
+fn gradient_components_simd<const N: usize>(hashes: [usize; N]) -> [Simd<f32, N>; 3] {
+    let hashes = Simd::<i32, N>::from_array(hashes.map(|hash| (hash & 15) as i32));
+    let zero = Simd::splat(0.0);
+    let one = Simd::splat(1.0);
+    let low_four = hashes.simd_lt(Simd::splat(4));
+    let low_eight = hashes.simd_lt(Simd::splat(8));
+    let x_from_v = hashes.simd_eq(Simd::splat(12)) | hashes.simd_eq(Simd::splat(14));
+    let u = (hashes & Simd::splat(1))
+        .simd_eq(Simd::splat(0))
+        .select(one, -one);
+    let v = (hashes & Simd::splat(2))
+        .simd_eq(Simd::splat(0))
+        .select(one, -one);
+
+    // Zero coefficients stay positive, including before multiplying nonfinite inputs.
+    let gx = low_eight.select(u, x_from_v.select(v, zero));
+    let gy = low_eight.select(low_four.select(v, zero), u);
+    let gz = (!low_four & !x_from_v).select(v, zero);
+    [gx, gy, gz]
 }
 
 /// Calculate the f32 dot product used by vanilla Perlin noise.
@@ -118,4 +129,69 @@ const fn gradient_f32() -> [[f32; 3]; 16] {
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use std::array;
+
+    use super::*;
+
+    #[test]
+    fn hash_selected_gradients_keep_scalar_float_semantics() {
+        fn check_width<const N: usize>() {
+            let samples = [
+                [0.0, 0.0, 0.0],
+                [-0.0, 0.0, 0.0],
+                [0.0, -0.0, 0.0],
+                [0.0, 0.0, -0.0],
+                [-0.0, -0.0, 0.0],
+                [-0.0, 0.0, -0.0],
+                [0.0, -0.0, -0.0],
+                [-0.0, -0.0, -0.0],
+                [0.125, -0.25, 0.75],
+                [f32::from_bits(1), -f32::MIN_POSITIVE, -f32::from_bits(1)],
+                [f32::MAX, -f32::MAX, f32::MAX],
+                [1.0, f32::INFINITY, 2.0],
+                [1.0, f32::NEG_INFINITY, 2.0],
+                [f32::INFINITY, 1.0, 2.0],
+                [1.0, 2.0, f32::INFINITY],
+                [f32::NAN, 0.25, 0.75],
+                [0.125, f32::NAN, 0.75],
+                [0.125, 0.25, f32::NAN],
+            ];
+
+            for first_hash in (0..16).step_by(N) {
+                let hashes: [usize; N] = array::from_fn(|lane| first_hash + lane);
+                let [gx, gy, gz] = gradient_components_simd(hashes);
+
+                for [x, y, z] in samples {
+                    let xs = Simd::splat(x);
+                    let ys = Simd::splat(y);
+                    let zs = Simd::splat(z);
+                    let selected = (gx * xs + gy * ys) + gz * zs;
+                    let production = grad_dot_simd(hashes, xs, ys, zs);
+
+                    for (lane, hash) in hashes.into_iter().enumerate() {
+                        let expected = grad_dot(hash, x, y, z);
+                        for actual in [selected[lane], production[lane]] {
+                            if expected.is_nan() {
+                                assert!(actual.is_nan(), "hash {hash}: ({x}, {y}, {z})");
+                            } else {
+                                assert_eq!(
+                                    actual.to_bits(),
+                                    expected.to_bits(),
+                                    "hash {hash}: ({x}, {y}, {z})",
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        check_width::<4>();
+        check_width::<8>();
+        check_width::<16>();
+    }
 }
