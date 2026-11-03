@@ -1,3 +1,4 @@
+use super::initial_sources::InitialSkySources;
 use super::{
     BlockPos, BlockStateExt, ChunkPos, Direction, LIGHT_BLOCKED, LightAxisDirection,
     LightDirectionSet, LightQueueFlags, MAX_LIGHT_LEVEL, PackedLightQueueEntry, SectionPos,
@@ -7,6 +8,7 @@ use super::{
 impl SkyLightPropagationContext<'_, '_, '_> {
     /// Runs sky chunk lighting with the selected `ScalableLux` edge-check mode.
     pub fn light_chunk(&mut self, chunk_pos: ChunkPos, edge_checks: SkyLightChunkEdgeChecks) {
+        let use_source_frontier = !self.queues.has_work();
         self.light.rewrite_missing_sections_for_skylight();
         self.missing_section_checked.fill(false);
 
@@ -33,7 +35,11 @@ impl SkyLightPropagationContext<'_, '_, '_> {
         }
 
         if highest_non_empty_section >= min_section {
-            self.propagate_sky_sources_from_top(chunk_pos, highest_non_empty_section);
+            self.propagate_sky_sources_from_top(
+                chunk_pos,
+                highest_non_empty_section,
+                use_source_frontier,
+            );
         }
 
         match edge_checks {
@@ -319,20 +325,60 @@ impl SkyLightPropagationContext<'_, '_, '_> {
         }
     }
 
-    fn propagate_sky_sources_from_top(&mut self, chunk_pos: ChunkPos, highest_section: i32) {
+    fn propagate_sky_sources_from_top(
+        &mut self,
+        chunk_pos: ChunkPos,
+        highest_section: i32,
+        use_source_frontier: bool,
+    ) {
         let section_min_x = chunk_pos.0.x << 4;
         let section_min_z = chunk_pos.0.y << 4;
         let start_y = (highest_section << 4) | 15;
+        // caller-supplied writes may lower marked sources before their queue entries run
+        let mut sources =
+            use_source_frontier.then(|| InitialSkySources::new(self.layout.range(), start_y + 1));
 
         for z in 0..super::super::CHUNK_EDGE {
             for x in 0..super::super::CHUNK_EDGE {
-                self.try_propagate_skylight_inner(
+                let column = z * super::super::CHUNK_EDGE + x;
+                let stop_y = self.try_propagate_skylight_inner(
                     section_min_x + x as i32,
                     start_y + 1,
                     section_min_z + z as i32,
                     false,
                     None,
+                    sources.as_mut().map(|sources| (sources, column)),
                 );
+                if let Some(sources) = &mut sources {
+                    sources.stop_ys[column] = stop_y;
+                }
+            }
+        }
+
+        let Some(sources) = sources else {
+            return;
+        };
+
+        // all sources now contain 15; only their frontier can increase anything
+        for z in 0..super::super::CHUNK_EDGE {
+            for x in 0..super::super::CHUNK_EDGE {
+                for section in (0..self.layout.range().section_count()).rev() {
+                    let Some(frontier) = sources.section_frontier(x, z, section) else {
+                        continue;
+                    };
+
+                    for y in (frontier.min_y..=frontier.max_y).rev() {
+                        let pos =
+                            BlockPos::new(section_min_x + x as i32, y, section_min_z + z as i32);
+                        let state = self.block_state(pos);
+                        self.enqueue_increase(
+                            pos,
+                            MAX_LIGHT_LEVEL,
+                            frontier.directions(y),
+                            Self::shape_flags(state),
+                        );
+                    }
+                }
             }
         }
     }
@@ -345,7 +391,14 @@ impl SkyLightPropagationContext<'_, '_, '_> {
         extrude_initialized: bool,
         delayed_increases: &mut Vec<PackedLightQueueEntry>,
     ) -> i32 {
-        self.try_propagate_skylight_inner(x, y, z, extrude_initialized, Some(delayed_increases))
+        self.try_propagate_skylight_inner(
+            x,
+            y,
+            z,
+            extrude_initialized,
+            Some(delayed_increases),
+            None,
+        )
     }
 
     fn try_propagate_skylight_inner(
@@ -355,6 +408,7 @@ impl SkyLightPropagationContext<'_, '_, '_> {
         z: i32,
         extrude_initialized: bool,
         mut delayed_increases: Option<&mut Vec<PackedLightQueueEntry>>,
+        mut initial_sources: Option<(&mut InitialSkySources, usize)>,
     ) -> i32 {
         if self.get_light_level_extruded(BlockPos::new(x, y + 1, z)) != MAX_LIGHT_LEVEL {
             return y;
@@ -397,12 +451,17 @@ impl SkyLightPropagationContext<'_, '_, '_> {
                 let Some(cached_block) = self.layout.cached_block(current_pos) else {
                     break;
                 };
-                let increase_entry = self.enqueue_increase(
-                    current_pos,
-                    MAX_LIGHT_LEVEL,
-                    LightDirectionSet::all_except(LightAxisDirection::PositiveY),
-                    Self::shape_flags(current_state),
-                );
+                let increase_entry = if let Some((sources, column)) = initial_sources.as_mut() {
+                    sources.mark_section(*column, section_pos.y());
+                    None
+                } else {
+                    self.enqueue_increase(
+                        current_pos,
+                        MAX_LIGHT_LEVEL,
+                        LightDirectionSet::all_except(LightAxisDirection::PositiveY),
+                        Self::shape_flags(current_state),
+                    )
+                };
                 above_state = current_state;
 
                 if let Some(delayed_increases) = delayed_increases.as_deref_mut() {

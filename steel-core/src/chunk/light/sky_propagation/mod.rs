@@ -273,6 +273,7 @@ pub fn propagate_sky_light_changes_with_empty_sections(
 }
 
 mod context;
+mod initial_sources;
 
 pub use context::SkyLightPropagationContext;
 

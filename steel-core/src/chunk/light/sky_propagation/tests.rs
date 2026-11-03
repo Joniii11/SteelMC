@@ -159,6 +159,59 @@ fn sky_light_at(holder: &ChunkHolder, pos: BlockPos) -> u8 {
 }
 
 #[test]
+fn initial_sky_sources_keep_existing_write_level_queue_semantics() {
+    init_tests();
+    let center = ChunkPos::new(0, 0);
+    let mut section = ChunkSection::new_empty();
+    section.set_block_state(0, 0, 0, vanilla_blocks::STONE.default_state());
+    let holder = holder_with_section(center, section);
+    let layout = LightCacheLayout::new(center, range());
+    let workset = LightWorkset::setup(
+        layout,
+        LightCacheSetupRadius::Inner,
+        true,
+        |pos| (pos == center).then(|| Arc::clone(&holder)),
+        |_| true,
+    )
+    .expect("center chunk is available");
+
+    workset.with_chunk_read_cache(|chunk_cache| {
+        chunk_cache.with_section_read_cache(|section_cache| {
+            chunk_cache.with_light_edit(LightLayer::Sky, |mut light_edit| {
+                let target = BlockPos::new(8, 8, 8);
+                let mut queues = PackedLightPropagationQueues::new();
+                queues.enqueue_increase(PackedLightQueueEntry::from_parts(
+                    layout
+                        .encode_block_pos(target)
+                        .expect("target fits the layout"),
+                    0,
+                    LightDirectionSet::empty(),
+                    LightQueueFlags::WRITE_LEVEL,
+                ));
+
+                {
+                    let mut context = SkyLightPropagationContext::new(
+                        section_cache,
+                        &mut light_edit,
+                        &mut queues,
+                    )
+                    .expect("matching sky-light caches");
+                    context.reset_center_chunk_sections();
+                    context.handle_unlit_empty_section_changes(center);
+                    context.light_chunk(center, SkyLightChunkEdgeChecks::Required);
+                }
+
+                // the old queue lowers this source, then an adjacent source restores 14
+                assert_eq!(
+                    light_edit.get(layout.cached_block(target).expect("target is cached")),
+                    14,
+                );
+            });
+        });
+    });
+}
+
+#[test]
 fn context_requires_sky_layer() {
     init_tests();
     let center = ChunkPos::new(0, 0);
