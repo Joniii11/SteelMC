@@ -44,6 +44,7 @@ mod codegen_structs;
 mod context;
 mod fingerprint;
 mod graph;
+mod interpolation_channels;
 pub(super) mod material_ore;
 mod naming;
 mod nonpositive;

@@ -411,7 +411,9 @@ impl TranspileContext {
             DensityFunction::BlendDensity(bd) => self.gen_expr(&bd.input, input, is_flat),
             DensityFunction::Marker(m) => {
                 if self.interpolated_param_mode && m.kind == MarkerType::Interpolated {
-                    let idx = Literal::usize_unsuffixed(self.interpolated_param_counter);
+                    let idx = Literal::usize_unsuffixed(
+                        self.interpolated_channels[self.interpolated_param_counter],
+                    );
                     self.interpolated_param_counter += 1;
                     quote! { interpolated[#idx] }
                 } else {

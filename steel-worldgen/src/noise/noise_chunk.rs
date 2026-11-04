@@ -674,7 +674,7 @@ mod tests {
     use crate::noise::CornerColumnStore;
     use crate::noise_parameters::get_noise_parameters;
 
-    type Visit = ((usize, i32, usize), u32);
+    type Visit = ((usize, i32, usize), u32, [u32; super::MAX_INTERP]);
 
     fn create_noises<N: DimensionNoises>() -> N {
         let seed = 1;
@@ -684,6 +684,59 @@ mod tests {
             Xoroshiro::from_seed(seed).next_positional()
         };
         N::create(seed, &splitter, &get_noise_parameters())
+    }
+
+    fn reference_interpolated<N: DimensionNoises>(
+        chunk: &NoiseChunk<N>,
+        (x, y, z): (usize, i32, usize),
+    ) -> [u32; super::MAX_INTERP] {
+        let width = N::Settings::CELL_WIDTH as usize;
+        let height = N::Settings::CELL_HEIGHT;
+        let cell_x = x / width;
+        let cell_z = z / width;
+        let cell_y = (y.div_euclid(height) - chunk.cell_min_y) as usize;
+        let x_fraction = (x % width) as f32 / width as f32;
+        let z_fraction = (z % width) as f32 / width as f32;
+        let y_in_cell = y.rem_euclid(height);
+        let lerp = |alpha: f32, lower: f32, upper: f32| lower + alpha * (upper - lower);
+        let mut bits = [0; super::MAX_INTERP];
+
+        // scalar oracle: fresh Z/X endpoints and repeated Y additions per point
+        for (channel, target) in bits.iter_mut().enumerate().take(chunk.interp_count) {
+            let corner = |cx: usize, cy: usize, cz: usize| {
+                chunk.slices[cx][(cz * chunk.corners_y + cy) * super::MAX_INTERP + channel]
+            };
+            let z00 = lerp(
+                z_fraction,
+                corner(cell_x, cell_y, cell_z),
+                corner(cell_x, cell_y, cell_z + 1),
+            );
+            let z01 = lerp(
+                z_fraction,
+                corner(cell_x, cell_y + 1, cell_z),
+                corner(cell_x, cell_y + 1, cell_z + 1),
+            );
+            let z10 = lerp(
+                z_fraction,
+                corner(cell_x + 1, cell_y, cell_z),
+                corner(cell_x + 1, cell_y, cell_z + 1),
+            );
+            let z11 = lerp(
+                z_fraction,
+                corner(cell_x + 1, cell_y + 1, cell_z),
+                corner(cell_x + 1, cell_y + 1, cell_z + 1),
+            );
+            let lower = lerp(x_fraction, z00, z10);
+            let upper = lerp(x_fraction, z01, z11);
+            let step = (upper - lower) * (1.0_f32 / height as f32);
+            let mut value = lower + step * 0.0;
+            for _ in 0..y_in_cell {
+                value += step;
+            }
+            *target = value.to_bits();
+        }
+
+        bits
     }
 
     fn fill_visits<N: DimensionNoises>(
@@ -703,10 +756,23 @@ mod tests {
             None,
             air_min_y,
             corner_columns,
-            |x, y, z, density, _, _| {
-                visits.push(((x, y, z), density.to_bits()));
+            |x, y, z, density, interpolated, _| {
+                let mut channels = [0; super::MAX_INTERP];
+                for (target, value) in channels.iter_mut().zip(interpolated) {
+                    *target = value.to_bits();
+                }
+                visits.push(((x, y, z), density.to_bits(), channels));
             },
         );
+
+        for &(pos, _, channels) in &visits {
+            assert_eq!(
+                channels,
+                reference_interpolated(&noise_chunk, pos),
+                "interpolation changed at {pos:?} in {chunk:?}"
+            );
+        }
+
         visits
     }
 
@@ -725,10 +791,14 @@ mod tests {
             let mut kept = fill_visits(&noises, chunk, i32::MIN, &CornerColumnStore::default())
                 .into_iter()
                 .peekable();
-            for (pos, bits) in all {
-                if kept.peek().is_some_and(|&(kept_pos, _)| kept_pos == pos) {
-                    let (_, kept_bits) = kept.next().expect("peeked");
+            for (pos, bits, channels) in all {
+                if kept.peek().is_some_and(|&(kept_pos, _, _)| kept_pos == pos) {
+                    let (_, kept_bits, kept_channels) = kept.next().expect("peeked");
                     assert_eq!(kept_bits, bits, "density changed at {pos:?} in {chunk:?}");
+                    assert_eq!(
+                        kept_channels, channels,
+                        "interpolated channels changed at {pos:?} in {chunk:?}"
+                    );
                 } else {
                     assert!(
                         !(f32::from_bits(bits) > 0.0),

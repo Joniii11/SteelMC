@@ -4,7 +4,7 @@
 //! entry points, and the interpolation fill/combine helpers for
 //! `final_density` / vein router channels.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 
 use proc_macro2::{Literal, TokenStream};
@@ -15,6 +15,7 @@ use crate::density::DensityFunction;
 use super::TranspilerInput;
 use super::context::TranspileContext;
 use super::graph::{collect_interpolated_inners, is_flat_cached, unwrap_markers};
+use super::interpolation_channels::intern_inner;
 use super::naming::{
     named_fn_ident, named_fn_ident_simd, router_cache_field_ident, router_compute_fn_ident,
     sanitize_name,
@@ -27,6 +28,10 @@ const AQUIFER_ROUTERS: [&str; 4] = [
     "fluid_level_spread",
     "lava",
 ];
+
+#[cfg(test)]
+#[path = "codegen_functions_tests.rs"]
+mod tests;
 
 impl TranspileContext {
     pub(super) fn gen_named_functions(&mut self, input: &TranspilerInput) -> TokenStream {
@@ -175,8 +180,8 @@ impl TranspileContext {
     /// `Interpolated` markers: `fill_cell_corner_densities`, `combine_interpolated`,
     /// and per-entry combine functions for `vein_toggle`/`vein_ridged`.
     ///
-    /// Each marker occurrence gets its own channel in a contiguous array,
-    /// starting with `final_density`, then vein and material entries.
+    /// Identical inner expressions share channels; marker traversal remains
+    /// `final_density`, then vein and material entries.
     #[expect(clippy::too_many_lines, reason = "splitting would hurt readability")]
     pub(super) fn gen_all_interpolation_functions(
         &mut self,
@@ -211,13 +216,17 @@ impl TranspileContext {
         }
         let mut all_inners: Vec<DensityFunction> = Vec::new();
         let mut entries: BTreeMap<String, EntryInfo> = BTreeMap::new();
+        self.interpolated_channels.clear();
 
         for name in &entry_names {
             if let Some(df) = input.router_entries.get(name) {
-                let start = all_inners.len();
+                let start = self.interpolated_channels.len();
                 let inners = collect_interpolated_inners(df, &input.registry);
                 if !inners.is_empty() {
-                    all_inners.extend(inners);
+                    for inner in inners {
+                        let channel = intern_inner(&mut all_inners, inner);
+                        self.interpolated_channels.push(channel);
+                    }
                     entries.insert(
                         name.clone(),
                         EntryInfo {
@@ -278,7 +287,11 @@ impl TranspileContext {
             .map_or_else(
                 || quote! { None },
                 |channels| {
-                    let channels = channels.iter().map(|&c| Literal::usize_unsuffixed(c));
+                    let channels = channels
+                        .into_iter()
+                        .map(|occurrence| self.interpolated_channels[occurrence])
+                        .collect::<BTreeSet<_>>();
+                    let channels = channels.into_iter().map(Literal::usize_unsuffixed);
                     quote! { Some(&[#(#channels),*]) }
                 },
             );

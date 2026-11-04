@@ -47,8 +47,10 @@ pub(super) struct TranspileContext {
     /// When true, `Interpolated` markers emit `interpolated[i]` parameter references
     /// instead of recursing into the wrapped function.
     pub(super) interpolated_param_mode: bool,
-    /// Counter for assigning indices to `Interpolated` markers in param mode.
+    /// Counter over marker occurrences, including those sharing a channel.
     pub(super) interpolated_param_counter: usize,
+    /// Physical channel for each marker occurrence, in traversal order.
+    pub(super) interpolated_channels: Vec<usize>,
     /// Named functions that (transitively) contain `Interpolated` markers.
     /// In param mode, these are inlined instead of called as functions.
     pub(super) interpolated_refs: BTreeSet<String>,
@@ -93,6 +95,7 @@ impl TranspileContext {
             fill_mode: false,
             interpolated_param_mode: false,
             interpolated_param_counter: 0,
+            interpolated_channels: Vec::new(),
             interpolated_refs: BTreeSet::new(),
             blended_noise_refs: BTreeSet::new(),
             cse_bindings: FxHashMap::default(),
