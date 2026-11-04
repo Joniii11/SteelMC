@@ -5,10 +5,10 @@
 //! This creates the terrain adaptation effects like carving out space for villages
 //! or burying ancient cities.
 
+use std::f64::consts::E;
 use std::sync::LazyLock;
 
 use glam::IVec3;
-use steel_math::map_clamped;
 use steel_registry::structure::TerrainAdjustment;
 use steel_registry::template_pool::Projection;
 use steel_utils::BoundingBox;
@@ -42,7 +42,7 @@ static BEARD_KERNEL: LazyLock<[f32; KERNEL_TOTAL]> = LazyLock::new(|| {
                 // dy + 0.5 matches vanilla's computeBeardContribution(int, int, int)
                 let dy_f = f64::from(dy) + 0.5;
                 let dist_sq = f64::from(dx * dx) + dy_f * dy_f + f64::from(dz * dz);
-                let value = (-dist_sq / 16.0).exp();
+                let value = E.powf(-dist_sq / 16.0);
                 kernel[zi * KERNEL_SIZE * KERNEL_SIZE + xi * KERNEL_SIZE + yi] = value as f32;
             }
         }
@@ -55,7 +55,7 @@ static BEARD_KERNEL: LazyLock<[f32; KERNEL_TOTAL]> = LazyLock::new(|| {
 fn fast_inv_sqrt(x: f64) -> f64 {
     let xhalf = 0.5f64 * x;
     let i = f64::to_bits(x) as i64;
-    let i = 0x5FE6_EB50_C7B5_37A9_i64 - (i >> 1);
+    let i = 0x5FE6_EB50_C7B5_37AA_i64 - (i >> 1);
     let mut x = f64::from_bits(i as u64);
     x *= 1.5f64 - xhalf * x * x;
     x
@@ -91,8 +91,12 @@ fn get_beard_contribution(dx: i32, dy: i32, dz: i32, y_to_ground: i32) -> f32 {
 ///
 /// Simple linear falloff: 1.0 at distance 0, 0.0 at distance 6.
 fn get_bury_contribution(dx: f32, dy: f32, dz: f32) -> f32 {
-    let distance = (dx * dx + dy * dy + dz * dz).sqrt();
-    map_clamped(distance, 0.0, BURY_RADIUS, 1.0, 0.0)
+    let distance_sq = dx * dx + dy * dy + dz * dz;
+    if distance_sq >= BURY_RADIUS * BURY_RADIUS {
+        return 0.0;
+    }
+
+    1.0 - distance_sq.sqrt() / BURY_RADIUS
 }
 
 /// Computes terrain density contributions from nearby structure pieces and junctions.
@@ -292,4 +296,35 @@ const fn is_close_to_chunk(bb: &BoundingBox, chunk_x: i32, chunk_z: i32, margin:
         && bb.min_x() <= chunk_end_x + margin
         && bb.max_z() >= chunk_start_z - margin
         && bb.min_z() <= chunk_end_z + margin
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fast_inv_sqrt, get_bury_contribution};
+
+    // Expected bits come from the local Minecraft 26.3 Java reference diagnostic.
+    #[test]
+    fn bury_contributions_match_java_inside_and_at_radius() {
+        for (position, expected) in [
+            ([0.5, 0.5, 0.5], 0x3f5b_0cb2),
+            ([5.5, -0.5, 0.0], 0x3da2_ecd8),
+            ([5.5, 0.0, 0.0], 0x3daa_aaa8),
+            ([3.0, 4.0, 0.0], 0x3e2a_aaac),
+            ([6.0, 0.0, 0.0], 0x0000_0000),
+        ] {
+            let [x, y, z] = position;
+            assert_eq!(get_bury_contribution(x, y, z).to_bits(), expected);
+        }
+    }
+
+    #[test]
+    fn inverse_sqrt_matches_java_double_bits() {
+        for (input, expected) in [
+            (0.125, 0x4006_9f2a_ee57_a7ac),
+            (1.125, 0x3fee_2ab1_aa4a_cf1b),
+            (3.125, 0x3fe2_17f2_7daa_8c49),
+        ] {
+            assert_eq!(fast_inv_sqrt(input).to_bits(), expected);
+        }
+    }
 }
