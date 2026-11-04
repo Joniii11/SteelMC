@@ -362,7 +362,8 @@ impl SkyLightPropagationContext<'_, '_, '_> {
         // all sources now contain 15; only their frontier can increase anything
         for z in 0..super::super::CHUNK_EDGE {
             for x in 0..super::super::CHUNK_EDGE {
-                for section in (0..self.layout.range().section_count()).rev() {
+                let column = z * super::super::CHUNK_EDGE + x;
+                for section in sources.source_sections(column).rev() {
                     let Some(frontier) = sources.section_frontier(x, z, section) else {
                         continue;
                     };

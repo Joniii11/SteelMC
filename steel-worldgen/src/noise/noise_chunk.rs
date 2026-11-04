@@ -333,6 +333,8 @@ impl<N: DimensionNoises> NoiseChunk<N> {
         let mut z_partials =
             vec![[f32x4::splat(0.0); 2]; cell_width as usize * corners_y * channel_batches];
 
+        let mut values_by_y = [[0.0_f32; MAX_INTERP]; MAX_CELL_HEIGHT];
+
         for cell_x_idx in 0..cell_count_xz {
             let s0: &[f32] = &self.slices[cell_x_idx][..];
             let s1: &[f32] = &self.slices[cell_x_idx + 1][..];
@@ -413,8 +415,6 @@ impl<N: DimensionNoises> NoiseChunk<N> {
                             let cell_world_y = (self.cell_min_y + cell_y_idx as i32) * cell_height;
                             let row =
                                 (z_in_cell as usize * corners_y + cell_y_idx) * channel_batches;
-                            let mut values_by_y = [[0.0_f32; MAX_INTERP]; MAX_CELL_HEIGHT];
-
                             if N::interpolated_count() <= INTERPOLATION_LANES {
                                 for (batch, channel) in
                                     (0..interp_count).step_by(INTERPOLATION_LANES).enumerate()
@@ -444,19 +444,18 @@ impl<N: DimensionNoises> NoiseChunk<N> {
                                     continue;
                                 }
                             } else {
+                                let (lower, upper) = z_partials[row..row + 2 * channel_batches]
+                                    .split_at(channel_batches);
                                 let fill_batches =
                                     |batches: usize, values_by_y: &mut [[f32; MAX_INTERP]]| {
-                                        for (batch, channel) in (0..interp_count)
-                                            .step_by(INTERPOLATION_LANES)
-                                            .enumerate()
+                                        for (batch, (&[v00, v10], &[v01, v11])) in
+                                            lower.iter().zip(upper).enumerate()
                                         {
                                             if batches & (1 << batch) == 0 {
                                                 continue;
                                             }
 
-                                            let [v00, v10] = z_partials[row + batch];
-                                            let [v01, v11] =
-                                                z_partials[row + channel_batches + batch];
+                                            let channel = batch * INTERPOLATION_LANES;
                                             let v0 = v00 + factor_x_v * (v10 - v00);
                                             let v1 = v01 + factor_x_v * (v11 - v01);
                                             let step = (v1 - v0) * inverse_height;

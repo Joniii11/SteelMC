@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use super::{LightAxisDirection, LightDirectionSet};
 use crate::chunk::light::{CHUNK_COLUMN_COUNT, CHUNK_EDGE, LightSectionRange};
 
@@ -43,6 +45,22 @@ impl InitialSkySources {
                 .range
                 .section_index(y >> 4)
                 .is_some_and(|section| self.marked(column, section))
+    }
+
+    pub(super) fn source_sections(&self, column: usize) -> Range<usize> {
+        let stop_y = self.stop_ys[column];
+        if stop_y >= self.start_y {
+            return 0..0;
+        }
+
+        let base = self.range.min_section_y();
+        let first = ((stop_y + 1) >> 4).max(base);
+        let end = ((self.start_y >> 4) + 1).min(self.range.max_section_y_exclusive());
+        if first >= end {
+            return 0..0;
+        }
+
+        (first - base) as usize..(end - base) as usize
     }
 
     pub(super) fn section_frontier(
@@ -196,7 +214,8 @@ mod tests {
                 let mut actual = Vec::new();
                 for z in 0..CHUNK_EDGE {
                     for x in 0..CHUNK_EDGE {
-                        for section in (0..range.section_count()).rev() {
+                        let column = z * CHUNK_EDGE + x;
+                        for section in sources.source_sections(column).rev() {
                             let Some(frontier) = sources.section_frontier(x, z, section) else {
                                 continue;
                             };
