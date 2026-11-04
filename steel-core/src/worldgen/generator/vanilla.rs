@@ -630,6 +630,7 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
         let mut quart_biomes = biome_data.as_deref().map(|biome_data| {
             SurfaceQuartBiomes::new(
                 biome_data,
+                self.surface_biome_classes.as_ref(),
                 chunk.section_count(),
                 min_y,
                 chunk_quart_x,
@@ -662,13 +663,7 @@ impl<N: VanillaPostNoiseStateType> ChunkGenerator for VanillaGenerator<N> {
 
                 // Column-local Voronoi cache for fuzzed biome lookups.
                 let mut biome_col = quart_biomes.as_mut().map(|quart_biomes| {
-                    FuzzedBiomeColumn::new(
-                        quart_biomes,
-                        self.surface_biome_classes.as_ref(),
-                        self.biome_zoom_seed,
-                        block_x,
-                        block_z,
-                    )
+                    FuzzedBiomeColumn::new(quart_biomes, self.biome_zoom_seed, block_x, block_z)
                 });
 
                 // Eroded badlands extension: add terracotta pillars above surface
