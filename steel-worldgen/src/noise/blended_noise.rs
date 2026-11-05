@@ -69,6 +69,29 @@ impl SmearedStack {
 
     #[inline]
     fn sample_y_simd<const N: usize>(&self, x: f64, ys: Simd<f64, N>, z: f64) -> Simd<f32, N> {
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+        if N == 4 && steel_math::in_wrap_simd_fast_range(ys) {
+            let mut value = Simd::splat(0.0_f32);
+            for layer in &self.layers {
+                // SAFETY: create keeps frequencies in [0,1] and private noise
+                // offsets in [0,256). Multiplication by these frequencies keeps
+                // each checked Y in the exact wrap range, including signed zero
+                // and underflow. Neither layer nor noise has a mutable accessor.
+                let noise = unsafe {
+                    layer.noise.smeared_noise_y_simd_inner::<N, true>(
+                        x * layer.frequency,
+                        ys * Simd::splat(layer.frequency),
+                        z * layer.frequency,
+                        layer.fudge_y_scale,
+                    )
+                };
+
+                value += Simd::splat(layer.amplitude) * noise;
+            }
+
+            return value;
+        }
+
         let mut value = Simd::splat(0.0_f32);
         for layer in &self.layers {
             value += Simd::splat(layer.amplitude)

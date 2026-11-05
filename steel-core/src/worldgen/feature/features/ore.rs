@@ -224,6 +224,7 @@ impl FeatureDecorationRunner {
         pending_no_air_sections: &mut SmallVec<[PendingOreSection; 8]>,
     ) -> u64 {
         let mut placed = 0_u64;
+        let mut z_distances_squared = SmallVec::<[f64; 16]>::new();
 
         for node in vein_nodes {
             let radius = node[3];
@@ -243,6 +244,12 @@ impl FeatureDecorationRunner {
                 continue;
             }
 
+            z_distances_squared.clear();
+            z_distances_squared.extend((z_min..=z_max).map(|z| {
+                let distance = (f64::from(z) + 0.5 - node[2]) / radius;
+                distance * distance
+            }));
+
             for x in x_min..=x_max {
                 let x_offset = i64::from(x) - i64::from(x_start);
                 let x_distance = (f64::from(x) + 0.5 - node[0]) / radius;
@@ -259,10 +266,9 @@ impl FeatureDecorationRunner {
                         continue;
                     }
 
-                    for z in z_min..=z_max {
+                    for (z, &z_distance_squared) in (z_min..=z_max).zip(&z_distances_squared) {
                         let z_offset = i64::from(z) - i64::from(z_start);
-                        let z_distance = (f64::from(z) + 0.5 - node[2]) / radius;
-                        if x_y_distance_squared + z_distance * z_distance >= 1.0 {
+                        if x_y_distance_squared + z_distance_squared >= 1.0 {
                             continue;
                         }
 

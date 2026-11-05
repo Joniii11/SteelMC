@@ -244,27 +244,48 @@ impl Beardifier {
         for rigid in &self.rigids {
             let bb = &rigid.bounding_box;
 
+            let ground_y = bb.min_y() + rigid.ground_level_delta;
+            let dy_to_ground = block_y - ground_y;
+            let dy = match rigid.terrain_adjustment {
+                TerrainAdjustment::None => 0,
+                TerrainAdjustment::Bury | TerrainAdjustment::BeardThin => dy_to_ground,
+                TerrainAdjustment::BeardBox => {
+                    0.max((ground_y - block_y).max(block_y - bb.max_y()))
+                }
+                TerrainAdjustment::Encapsulate => {
+                    0.max((bb.min_y() - block_y).max(block_y - bb.max_y()))
+                }
+            };
+
+            let outside_y = match rigid.terrain_adjustment {
+                TerrainAdjustment::None => false,
+                TerrainAdjustment::Bury | TerrainAdjustment::Encapsulate => {
+                    let radius = (2.0 * BURY_RADIUS) as i32;
+                    !(1 - radius..radius).contains(&dy)
+                }
+                TerrainAdjustment::BeardThin | TerrainAdjustment::BeardBox => {
+                    !(-KERNEL_RADIUS..KERNEL_RADIUS).contains(&dy)
+                }
+            };
+
+            if outside_y {
+                value += 0.0;
+                continue;
+            }
+
             // Horizontal distance to closest edge of bounding box (0 if inside)
             let dx = 0.max((bb.min_x() - block_x).max(block_x - bb.max_x()));
             let dz = 0.max((bb.min_z() - block_z).max(block_z - bb.max_z()));
 
-            let ground_y = bb.min_y() + rigid.ground_level_delta;
-            let dy_to_ground = block_y - ground_y;
-
             match rigid.terrain_adjustment {
                 TerrainAdjustment::None => {}
                 TerrainAdjustment::Bury => {
-                    value += get_bury_contribution(dx as f32, dy_to_ground as f32 / 2.0, dz as f32);
+                    value += get_bury_contribution(dx as f32, dy as f32 / 2.0, dz as f32);
                 }
-                TerrainAdjustment::BeardThin => {
-                    value += get_beard_contribution(dx, dy_to_ground, dz, dy_to_ground) * 0.8;
-                }
-                TerrainAdjustment::BeardBox => {
-                    let dy = 0.max((ground_y - block_y).max(block_y - bb.max_y()));
+                TerrainAdjustment::BeardThin | TerrainAdjustment::BeardBox => {
                     value += get_beard_contribution(dx, dy, dz, dy_to_ground) * 0.8;
                 }
                 TerrainAdjustment::Encapsulate => {
-                    let dy = 0.max((bb.min_y() - block_y).max(block_y - bb.max_y()));
                     value +=
                         get_bury_contribution(dx as f32 / 2.0, dy as f32 / 2.0, dz as f32 / 2.0)
                             * 0.8;

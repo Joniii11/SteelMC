@@ -155,7 +155,7 @@ impl ImprovedNoise {
         let ys = steel_math::wrap_simd(ys) + Simd::splat(self.yo);
         let floor_x = fast_floor(x);
         let floor_z = fast_floor(z);
-        let floor_ys = fast_floor_simd::<f64, i32, N>(ys);
+        let floor_ys = Self::floor_noise_ys(ys);
         let relative_ys = (ys - floor_ys.cast()).cast();
 
         self.sample_and_lerp_y_simd(
@@ -167,6 +167,21 @@ impl ImprovedNoise {
             (z - f64::from(floor_z)) as f32,
             relative_ys,
         )
+    }
+
+    #[inline]
+    fn floor_noise_ys<const N: usize>(ys: Simd<f64, N>) -> Simd<i32, N> {
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+        if (N == 4 || N == 8)
+            && (ys.simd_ge(Simd::splat(f64::from(i32::MIN)))
+                & ys.simd_lt(Simd::splat(f64::from(i32::MAX) + 1.0)))
+            .all()
+        {
+            // SAFETY: every lane and its floor are finite and in [-2^31, 2^31)
+            return unsafe { ys.floor().to_int_unchecked::<i32>() };
+        }
+
+        fast_floor_simd::<f64, i32, N>(ys)
     }
 
     /// Samples the float-based `SmearedPerlinNoise` used by 26.3's blended
@@ -231,11 +246,46 @@ impl ImprovedNoise {
         original_z: f64,
         fudge_y_scale: f64,
     ) -> Simd<f32, N> {
+        // SAFETY: false selects the checked path, which has no preconditions
+        unsafe {
+            self.smeared_noise_y_simd_inner::<N, false>(
+                original_x,
+                original_ys,
+                original_z,
+                fudge_y_scale,
+            )
+        }
+    }
+
+    /// # Safety
+    /// With `Y_IN_FAST_RANGE`, all original Y lanes must pass
+    /// `in_wrap_simd_fast_range`, and `self.yo` must be in [0,256).
+    /// With false, there are no extra preconditions.
+    #[inline]
+    pub(super) unsafe fn smeared_noise_y_simd_inner<const N: usize, const Y_IN_FAST_RANGE: bool>(
+        &self,
+        original_x: f64,
+        original_ys: Simd<f64, N>,
+        original_z: f64,
+        fudge_y_scale: f64,
+    ) -> Simd<f32, N> {
         let x = steel_math::wrap(original_x) + self.xo;
-        let ys = steel_math::wrap_simd(original_ys) + Simd::splat(self.yo);
+        let wrapped_ys = if Y_IN_FAST_RANGE {
+            original_ys
+        } else {
+            steel_math::wrap_simd(original_ys)
+        };
+
+        let ys = wrapped_ys + Simd::splat(self.yo);
         let z = steel_math::wrap(original_z) + self.zo;
         let floor_x = fast_floor(x);
-        let floor_ys = fast_floor_simd::<f64, i32, N>(ys);
+        let floor_ys = if Y_IN_FAST_RANGE {
+            // SAFETY: the caller proved the exact wrap range and yo in [0,256)
+            unsafe { ys.floor().to_int_unchecked::<i32>() }
+        } else {
+            Self::floor_noise_ys(ys)
+        };
+
         let floor_z = fast_floor(z);
         let relative_ys = ys - floor_ys.cast();
         let zero = Simd::splat(0.0);
@@ -812,7 +862,7 @@ impl ImprovedNoise {
 
         // Per-lane y offset and floor
         let ys = ys + Simd::splat(self.yo);
-        let ys_floor = fast_floor_simd::<f64, i32, N>(ys);
+        let ys_floor = Self::floor_noise_ys(ys);
         let yrs = ys - ys_floor.cast();
 
         // Y fudge (per-lane)

@@ -4,7 +4,9 @@ mod interpolation;
 
 use core::f64::consts::PI;
 
-pub use coordinate::{fast_floor, fast_floor_simd, fast_lfloor, wrap, wrap_simd};
+pub use coordinate::{
+    fast_floor, fast_floor_simd, fast_lfloor, in_wrap_simd_fast_range, wrap, wrap_simd,
+};
 pub use gradient::{GRADIENT, GRADIENT_F32, corner_noise_3d, dot, grad_dot, grad_dot_simd};
 pub use interpolation::{
     clamp, clamp_i32, clamped_lerp, clamped_lerp_simd, inverse_lerp, lerp, lerp_simd, lerp2,

@@ -71,6 +71,24 @@ const ROUND_OFF: f64 = 33_554_432.0;
 
 const HALF_ROUND_OFF: f64 = (ROUND_OFF / 2.0).next_down();
 
+/// Whether every lane lies in the exact fast range of `wrap_simd`.
+/// The upper boundary is excluded; NaN lanes return false.
+#[inline]
+#[must_use]
+pub fn in_wrap_simd_fast_range<F, const N: usize>(x: Simd<F, N>) -> bool
+where
+    F: SimdElement + SimdCast,
+    Simd<F, N>: ops::Div<Output = Simd<F, N>>
+        + ops::Add<Output = Simd<F, N>>
+        + ops::Mul<Output = Simd<F, N>>
+        + ops::Sub<Output = Simd<F, N>>
+        + SimdPartialOrd<Mask = Mask<<F as SimdElement>::Mask, N>>
+        + StdFloat,
+{
+    (x.simd_ge(Simd::splat(-HALF_ROUND_OFF).cast()) & x.simd_lt(Simd::splat(HALF_ROUND_OFF).cast()))
+        .all()
+}
+
 /// Wrap N coordinates to prevent precision loss (N-lane SIMD version of [`wrap`]).
 ///
 /// Fast path: at normal game coordinates all lanes are within `[-HALF_ROUND_OFF, HALF_ROUND_OFF)`,
@@ -87,9 +105,7 @@ where
         + SimdPartialOrd<Mask = Mask<<F as SimdElement>::Mask, N>>
         + StdFloat,
 {
-    let in_fast_range = x.simd_ge(Simd::splat(-HALF_ROUND_OFF).cast())
-        & x.simd_lt(Simd::splat(HALF_ROUND_OFF).cast());
-    if in_fast_range.all() {
+    if in_wrap_simd_fast_range(x) {
         return x;
     }
 
