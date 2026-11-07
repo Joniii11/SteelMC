@@ -269,7 +269,6 @@ impl Beardifier {
             };
 
             if outside_y {
-                value += 0.0;
                 continue;
             }
 
@@ -280,12 +279,21 @@ impl Beardifier {
             match rigid.terrain_adjustment {
                 TerrainAdjustment::None => {}
                 TerrainAdjustment::Bury => {
+                    if dx >= BURY_RADIUS as i32 || dz >= BURY_RADIUS as i32 {
+                        continue;
+                    }
+
                     value += get_bury_contribution(dx as f32, dy as f32 / 2.0, dz as f32);
                 }
                 TerrainAdjustment::BeardThin | TerrainAdjustment::BeardBox => {
                     value += get_beard_contribution(dx, dy, dz, dy_to_ground) * 0.8;
                 }
                 TerrainAdjustment::Encapsulate => {
+                    let radius = (2.0 * BURY_RADIUS) as i32;
+                    if dx >= radius || dz >= radius {
+                        continue;
+                    }
+
                     value +=
                         get_bury_contribution(dx as f32 / 2.0, dy as f32 / 2.0, dz as f32 / 2.0)
                             * 0.8;
