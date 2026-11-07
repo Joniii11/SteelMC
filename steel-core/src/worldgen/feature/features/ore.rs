@@ -710,6 +710,11 @@ impl OreTestedPositions {
         }
     }
 
+    #[expect(
+        clippy::inline_always,
+        reason = "avoid callpreservation spills on the ore duplicate path"
+    )]
+    #[inline(always)]
     fn insert(&mut self, index: usize) -> bool {
         let word_index = index / u64::BITS as usize;
         if word_index >= self.words.len() {
@@ -730,6 +735,7 @@ impl OreTestedPositions {
 #[cfg(test)]
 mod tests {
     use super::{OreSearchVolume, OreTestedPositions};
+    use rustc_hash::FxHashSet;
 
     #[test]
     fn ore_tested_position_index_matches_vanilla_layout() {
@@ -751,6 +757,17 @@ mod tests {
             volume.and_then(|volume| volume.index_from_offsets(0, 1, 0)),
             Some(4)
         );
+    }
+
+    #[test]
+    fn ore_tested_positions_preserve_bits_across_heap_growth() {
+        let mut tested = OreTestedPositions::with_capacity(0);
+        let mut reference = FxHashSet::default();
+        for index in [
+            0, 63, 64, 1023, 1024, 4096, 64, 1024, 4096, 4095, 0, 63, 1023,
+        ] {
+            assert_eq!(tested.insert(index), reference.insert(index));
+        }
     }
 
     #[test]

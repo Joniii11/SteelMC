@@ -978,6 +978,7 @@ fn transpile_dimension(
     dimension: &str,
     prefix: &str,
     registry: &BTreeMap<String, DensityFunction>,
+    router_filter: Option<&[&str]>,
 ) -> TokenStream {
     let settings = read_noise_settings(dimension);
     let mut router_entries = router_to_entries(&settings.noise_router, settings.aquifers.as_ref());
@@ -989,6 +990,16 @@ fn transpile_dimension(
         .values()
         .find_map(|df| find_interpolated_cell_size(df, registry))
         .unwrap_or((4, 8));
+
+    if let Some(names) = router_filter {
+        router_entries.retain(|name, _| names.contains(&name.as_str()));
+        assert_eq!(
+            router_entries.len(),
+            names.len(),
+            "missing requested climate router"
+        );
+    }
+
     let input = TranspilerInput {
         registry: registry.clone(),
         router_entries,
@@ -1536,6 +1547,8 @@ use proc_macro2::{Ident, Span};
 pub(crate) struct DensityFunctionFiles {
     /// Contents for `vanilla_density_functions/overworld.rs`.
     pub overworld: TokenStream,
+    /// Standalone graph and cache for Overworld climate consumers
+    pub overworld_climate: TokenStream,
     /// Contents for `vanilla_density_functions/nether.rs`.
     pub nether: TokenStream,
     /// Contents for `vanilla_density_functions/end.rs`.
@@ -1554,11 +1567,25 @@ pub(crate) fn build() -> DensityFunctionFiles {
         .map(|(id, json)| (id.clone(), json_to_df(json)))
         .collect();
 
-    let overworld_df = transpile_dimension("overworld", "Overworld", &registry);
+    let overworld_df = transpile_dimension("overworld", "Overworld", &registry, None);
+    let overworld_climate = transpile_dimension(
+        "overworld",
+        "OverworldClimate",
+        &registry,
+        Some(&[
+            "temperature",
+            "vegetation",
+            "continentalness",
+            "erosion",
+            "depth",
+            "ridges",
+        ]),
+    );
+
     let overworld_settings = generate_noise_settings("overworld", "Overworld");
-    let nether_df = transpile_dimension("nether", "Nether", &registry);
+    let nether_df = transpile_dimension("nether", "Nether", &registry, None);
     let nether_settings = generate_noise_settings("nether", "Nether");
-    let end_df = transpile_dimension("end", "End", &registry);
+    let end_df = transpile_dimension("end", "End", &registry, None);
     let end_settings = generate_noise_settings("end", "End");
 
     // Note: the transpiler already emits `use` imports in #overworld_df / #nether_df / #end_df.
@@ -1590,6 +1617,9 @@ pub(crate) fn build() -> DensityFunctionFiles {
         /// Overworld density functions.
         pub mod overworld;
 
+        /// Overworld climate graph with its own complete columncache type
+        pub mod overworld_climate;
+
         /// Nether density functions.
         pub mod nether;
 
@@ -1599,6 +1629,7 @@ pub(crate) fn build() -> DensityFunctionFiles {
 
     DensityFunctionFiles {
         overworld,
+        overworld_climate,
         nether,
         end,
         index,

@@ -3,7 +3,7 @@
 //! Uses the compiled overworld density functions from steel-registry for fast
 //! evaluation, bypassing the runtime tree interpreter entirely.
 //!
-//! This is overworld-specific because it uses `OverworldNoises` and the overworld
+//! This is overworld specific because it uses `OverworldClimateNoises` and the overworld
 //! noise router (`router_temperature`, `router_vegetation`, etc.). Other dimensions
 //! need their own climate samplers with their own transpiled density functions.
 
@@ -12,7 +12,9 @@ use std::f32::consts::TAU;
 use steel_utils::BlockPos;
 use steel_utils::climate::{Parameter, ParameterPoint, TargetPoint, quantize_coord};
 use steel_utils::random::{Random, xoroshiro::Xoroshiro};
-use steel_worldgen::density_functions::overworld::{self, OverworldColumnCache, OverworldNoises};
+use steel_worldgen::density_functions::overworld_climate::{
+    self as overworld, OverworldClimateColumnCache, OverworldClimateNoises,
+};
 use steel_worldgen::noise_parameters::get_noise_parameters;
 
 /// Climate sampler for the overworld using compiled density functions.
@@ -21,9 +23,8 @@ use steel_worldgen::noise_parameters::get_noise_parameters;
 /// erosion, depth, ridges) to produce `TargetPoint` values for biome lookup.
 ///
 pub struct OverworldClimateSampler {
-    /// All noise generators needed by the overworld density functions.
-    /// Boxed because `OverworldNoises` is ~5600 bytes (35 `NormalNoise` fields).
-    noises: Box<OverworldNoises>,
+    /// Noise generators reachable from the six climate router entries
+    noises: Box<OverworldClimateNoises>,
 }
 
 impl OverworldClimateSampler {
@@ -33,7 +34,7 @@ impl OverworldClimateSampler {
         let mut rng = Xoroshiro::from_seed(seed);
         let splitter = rng.next_positional();
         let noise_params = get_noise_parameters();
-        let noises = OverworldNoises::create(seed, &splitter, &noise_params);
+        let noises = OverworldClimateNoises::create(seed, &splitter, &noise_params);
 
         Self {
             noises: Box::new(noises),
@@ -51,7 +52,7 @@ impl OverworldClimateSampler {
         quart_x: i32,
         quart_y: i32,
         quart_z: i32,
-        cache: &mut OverworldColumnCache,
+        cache: &mut OverworldClimateColumnCache,
     ) -> TargetPoint {
         let block_x = quart_x << 2;
         let block_y = quart_y << 2;
@@ -93,7 +94,7 @@ impl OverworldClimateSampler {
     /// because the grid evaluates the same functions at the same quart coordinates.
     pub fn init_column_grid(
         &self,
-        cache: &mut OverworldColumnCache,
+        cache: &mut OverworldClimateColumnCache,
         chunk_block_x: i32,
         chunk_block_z: i32,
     ) {
@@ -148,7 +149,7 @@ impl OverworldClimateSampler {
         block_x: i32,
         block_z: i32,
     ) -> SpawnSearchResult {
-        let mut cache = OverworldColumnCache::new();
+        let mut cache = OverworldClimateColumnCache::new();
         let target = self.sample(block_x >> 2, 0, block_z >> 2, &mut cache);
         let zero_depth_target = TargetPoint::new(
             target.temperature,

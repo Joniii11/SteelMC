@@ -38,6 +38,7 @@ pub fn main() {
 
     for (content, name) in [
         (df.overworld, "overworld"),
+        (df.overworld_climate, "overworld_climate"),
         (df.nether, "nether"),
         (df.end, "end"),
     ] {

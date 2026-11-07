@@ -23,7 +23,7 @@ use steel_utils::random::Random as _;
 use steel_utils::random::legacy_random::LegacyRandom;
 use steel_utils::{BlockPos, Identifier};
 use steel_worldgen::density_functions::nether::NetherColumnCache;
-use steel_worldgen::density_functions::overworld::OverworldColumnCache;
+use steel_worldgen::density_functions::overworld_climate::OverworldClimateColumnCache;
 use steel_worldgen::multi_noise::{
     NETHER_BIOME_PARAMETERS, OVERWORLD_BIOME_PARAMETERS, get_nether_biome_cached,
     get_overworld_biome_cached,
@@ -261,7 +261,7 @@ impl OverworldBiomeSource {
     fn chunk_sampler(&self) -> ChunkBiomeSampler<'_> {
         ChunkBiomeSampler::Overworld(Box::new(OverworldChunkBiomeSampler {
             source: self,
-            column_cache: OverworldColumnCache::new(),
+            column_cache: OverworldClimateColumnCache::new(),
             biome_cache: None,
         }))
     }
@@ -269,7 +269,7 @@ impl OverworldBiomeSource {
 
 pub struct OverworldChunkBiomeSampler<'a> {
     source: &'a OverworldBiomeSource,
-    column_cache: OverworldColumnCache,
+    column_cache: OverworldClimateColumnCache,
     biome_cache: Option<usize>,
 }
 
