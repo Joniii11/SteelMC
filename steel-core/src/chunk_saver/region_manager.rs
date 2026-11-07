@@ -30,6 +30,8 @@ use super::{
     },
 };
 
+static ZERO_SECTOR: [u8; SECTOR_SIZE] = [0; SECTOR_SIZE];
+
 #[derive(Debug)]
 struct CorruptChunkData(String);
 
@@ -311,7 +313,7 @@ impl RegionManager {
         // Pad to sector boundary
         let padding_needed = (SECTOR_SIZE - (data.len() % SECTOR_SIZE)) % SECTOR_SIZE;
         if padding_needed > 0 {
-            file.write_all(&vec![0u8; padding_needed]).await?;
+            file.write_all(&ZERO_SECTOR[..padding_needed]).await?;
         }
 
         // Update file sectors if we wrote past the end
