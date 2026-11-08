@@ -206,8 +206,6 @@ impl TranspileContext {
             })
             .collect();
 
-        // Only init_grid uses the leaf-substituting private helpers.
-        // Public scalar functions and every ensure fallback keep their original calls.
         let grid_ensure_stmts: Vec<TokenStream> = flat_names
             .iter()
             .map(|name| {
@@ -215,6 +213,7 @@ impl TranspileContext {
                 let compute_fn = named_fn_ident(name);
                 if batched_flat_names.contains(name.as_str()) {
                     let grid_fn = format_ident!("{}_grid_end_islands", compute_fn);
+
                     quote! {
                         let val = Self::#grid_fn(noises, &*self, x, z, end_islands_grid_values[idx]);
                         self.#field = val;
