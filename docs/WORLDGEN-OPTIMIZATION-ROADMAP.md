@@ -1,6 +1,19 @@
 # Worldgen: Optimierungen, Belege und offene Versuche
 
-Stand: 2026-11-08, Minecraft26.3, Worldgen-Stand`144bce43b7` mit69,26R2 und95; Logger100 zusätzlich übernommen.
+Das Goal ist aktiv. Der Nutzer ist derzeit essen und hat für diese Abwesenheit
+Builds, Tests, Profile und geplante Benchmarkserien ausdrücklich freigegeben.
+Die Freigabe gilt, bis der Nutzer ausdrücklich den PC wieder braucht oder sie
+widerruft; Statusfragen beenden sie nicht. Jede Serie wird angekündigt;
+während ihrer Läufe pausieren konkurrierende Builds und Analysen. Die vorherige
+Spielpause bleibt als historische Grenze der vorbereiteten Quell-PoCs erhalten.
+Compiler-Hints sind ausdrücklich erlaubt, ihr Nutzen bleibt nachzuweisen.
+
+Stand: 2026-11-08, Minecraft26.3, Quellenabgleich auf`1fb7fdb939f` plus der
+vom Nutzer in`ee663c3839d` übernommenen Lichtprovider-Änderung und deren
+unten dokumentierter Generatorbereinigung.
+69,26R2,95, Logger100 und der Konstant-/Callback-Lichtprovider sind übernommen.
+Die nativen Vergleichsbelege gehören
+zum jeweils eingefrorenen Ausgangsstand, nicht automatisch zum aktuellen HEAD.
 Verlinkte Maschinen-/Profil-/PoC-Belege liegen im lokalen ignorierten
 Studienarchiv außerhalb von `target/`; sie sind keine mitcommitteten Dateien.
 Die zuletzt gebauten99-Vergleichsbinaries gehören zum Runtime-Stand`e78803f6dcb`.
@@ -9,23 +22,36 @@ Die zuletzt gebauten99-Vergleichsbinaries gehören zum Runtime-Stand`e78803f6dcb
 
 Der Nutzer hat die vollständige Untersuchung als fortlaufendes Goal gestartet.
 [Aktuelle Abdeckung](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/coverage-current.json)
-führt339 aktuelle handgeschriebene Dateien:310 aus dem bisherigen Inventar,
-24 zusätzliche Bootstrap-/Pregen-/Logger-/Harness-Dateien und fünf mit95
-übernommene Dateien. Davon338Rust und ein Python-Testtreiber. Alle339 Dateien
-sind durch vollständige Quellreviews abgedeckt; aktuelle SHAs und sämtliche Zeilenbereiche
-sind im Index abgeglichen. Semantik-/Implementierungs-/Messgates der Kandidaten
-bleiben gesondert offen. Vollständiger Quellreview bedeutet keine validierte
-Optimierung und keine universelle Optimalität.
+führt335 aktuelle handgeschriebene Rustdateien: die333 bisherigen Dateien plus
+zwei vollständig gelesene Registry-/Blockgenerator-Dateien an der Lichtgrenze.
+Der vollständige Übernahmepatch und beide endgültigen Dateifingerprints sind
+gesondert geprüft. Die neuen117Zeilen Providertests und ihre Testregistrierungen
+bleiben auf ausdrücklichen Nutzerwunsch nur im Studienarchiv; sie erhöhen die
+aktuelle Dateiunion nicht. Ihre ausgeführten Validierungsbelege bleiben erhalten.
+Das erweitert die explizite Dateiunion, nicht die ganze Registry-Abdeckung.
+329 Quellfingerprints aus dem bisherigen Inventar stimmen mit
+dem vollständigen339-Dateien-Review auf`a37b54b2dc` überein. Vier geänderte Dateien
+sind durch den früheren Vollreview, das vollständig gelesene Delta und geprüfte
+bytegleiche Bereiche abgedeckt: Kommentare/Leerzeilen sowie entfernte Testmodule,
+ohne geänderte Runtime-Ausdrücke. Sechs vom Nutzer entfernte Testdateien werden
+im aktuellen Inventar nicht mehr mitgezählt; historische Quellen und Messbelege
+bleiben erhalten. Die neun Bereichswurzeln enthalten keine weiteren unaufgeführten
+handgeschriebenen Rust-/Python-Dateien. Generierte Quellen und weitergehende
+Projektänderungen sind kein Bestandteil dieser Dateiunion.
+[Aktueller Quellenabgleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/current-source-reconciliation-20261108/REVIEW.json),
+[Licht-Übernahme und explizites Quelldelta](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-provider-main-integration-20261108/RETAINED-SOURCE-REVIEW.json).
+Semantik-/Implementierungs-/Messgates bleiben gesondert offen. Vollständiger
+Quellreview bedeutet keine validierte Optimierung oder universelle Optimalität.
 
-Der neue Master-Merge18e5 verändert drei dieser331 Dateien. Beide Template-
+Historischer Abgleich: Master-Merge18e5 verändert drei der damaligen331 Dateien. Beide Template-
 Dateien und die ganze Trig-Datei sind erneut vollständig geprüft; die übrigen
 328 Quellfingerprints bleiben gleich. Neue NBT-Konvertierungsgrundlagen sind
 separat gelesen. Das ist ein Quellenabgleich, kein Test-/ASM-/CPS-Nachweis für
 den neuen vollständigen Server. Alte Binaries bleiben an ihren Ausgangsstand
 gebunden; insbesondere Cargo.lock und weitere Core-Grundlagen haben sich geändert.
-95ist in144bce übernommen. Fünf neue Dateien sind vollständig gelesen; fünf
+95ist in144bce übernommen. Damals fünf neue Dateien sind vollständig gelesen; fünf
 geänderte Altdateien sind aus früherem Vollreview, vollständigem Delta und
-bytegleichen unveränderten Bereichen abgeglichen.336ist eine explizite
+bytegleichen unveränderten Bereichen abgeglichen. Der damalige336-Dateien-Stand ist eine explizite
 Dateiunion, kein ungeprüfter neuer Testverzeichnis-Glob.
 [Merge-Abgleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/MERGE18E-CURRENT-SOURCE-REVIEW.json).
 
@@ -49,6 +75,10 @@ isoliertem Runtimepatch, eine separate vorbereitete Allocatordiagnose und eine
 ausdrücklich unvorbereitete Hypothese. Revisionen
 wie26R2/87R2 erhöhen diese Eintragszahl nicht. Darunter sind
 Alternativen, Reserven und Vertragsgates; keine101 validierten Optimierungen.
+Zusätzliche Arme der laufenden PGO-Übertragung sind im
+[separaten Transferregister](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/PGO-TRANSFER-TRIALS-20261108.json)
+geführt und im Index verlinkt; Wiederverwendung und kombinierte Varianten werden
+nicht als neue eigenständige Kandidaten oder Gewinne ausgegeben.
 Die Bereichskataloge enthalten Positionen, Beweise, Gegenkosten und kleinste
 Validierung. Offene Messungen bleiben offen; das Goal bleibt aktiv.
 Der Index führt jetzt den aktuellen Variantenstatus vor den historischen
@@ -180,8 +210,8 @@ Discord/Spotify und ausdrücklich Research bis zur nächsten Entwarnung gemeldet
 In dieser Pause waren Builds, Tests und Messungen angehalten. Die laufende99-Serie wurde gezielt
 gestoppt; sämtliche Teilläufe sind für Performanceentscheidungen ausgeschlossen.
 Vorhandenes ASM und Quellen bleiben nutzbar. Historische Freigaben werden
-nicht als aktuelle Zustimmung ausgegeben. **Aktuell hat der Nutzer für die
-ganze Nacht freigegeben: Er geht schlafen, alles ist geschlossen. Gute,
+nicht als aktuelle Zustimmung ausgegeben. **Historische Nachtfreigabe: Der
+Nutzer ging schlafen, alles war geschlossen. Gute,
 validierte Änderungen dürfen übernommen und committed werden.** Die Nachtarbeit
 beginnt mit einem neuen18e-Baseline-Paar; dessen normales natives Serverbinary
 ist nach6m53 fertig und gesichert. Während Zeitmessungen
@@ -381,7 +411,7 @@ inklusive Anteile überlappen. Keine I-Cache-/Branch-Miss-Messung daraus ableite
 | End-City-Kollision | Semantisches Prüfgate, kein Optimierungspatch | Vanilla prüft ersten Treffer, Steel beliebigen Nichtparent-Treffer; algebraischer Unterschied belegt, Erreichbarkeit durch echte Seeds offen |
 | CountOnEveryLayer | Erweiterungsfall offen, kein Optimierungspatch | Java sampelt Count pro for-Bedingung, Steel pro Schicht; aktuelle8Nutzungen konstant. Eager Positionsliste durch echten Java-Caller bestätigt |
 | Höhen-RNG erster Draw | Hypothese durch Baseline-ASM verworfen | LLVM entfernt temporären RNG-State und ungenutzte Zustandsupdates bereits; keinen duplizierten RNG-Helfer bauen |
-| PGO-Diagnose | N/G/U, Training, native Korrektheit und24Full-Läufe abgeschlossen | Beobachtet OW+17–18%, Nether+18%, End+13–14%; kein allgemeiner PGO-Default, manueller Aquifer-Hint in eigenem nativen Versuch |
+| PGO-Diagnose | N/G/U, Training, native Korrektheit und24Full-Läufe abgeschlossen | Beobachtet OW+17–18%, Nether+18%, End+13–14%; kein allgemeiner PGO-Default, beide manuellen Aquifer-Hints geprüft und nicht übernommen |
 
 Versuch16: [Prüfung](../worldgen-machine-audit-20261104/experiments/16-ore-y-cache/PRUEFUNG.txt),
 [Messungen](../worldgen-machine-audit-20261104/experiments/full-cps/16-seed-main-summary.json).
@@ -452,7 +482,7 @@ im Studienhelfer vorbereitet:16Codegen-Units,LTOoff,geringere Debugdaten,
 eigener Profilcache. Nur Testziele, kein Server/Benchmark/PGO. Normale native
 Vergleichsflags bleiben gleich. Der Modus wurde für beide95-Arme und99 benutzt;
 die frühen Gates bestehen. Ein kontrollierter Buildzeitvergleich fehlt.
-Die Nachtfreigabe erlaubt die Ausführung. Erst passende frühe Korrektheitsgates,
+Die frühe Korrektheitsauswahl wird in der Essensfreigabe fortgesetzt. Erst passende frühe Korrektheitsgates,
 danach die erforderlichen nativen Gates für aussichtsreiche Kandidaten.
 
 ## Logger100: Ressourcenoptimierung ohne CPS-Zusage
@@ -470,8 +500,9 @@ höhere CPS-Zahl oder ungemessene Heap-/RSS-Ersparnis.
 
 Normale native Logger-Libtests,15echte Kernel-Pipe-/PTY-/Controlling-TTY-Schritte,
 Zeroachsen/Live-Resize, ein negativer Leerprotokollcheck, Format und Clippy
-bestehen. Der erhaltene Repo-Testtreiber ist mit aktuellem nativem Testbinary
-am endgültigen Pfad ausgeführt. Ein Docstring zur Benutzung ersetzt lediglich
+bestanden auf dem dokumentierten95/100-Stand. Der damalige Repo-Testtreiber ist
+mit dem passenden nativen Testbinary am endgültigen Pfad ausgeführt; der Nutzer
+hat diese Testdateien inzwischen entfernt, ihre historischen Quellen bleiben gesichert. Ein Docstring zur Benutzung ersetzt lediglich
 Vorbereitungshistorie; die ausführbaren AST-Knoten bleiben gleich.
 
 Bewusste UI-Randänderung: Nach Unix-ioctl-Fehlern werden die bisherigen80×30-
@@ -486,56 +517,122 @@ Worldgen-Hashlauf behauptet. Die passende95-Quellbasis ist separat nativ gehasht
 
 ## Nächste höchstens drei Versuche – aktuelle Reihenfolge
 
-95 und100 sind abgeschlossen und übernommen. Die folgende Liste ersetzt
-alle früheren Reihenfolgen. Neue Timer bleiben an die aktuelle Aktivitätsfreigabe
-gebunden; eine spätere Nutzerpause überstimmt die derzeitige Nachtfreigabe.
+95,100 und der Konstant-/Callback-Lichtprovider sind abgeschlossen und übernommen.
+Diese Liste ersetzt alle früheren Reihenfolgen. Die aktuelle Abwesenheitsfreigabe
+gilt bis zur ausdrücklichen Meldung, dass der PC wieder gebraucht wird. Die vier
+Samply-Aufnahmen und24profilfreien Licht-CPS-Läufe sind abgeschlossen.
 
-1. **Den PGO-Gewinn prüfen und gezielt in Quellcode übertragen.** N/G/U,
-   vier echte Trainingsläufe und native Korrektheitsgates sind abgeschlossen:
-   22.500Stage-Hashes,103Worldgen- und15Mathtests bestehen. Das unveränderte
-   strikte Rollengate akzeptiert die gebundene Quell-/Tool-/Produzentenboundary;
-   fünf beschädigte Varianten echter Belege werden abgewiesen.24unprofilierte
-   native Full-Läufe ergeben über zwei Holdout-Seeds und8/16Worker rund17–18%
-   mehr Overworld-CPS; vier Nether-Kontrollen rund18%, vier End-Kontrollen
-   rund13–14%. Je zwei Beobachtungen pro Arm/Zelle: beobachtete Gruppenmittel,
-   keine Konfidenzintervalle oder universelle Zusage. Kein belastbarer RSS-Gewinn.
-   PGO bleibt ein gesicherter profilabhängiger Build; Weltgen-Training deckt
-   Live-Gameplay/Netzwerk nicht ab und aktiviert keinen allgemeinen Default.
-   Der isolierte einzeilige Aquifer-Inlinehint wird jetzt ohne PGO nativ gebaut;
-   erst veränderten Call-/Spill-/Codeumfang nachweisen, dann Korrektheit und
-   eigene Full-CPS prüfen. Kein anteiliger Gewinn aus dem Gesamt-PGO ableitbar.
-   [Gemessener Vergleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/PGO-NATIVE-CPS-RESULT-20261108.json),
-   [Vergleichsboundary](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-R2-real-proof-20261108/ROOT-BOUNDARY-DECISION.md).
-2. **Corner-V3 gegen die gemessenen V2-Gegenkosten prüfen.** Quellenmodell pro
-   temporärem NoiseChunk:OW81.920→39.200B, Nether81.920→6.800B,
-   End49.152→4.752B. Keine neue Noise-/Callback-Auswertung; Allokationsanzahl
-   bleibt gleich. Keine gemessene Liveheap-/RSS-Ersparnis. Neue NoiseChunks
-   entstehen je Terrainfill, ein Produktionspool ist bisher nicht vorhanden.
-   Sieben neue und neun bestehende Tests sowie22.500 Stage-Hashes bestehen
-   im frühen Validierungsprofil. Das normale native Serverbinary ist gebaut.
-   Native Plane-Anfragen bestätigen die kleineren Puffer; OW-Fill+1740B Code,
-   +192B Frame und zusätzliche Plane-Längenchecks sind konkrete Gegenkosten.
-   Die ersten16 nativen Full-CPS-Läufe ergeben OW grob−0,3…−1,4%,
-   Nether praktischflat, End+0,5%; RSSgemischt. **V2 wird nicht übernommen.**
-   V3 ist als kleiner sicherer Versuch vorbereitet und quellseitig geprüft:
-   vier ganze Spalten einmal prüfen, anschließend vier Arrays und Zielzeile
-   zippen; gleiche Reihenfolge und FP-Ausdrücke. Keine Ausführung/ASM fürV3. Endgültige native Korrektheit ist für die
-   verworfene V2 nicht gelaufen; Traffic/Liveheap bleiben ungemessen. Zero-Material-Kanäle sind
-   von null aktiven Interpolatoren zu unterscheiden: Letztere können bereits
-   im alten Shared-Hit-Pfad an `chunks_exact(0)` scheitern. Gültige Proofindizes
-   müssen zur tatsächlichen Interpolatorzahl passen; bisheriges Padding ist
-   kein freier zusätzlicher Kanal. Quellgrenzen, echte Tests und Hashes vor
-   nativem Index-/Bounds-/Speicher-/CPS-Vergleich schließen.
-   [Vorbereiteter Arm](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/night-corners-formatted-preparation/manifest.json).
-3. **Lichtfenster101: Vertragsentscheidung abwarten.** Der private Entwurf ist
+1. **PGO-Entscheidungen in profilfreie Quellen übertragen.** Der eigentliche
+   PGO-Vergleich ist abgeschlossen:22.500native Stage-Hashes,103Worldgen- und
+   15Mathtests sowie24unprofilierte Full-Läufe; auf dem5800X3D beobachtet OW
+   rund17–18%, Nether18%, End13–14%mehr CPS. Je zwei Beobachtungen pro Arm/Zelle,
+   keine Konfidenzintervalle oder universelle Zusage. Diese Werte gehören zum
+   eingefrorenen N/U-Vergleich; kein neuer Source-Hint hat diesen Gewinn erzielt.
+   Beide Aquifer-Hints bleiben abgeschlossen und nicht übernommen: gewöhnliches
+   inline ergibt identische `.text`, Always nur0,7–1,4%OW mit Gegenkosten und
+   einem negativen Nether-Hinweis. Kein erneuter gleicher Aquifer-Versuch.
+
+   Neu vorbereitet sind getrennte Klima-Arme für den Expand-Branch, den nur
+   darunter ausgeführten Leaf-Branch und deren Kombination. Die tatsächlichen
+   gespeicherten U-IR-Kanten sind zugeordnet; Distanzrechnung, striktes `>`,
+   Traversierung, Tie-/Cacheverhalten und Auswertungsreihenfolge bleiben gleich.
+   Der bestehende Perlin21-PoC passt bytegenau zum aktuellen Ausgangsstand und
+   wird wiederverwendet. Diese Branch-Arme bleiben ungebaut und ungemessen.
+   Der sichere Zwei-Layer-Shape-Arm für NormalNoise besteht105frühe Tests und
+   ist nativ gebaut. Der tatsächliche Maschinenvergleich stellt ihn zurück:
+   zwei zusätzliche ImprovedNoise-Kernelaufrufe und echte32B-Zwischensicherung,
+   `.text`+35.840B, OW-Fill+10.046B und Frame+288B. Die Looplänge wird zwar
+   spezialisiert, die erhoffte ABI-Entlastung bleibt aus. Keine gemessene
+   CPS-Verschlechterung oder finale Hashprüfung für diesen Reservearm behauptet.
+   [Normal-Y-Entscheidungsbeleg](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/normal-two-layer-native-machine-review-20261108/REPORT.md).
+   Die gepinnte Nightly bietet öffentliche sichere `core::hint::{likely,unlikely}`
+   hinter `likely_unlikely`; das bereits stabile `cold_path` braucht keinen Gate.
+   Diese Hints verwenden Cold-Path-Information. LLVMs gewöhnlicher2000:1-Default
+   ist viel stärker als die beiden gespeicherten Klimaquoten von jeweils etwa
+   5,7%am seltenen Ausgang. Tatsächliche Kandidaten-IR/ASM sind deshalb ein frühes
+   Ablehnungsgate, keine Formsache. Quellhinweise sind keine Hardwarebefehle und
+   ersetzen weder tatsächliche Pfadquoten noch Full-CPS-Kontrollen.
+
+   Der anschließende echte N/U-Maschinenvergleich belegt nun konkrete
+   Light-Property-Spezialisierung: N ruft indirekt auf, U prüft drei Callbackziele
+   und liefert konstante Ergebnisse mit allgemeinem Callbackfallback. Ein passend
+   zugeordneter Sky-Caller belegt integrierte Opazität1/15/1; drei Shape-Kontexte
+   haben ebenfalls Zielguards. Keine Attribution des gesamten PGO-Gewinns. Der
+   Sky-Caller wächst bei U2.855→6.619B, seine Stackreserve200→344B; das sind
+   keine Spillzahlen. Der separate profilfreie Konstant-/Callback-Prototyp ist
+   inzwischen übernommen und besteht407frühe sowie407native Registrytests,
+   einschließlich aller generierten Blockzustände gegen direkte alte Callback-
+   referenzen, und alle22.500nativen Vanilla-Stage-Hashes. Die anschließende enge
+   Registryprüfung im Hauptcheckout bestand ebenfalls407Tests. Nach dem vom
+   Nutzer gewünschten Entfernen der zwei Testregistrierungen und zugehöriger
+   Host-Generatorarbeit bestehen die verbleibenden405Registrytests. Produktions-
+   logik und archivierte vollständige Tests bleiben getrennt gebunden. Format, gezielte
+   Clippyprüfung und unabhängige Quell-/Integrationsreviews bestehen.
+   Sein natives Maschinengate ist positiv:
+   Datenloads überspringen den Callback samt echtem4B-Save/Reload; Sky+24B,
+   Frame weiter200B, `.text`+1.728B.24unprofilierte native Full-Läufe ohne PGO
+   zeigen auf zwei OW-Seeds und8/16Workern grob0,4–0,9%mehr OW-CPS, bei den
+   W8-Kontrollen rund2,3%Nether und1,8%End. Alle1.913.880angeforderten Full-Chunks,
+   gespeicherten Seeds und Rohzusammenfassungen sind unabhängig geprüft. Je zwei
+   Beobachtungen pro Arm/Zelle, keine Konfidenzintervalle oder universelle Zusage.
+   Das ist ein kleiner Source-Gewinn, kein Ersatz der17–18%PGO-Wirkung.
+   Reale Gegenkosten: Block360→368B, Deskriptorbytes+10.288B, `.data`+10.304B.
+   Reale eingesparte Linkdaten:764Callbackrelokationen, `.rela.dyn`−18.336B;
+   kein RELR. RSS ist gemischt, kein belegter Speichergewinn; insbesondere zeigt
+   OW-Seed42/W16 im Mittel etwa42MiB mehr RSS. Daraus keine isolierte Ursache
+   oder Liveheap-Aussage. Bewusste API-Kosten: Das öffentliche Lichtfeld ist nun
+   Constant/Callback statt Fn-Pointer; bestehender Callbackbuilder und Getter
+   bleiben benutzbar. Direkte externe Feldzuweisungen/-aufrufe müssen angepasst
+   werden. Callbackvariante und ursprüngliche Invalid-ID-/Offset-/Clamp-Semantik
+   bleiben. Keine source-seitigen Fn-Pointertests oder neue Reinheitsannahme.
+   Nach beobachteter Kernel1-Freigabe sind alle vier passenden N/U-CPU-Aufnahmen
+   abgeschlossen und SHA-gesichert,264.196Full-Chunks geprüft. Ihre Auswertung
+   verwendet Gen-CPU-Samples; Profilzeiten zählen nicht als neue CPS-Messung.
+   Der größte korrelierte Rückgang liegt im Terrain-Inklusivumfang, danach
+   Features und Licht. Normal-Y8 und Klima sinken in diesen Aufnahmen nicht.
+   Inlining verändert die Symbolzuordnung; inklusive Umfänge dürfen nicht
+   addiert oder als isolierter Optimierungsgewinn behandelt werden.
+   [PGO-Light-Maschinenbeleg](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-source-hints-20261108/light-N-U-machine-review/REPORT.md),
+   [profilfreier Prototyp: Native-Code](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-constant-provider-native-machine-review-20261108/REPORT.md),
+   [vier neue CPU-Profile](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/meal-pgo-matched-profile-r2-20261108/RESULT.json).
+   [Unabhängiger24-Läufe-Audit](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-constant-provider-CPS-independent-review-20261108/REPORT.md),
+   [vollständige Profilanalyse](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/meal-pgo-matched-profile-r2-20261108/analysis/REPORT.md).
+   Als nächstes wird ein einzelner gewöhnlicher `#[inline]`-Hint auf
+   `Beardifier::compute` geprüft: Die tatsächlichen N/U-Aufrufer belegen dort
+   eine entfallende Aufrufgrenze samt4B-Dichtesicherung. Kein neuer Leerguard:
+   der ist bereits vorhanden. Erst frühe Tests und natives Codegengate, danach
+   nötigenfalls native Hashes/CPS; bei identischem oder ungünstigem Code abbrechen.
+   [Isolierter Terrain-PoC und Gegenkosten](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-source-hints-20261108/terrain-remaining-transfer-review/REPORT.md).
+   Ein weiterer Quellenpass verwirft pauschale Cold-/Size-Hints: U markiert
+   acht Mathdefinitionen zusätzlich kalt, aber keine neue Definition mit
+   minsize/optsize. Diese Helfer bedienen auch Gameplay; aus der gesamten
+   `.text`-Schrumpfung ist kein zugehöriger Hot-Fetch- oder CPS-Gewinn ableitbar.
+   [Vorbereitete Branch-Arme](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-source-hints-20261108/branch-variants/manifest.json),
+   [gepinntes Hint-Verhalten](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-source-hints-20261108/api-review/REPORT.md),
+   [weitere PGO-Entscheidungen](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-source-hints-20261108/remaining-decisions/REPORT.md).
+2. **Corner-V3/V4 weiter validieren.** V2 ist wegen seiner
+   gemessenen OW-Gegenkosten nicht übernommen. Sein kleinerer angeforderter Heap
+   pro NoiseChunk ist belegt; Liveheap und RSS sind kein Gewinnnachweis. V3 prüft
+   ganze Spalten einmal und zippt unveränderte FP-Ausdrücke.117frühe Tests
+   einschließlich echter Max-Fullfill-Prüfung bestehen; der native Server ist
+   gebaut. Vorhandenes begrenztes ASM zeigt im untersuchten XMM-Z-Kern keine
+   Bounds-Panics, Calls oder Spills, aber größere Funktion/Frames und vier
+   spezialisierte Z-Versionen. Native Stage-Hashes und CPS sind offen. V4 ist
+   eine getrennte private Kernextraktion mit vorbereiteten direkten Randfalltests;
+   weder installiert noch kompiliert. Keine Ergebnisse zwischen den Armen übertragen.
+   Zero-Material-Kanäle sind von null aktiven Interpolatoren zu unterscheiden;
+   der alte Shared-Hit-Pfad kann bereits an `chunks_exact(0)` scheitern.
+   [V3-Quellreview](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/CORNERS-V3-ROOT-SOURCE-REVIEW.json),
+   [V3-frühe Tests](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/corners-v3-validation-trial-20261108/EARLY-WORLDGEN-RESULT.json),
+   [V4-Vorbereitung](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/corners-v4-private-kernel-source-preparation-20261108/manifest.json).
+3. **Lichtfenster101: Vertragsentscheidung abwarten.** Der private Entwurf bleibt
    `contract_hold / inactive_source_draft`. Welt-/Positions-/Höhen-/Outer-Map-
-   Prüfungen belegen keine begrenzten Weltzugriffe beliebiger öffentlicher
-   Shape-/Light-Callbacks; vorhandene Registryinitialisierung bewahrt keinen
-   abgefragten Vanilla-Herkunftsnachweis. Die konkrete Nutzerfrage zu einem
-   verbindlichen Providervertrag ist offen. Keine Aktivierung, Ausführung,
-   neue Foundation oder heuristische Fn-/Block-ID-Prüfung bis zur Klärung.
-   Drei vorbereitete Gate-Tests sind kein Stage-/Providerbeweis.99 bleibt
-   ein separater historisch nativ geprüfter Gate4-Arm; aktuelle CPS fehlen.
+   Prüfungen begrenzen keine Weltzugriffe beliebiger öffentlicher Light-/Shape-
+   Callbacks. Die bereits gestellte Nutzerfrage zum Providervertrag ist offen;
+   alternativ fehlt wirklicher Vanilla-Herkunftsnachweis. Keine Aktivierung oder
+   Fn-/Block-ID-Heuristik.99 bleibt ein separater historisch nativ geprüfter
+   Gate4-Arm; aktuelle CPS fehlen. Der neue Konstantprovider-Entwurf aus1 löst
+   diese räumlichen Vertragsfragen nicht.
    [Vertragsbefund](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-canonical-window-source-trial/REVIEW.md).
 
 Die PGO-Eingaben und ursprünglichen Binaries bleiben getrennt gebunden:
@@ -546,9 +643,11 @@ beobachteten C-Builds bleiben generisches x86-64 in allen Armen. U verkleinert
 Stackreserve2.656→2.912B. Klimasuche verschiebt48B Call-Live-Sicherungen in
 den Rekursionszweig; Perlin erhält ein anderes Hotlayout. Weniger Gesamtcode
 beweist allein weder bessere CPS noch niedrigere RSS. Die unabhängigen24Full-
-Läufe liefern den oben abgegrenzten CPS-Beleg. Ein einzelner Aquifer-Inlinehint
-ist innerhalb dieser Untersuchung getrennt im nativen Build, noch ohne eigene
-Korrektheits-/Maschinen-/CPS-Entscheidung.
+Läufe liefern den oben abgegrenzten CPS-Beleg. Der einfache Aquifer-Inlinehint
+ist wegen bytegleichem nativen Code geschlossen. Der gezielte Always-Arm ist
+nach nativen Tests, Hashes und24Full-Läufen ebenfalls nicht übernommen; die
+Quellkopien, Binaries, ASM und Kontrollbefunde bleiben erhalten.
+[Transferstatus](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/PGO-TRANSFER-TRIALS-20261108.json).
 [Native Korrektheit](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/PGO-NATIVE-CORRECTNESS-RESULT-20261108.json),
 [Maschinenvergleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-N-U-hot-machine-review/REPORT.md).
 
@@ -564,6 +663,17 @@ keine nachgewiesene Ursache der einzelnen Unterschiede. Keine Scheduleränderung
 oder weitergehende Paritätsbehauptung ohne geklärte Architektur.
 [Baselinebefund](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-NN-ow33-block-biome-control.json),
 [Quellgrenzen](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-NN-runtime-order-source-review/REVIEW.md).
+Ein separater Quellenbefund betrifft den generierten Legacy-Nether-Konstruktor:
+Seine alten Noise-IDs und der Legacy-Flag-Guard weichen von26.3 ab; Vanilla
+verwendet die aktuellen registrierten Parameter. Der normale Nether-Biompfad
+baut seine Sampler separat und umgeht diesen Konstruktor. Ein Welt-/Biom-/
+Default-FP-Unterschied ist daraus nicht nachgewiesen. Die22.500 bestandenen
+Vergleiche sind echte Vanilla-Referenzgates über alle drei Dimensionen, direkt
+aber Block-/Lichtprojektionen; sie prüfen diese ID-Routingfrage nicht separat.
+Ein Zwei-String-Fix wäre unvollständig. Parametergetreuer Legacy-Pfad und
+gezielte aktuelle Extractor-Oracles bleiben offen; kein Patch ist installiert.
+[Quellbefund](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/parity-findings/legacy-nether-noise-ids-20261108/REPORT.md),
+[unabhängiger Gate-Abgleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/parity-findings/legacy-nether-noise-ids-20261108/independent-peer/REPORT.md).
 [PGO-Gates](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/high-impact-pgo-review/REPORT.md),
 [End-Training](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-end-mixed-training-preparation/manifest.json).
 
@@ -575,7 +685,10 @@ Cornersv2 besteht sieben neue plus neun bestehende frühe Tests und22.500Hashes;
 scoped natives ASM und16Full-CPS-Läufe liegen vor. V2bleibt wegen OW-
 Gegenkosten verworfen; endgültige native Gates wurden dafür nicht ausgeführt. Die abgelehnte
 24-Läufe-Anfrage bleibt eine Reserve und wird nicht automatisch nachgeholt.
-Die neue Nachtfreigabe gilt für die aktuell begründeten Versuche; während
+Die damalige Nachtfreigabe und die anschließende Spielpause sind beendet.
+Aktuell gilt die am Dateianfang dokumentierte ausdrückliche Abwesenheitsfreigabe.
+Außerhalb dieses Fensters ist vor jeder neuen Serie zu fragen. Während
+genehmigter
 Zeitmessungen pausieren andere Builds und Analysen.
 Der erneute [Corners-Abgleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/corners-current-evidence-decision/REVIEW.md)
 bestätigt kleinere temporäre Puffer, keine entfernten Noise-Berechnungen.
@@ -698,3 +811,19 @@ Regression bleiben möglich. Es gibt keinen neuen gemessenen CPS-Gewinn.
 
 Die neue Runde erzeugt nur kleine Quellkopien und Metadaten im ignorierten
 Studienordner. Keine Binaries, ASM, Rohprofile oder Nutzerwelten gelöscht.
+
+Abgeschlossene Studienbinaries wurden gezielt transparent auf Btrfs komprimiert.
+Alle ursprünglichen Pfade und vollständigen SHAs bleiben erhalten; aktive
+Vergleichsarme waren ausgespart. Der beobachtete zusätzliche freie Platz liegt
+bei rund1,3GB. Kein Compiler-Cache, Benutzerwelt oder einzigartiger Beleg wurde
+gelöscht. Das ist Studienbereinigung, kein Worldgen-RSS-/Allokationsgewinn.
+
+Nach der Pause wurden101 manifestgebundene gespeicherte ELF-Pfade vollständig
+gegen ihre ursprünglichen SHAs geprüft. Zwei identische Kopien teilen nun
+Speicher; exklusive Binärdaten wurden mit niedriger Priorität transparent auf
+Btrfs komprimiert. Alle101 Pfade, vollständigen Bytes und eingebetteten Symbole
+sind nach der Bereinigung erneut SHA-verifiziert. Beobachteter zusätzlicher
+freier Dateisystemplatz: rund24GiB. Build-Caches, Rohprofile, Quellcode und
+Benutzerwelten wurden dabei nicht gelöscht. Die logischen Dateigrößen bleiben
+wegen der transparenten Kompression gleich.
+[Bereinigungsbeleg](../worldgen-machine-audit-20261104/experiments/cleanup-20261108-after-pause/SUMMARY.json).

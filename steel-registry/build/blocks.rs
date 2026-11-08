@@ -824,51 +824,7 @@ pub(crate) fn build() -> TokenStream {
         }
     }
 
-    // Generate deduplicated light property functions
-    let mut light_fns = TokenStream::new();
-
-    for (fn_id, sig) in light_fn_pool.function_list.iter().enumerate() {
-        let fn_name = Ident::new(&format!("light_fn_{fn_id}"), Span::call_site());
-        let default_properties = light_properties_to_tokens(&sig.default);
-
-        if sig.arms.is_empty() {
-            light_fns.extend(quote! {
-                #[inline]
-                const fn #fn_name(_offset: u16) -> BlockLightProperties {
-                    #default_properties
-                }
-            });
-        } else {
-            let arms: Vec<TokenStream> = sig
-                .arms
-                .iter()
-                .map(|(offsets, properties)| {
-                    let properties = light_properties_to_tokens(properties);
-                    let patterns: Vec<TokenStream> = offsets
-                        .iter()
-                        .map(|&o| {
-                            quote! { #o }
-                        })
-                        .collect();
-                    quote! {
-                        #(#patterns)|* => #properties,
-                    }
-                })
-                .collect();
-
-            light_fns.extend(quote! {
-                #[inline]
-                fn #fn_name(offset: u16) -> BlockLightProperties {
-                    match offset {
-                        #(#arms)*
-                        _ => #default_properties,
-                    }
-                }
-            });
-        }
-    }
-
-    let light_reference_fns = light_fns;
+    // Generate callbacks only for state-dependent light properties.
     let mut light_fns = TokenStream::new();
 
     for (fn_id, sig) in light_fn_pool.function_list.iter().enumerate() {
@@ -903,7 +859,6 @@ pub(crate) fn build() -> TokenStream {
 
     // Generate block constants with shape functions
     let mut stream = TokenStream::new();
-    let mut light_reference_entries = Vec::new();
 
     for (block, info) in block_assets.blocks.iter().zip(block_shape_infos.iter()) {
         let block_name = Ident::new(&block.name.to_shouty_snake_case(), Span::call_site());
@@ -1018,10 +973,6 @@ pub(crate) fn build() -> TokenStream {
         } else {
             quote! { .with_light_properties(#light_fn) }
         };
-
-        light_reference_entries.push(quote! {
-            (&#block_name, #light_fn as crate::blocks::LightPropertiesFn),
-        });
 
         let shape_offsets = if info.collision_uses_offset
             || info.support_uses_offset
