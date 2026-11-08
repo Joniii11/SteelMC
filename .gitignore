@@ -31,6 +31,14 @@ CLAUDE.md
 .agents
 skills-lock.json
 docs
+!/docs/
+/docs/*
+!/docs/WORLDGEN-OPTIMIZATION-ROADMAP.md
+!/docs/WORLDGEN-PR842-REVIEW.md
+
+# Local worldgen studies: preserve evidence outside target without tracking it.
+/worldgen-machine-audit-*/
+/worldgen-handoff.tar
 
 # Package
 profile.json.gz
