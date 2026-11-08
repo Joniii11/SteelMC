@@ -43,6 +43,13 @@ impl BlockLightProperties {
     };
 }
 
+/// Explicit per-block light data. Callbacks run on every valid lookup.
+#[derive(Debug, Clone, Copy)]
+pub enum LightPropertiesProvider {
+    Constant(BlockLightProperties),
+    Callback(LightPropertiesFn),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct StateBooleanOverwrite {
     pub offset: u16,
@@ -205,7 +212,7 @@ pub struct Block {
     /// Vanilla `BlockState.isRandomlyTicking` values indexed by block-local state offset.
     pub randomly_ticking: StateBooleanData,
     /// Extracted vanilla light properties indexed by block-local state offset.
-    pub light_properties: LightPropertiesFn,
+    pub light_properties: LightPropertiesProvider,
     /// Function to get collision shape for a state offset
     pub collision_shape: ShapeFn,
     /// Function to get block support shape for a state offset
@@ -240,10 +247,6 @@ const fn full_block_shape(_offset: u16) -> shapes::VoxelShape {
     shapes::VoxelShape::FULL_BLOCK
 }
 
-const fn opaque_full_block_light_properties(_offset: u16) -> BlockLightProperties {
-    BlockLightProperties::OPAQUE_FULL_BLOCK
-}
-
 /// Default interaction shape function that returns an empty shape.
 const fn empty_shape(_offset: u16) -> shapes::VoxelShape {
     shapes::VoxelShape::EMPTY
@@ -265,7 +268,9 @@ impl Block {
             redstone_conductor: StateBooleanData::TRUE,
             fluid_state: StateFluidData::EMPTY,
             randomly_ticking,
-            light_properties: opaque_full_block_light_properties,
+            light_properties: LightPropertiesProvider::Constant(
+                BlockLightProperties::OPAQUE_FULL_BLOCK,
+            ),
             collision_shape: full_block_shape,
             support_shape: full_block_shape,
             outline_shape: full_block_shape,
@@ -320,9 +325,18 @@ impl Block {
         self
     }
 
-    /// Sets the extracted vanilla light properties for this block.
+    /// Sets a light callback that is invoked once for every valid lookup.
     pub const fn with_light_properties(mut self, light_properties: LightPropertiesFn) -> Self {
-        self.light_properties = light_properties;
+        self.light_properties = LightPropertiesProvider::Callback(light_properties);
+        self
+    }
+
+    /// Sets light properties that are identical at every block-local state offset.
+    pub const fn with_constant_light_properties(
+        mut self,
+        light_properties: BlockLightProperties,
+    ) -> Self {
+        self.light_properties = LightPropertiesProvider::Constant(light_properties);
         self
     }
 
@@ -370,7 +384,10 @@ impl Block {
 
     #[inline]
     pub fn get_light_properties(&self, offset: u16) -> BlockLightProperties {
-        (self.light_properties)(offset)
+        match self.light_properties {
+            LightPropertiesProvider::Constant(properties) => properties,
+            LightPropertiesProvider::Callback(callback) => callback(offset),
+        }
     }
 
     #[must_use]
