@@ -56,7 +56,12 @@ Vorbereitungsfeldern. Der unabhängige historische89-Einträge-Abgleich übernim
 Messentscheidungen, aktuelle Vertragsgates und negative Quellbefunde44/50;
 Simplex steht mit32abgeschlossenen Läufen und offenem OW16-Gate im Register.
 R1-Belege und die vom Nutzer übernommene26R2 werden getrennt geführt. Der neue
-90.Diagnoseeintrag ist zusätzlich quellseitig geprüft, nicht ausgeführt.
+90 ist inzwischen als separate16-Zeilen-Allokatordiagnose ausgeführt: Alignment,
+Nullinitialisierung und vollständige Payloadmuster bestehen. Die16-KiB-Anfrage
+belegt aligned20KiB gegenüber gewöhnlich16KiB; bei den drei kompakten
+Anfragen stimmen die beiden beobachteten Größenklassen überein. Das sind
+API-/Usablebytes-Belege, keine Produktionsfrequenz-, Liveheap-, RSS- oder CPS-Werte.
+[Diagnose](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/allocator90-resolved-api-diagnostic-20261108/REPORT.md).
 91–94 ergänzen Material-Gap, Ore-Abbruch, Zstd-Kontextreuse und das End-Grid.
 91–93 bestehen den Apply-Check; Rust-Ausführung und native Messbelege fehlen.
 Sie bleiben kleine Reserven. Das End-Grid94 wird inzwischen in der frühen
@@ -376,7 +381,7 @@ inklusive Anteile überlappen. Keine I-Cache-/Branch-Miss-Messung daraus ableite
 | End-City-Kollision | Semantisches Prüfgate, kein Optimierungspatch | Vanilla prüft ersten Treffer, Steel beliebigen Nichtparent-Treffer; algebraischer Unterschied belegt, Erreichbarkeit durch echte Seeds offen |
 | CountOnEveryLayer | Erweiterungsfall offen, kein Optimierungspatch | Java sampelt Count pro for-Bedingung, Steel pro Schicht; aktuelle8Nutzungen konstant. Eager Positionsliste durch echten Java-Caller bestätigt |
 | Höhen-RNG erster Draw | Hypothese durch Baseline-ASM verworfen | LLVM entfernt temporären RNG-State und ungenutzte Zustandsupdates bereits; keinen duplizierten RNG-Helfer bauen |
-| PGO-Diagnose | Vorbereitet, noch nicht ausgeführt | Passende LLVM-Tools installiert, `pgo-train.py` fertig; kein Trainingsprofil, kein PGO-use-Binary, kein PGO-Gewinn |
+| PGO-Diagnose | N/G/U, Training, native Korrektheit und24Full-Läufe abgeschlossen | Beobachtet OW+17–18%, Nether+18%, End+13–14%; kein allgemeiner PGO-Default, manueller Aquifer-Hint in eigenem nativen Versuch |
 
 Versuch16: [Prüfung](../worldgen-machine-audit-20261104/experiments/16-ore-y-cache/PRUEFUNG.txt),
 [Messungen](../worldgen-machine-audit-20261104/experiments/full-cps/16-seed-main-summary.json).
@@ -485,27 +490,43 @@ Worldgen-Hashlauf behauptet. Die passende95-Quellbasis ist separat nativ gehasht
 alle früheren Reihenfolgen. Neue Timer bleiben an die aktuelle Aktivitätsfreigabe
 gebunden; eine spätere Nutzerpause überstimmt die derzeitige Nachtfreigabe.
 
-1. **Kompakte Corner-Puffer V2 als Speicherarm prüfen.** Quellenmodell pro
+1. **Den PGO-Gewinn prüfen und gezielt in Quellcode übertragen.** N/G/U,
+   vier echte Trainingsläufe und native Korrektheitsgates sind abgeschlossen:
+   22.500Stage-Hashes,103Worldgen- und15Mathtests bestehen. Das unveränderte
+   strikte Rollengate akzeptiert die gebundene Quell-/Tool-/Produzentenboundary;
+   fünf beschädigte Varianten echter Belege werden abgewiesen.24unprofilierte
+   native Full-Läufe ergeben über zwei Holdout-Seeds und8/16Worker rund17–18%
+   mehr Overworld-CPS; vier Nether-Kontrollen rund18%, vier End-Kontrollen
+   rund13–14%. Je zwei Beobachtungen pro Arm/Zelle: beobachtete Gruppenmittel,
+   keine Konfidenzintervalle oder universelle Zusage. Kein belastbarer RSS-Gewinn.
+   PGO bleibt ein gesicherter profilabhängiger Build; Weltgen-Training deckt
+   Live-Gameplay/Netzwerk nicht ab und aktiviert keinen allgemeinen Default.
+   Der isolierte einzeilige Aquifer-Inlinehint wird jetzt ohne PGO nativ gebaut;
+   erst veränderten Call-/Spill-/Codeumfang nachweisen, dann Korrektheit und
+   eigene Full-CPS prüfen. Kein anteiliger Gewinn aus dem Gesamt-PGO ableitbar.
+   [Gemessener Vergleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/PGO-NATIVE-CPS-RESULT-20261108.json),
+   [Vergleichsboundary](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-R2-real-proof-20261108/ROOT-BOUNDARY-DECISION.md).
+2. **Corner-V3 gegen die gemessenen V2-Gegenkosten prüfen.** Quellenmodell pro
    temporärem NoiseChunk:OW81.920→39.200B, Nether81.920→6.800B,
    End49.152→4.752B. Keine neue Noise-/Callback-Auswertung; Allokationsanzahl
    bleibt gleich. Keine gemessene Liveheap-/RSS-Ersparnis. Neue NoiseChunks
    entstehen je Terrainfill, ein Produktionspool ist bisher nicht vorhanden.
-   Sieben Tests sind vorbereitet, nicht ausgeführt. Zero-Material-Kanäle sind
+   Sieben neue und neun bestehende Tests sowie22.500 Stage-Hashes bestehen
+   im frühen Validierungsprofil. Das normale native Serverbinary ist gebaut.
+   Native Plane-Anfragen bestätigen die kleineren Puffer; OW-Fill+1740B Code,
+   +192B Frame und zusätzliche Plane-Längenchecks sind konkrete Gegenkosten.
+   Die ersten16 nativen Full-CPS-Läufe ergeben OW grob−0,3…−1,4%,
+   Nether praktischflat, End+0,5%; RSSgemischt. **V2 wird nicht übernommen.**
+   V3 ist als kleiner sicherer Versuch vorbereitet und quellseitig geprüft:
+   vier ganze Spalten einmal prüfen, anschließend vier Arrays und Zielzeile
+   zippen; gleiche Reihenfolge und FP-Ausdrücke. Keine Ausführung/ASM fürV3. Endgültige native Korrektheit ist für die
+   verworfene V2 nicht gelaufen; Traffic/Liveheap bleiben ungemessen. Zero-Material-Kanäle sind
    von null aktiven Interpolatoren zu unterscheiden: Letztere können bereits
    im alten Shared-Hit-Pfad an `chunks_exact(0)` scheitern. Gültige Proofindizes
    müssen zur tatsächlichen Interpolatorzahl passen; bisheriges Padding ist
    kein freier zusätzlicher Kanal. Quellgrenzen, echte Tests und Hashes vor
    nativem Index-/Bounds-/Speicher-/CPS-Vergleich schließen.
    [Vorbereiteter Arm](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/night-corners-formatted-preparation/manifest.json).
-2. **PGO für das gesamte native Programm konkret vorbereiten.** Das bereits
-   source-geprüfte strikte N/G/U-Rollengate und der vorhandene Trainer sind
-   die Basis; keine parallele neue Diagnosepipeline. Reale Build-/Umwelt-/
-   Tool-/Quellidentitäten erfassen, Gate und Vergleichsintegration prüfen,
-   erst danach Instrumentierungs-/Use-Builds und Training. End129 ist im
-   Trainer vorbereitet, noch ohne beobachtete Abdeckung. Hashparität,
-   erfolgreich geladene Profile, uninstrumentierter Maschinenkode und
-   unabhängige Holdouts bleiben Pflicht. Keine PGO-Prozentzusage.
-   [Offene Gates](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/high-impact-pgo-review/REPORT.md).
 3. **Lichtfenster101: Vertragsentscheidung abwarten.** Der private Entwurf ist
    `contract_hold / inactive_source_draft`. Welt-/Positions-/Höhen-/Outer-Map-
    Prüfungen belegen keine begrenzten Weltzugriffe beliebiger öffentlicher
@@ -517,11 +538,32 @@ gebunden; eine spätere Nutzerpause überstimmt die derzeitige Nachtfreigabe.
    ein separater historisch nativ geprüfter Gate4-Arm; aktuelle CPS fehlen.
    [Vertragsbefund](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-canonical-window-source-trial/REVIEW.md).
 
-Die vorhandene PGO-Vorbereitung ist weiterhin ungelaufen; ihre bisherigen
-Quellenbelege bleiben erhalten.
-Trainer mit vorbereitetem End129-Fall, gepinnte Backend-Quellen und striktes
-N/G/U-Rollengate bleiben erhalten; Trainings-/Use-Builds, erfolgreiche
-Profilzuordnung, Hashes und unabhängige Holdouts sind weiterhin offen.
+Die PGO-Eingaben und ursprünglichen Binaries bleiben getrennt gebunden:
+N`b04f21ed…`, G`20c8816b…`, U`aba51134…`; alle auf18eplus dem übernommenen
+95/100-Overlay. Rust wird mit `target-cpu=native` für Zen3 erzeugt; die tatsächlich
+beobachteten C-Builds bleiben generisches x86-64 in allen Armen. U verkleinert
+`.text` insgesamt um6,46MB, vergrößert aber OW-Fill29.426→59.479B und dessen
+Stackreserve2.656→2.912B. Klimasuche verschiebt48B Call-Live-Sicherungen in
+den Rekursionszweig; Perlin erhält ein anderes Hotlayout. Weniger Gesamtcode
+beweist allein weder bessere CPS noch niedrigere RSS. Die unabhängigen24Full-
+Läufe liefern den oben abgegrenzten CPS-Beleg. Ein einzelner Aquifer-Inlinehint
+ist innerhalb dieser Untersuchung getrennt im nativen Build, noch ohne eigene
+Korrektheits-/Maschinen-/CPS-Entscheidung.
+[Native Korrektheit](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/PGO-NATIVE-CORRECTNESS-RESULT-20261108.json),
+[Maschinenvergleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-N-U-hot-machine-review/REPORT.md).
+
+Eine eigenständige Baselinegrenze ist offen: Zwei gleiche native N-Serverläufe
+mit verifiziertem Seed42, OW33 und8Workern unterscheiden sich bei907von1089
+positionsaufgelösten gespeicherten Blockprojektionen; Biome stimmen überein.
+Die kanonische Projektion ist gegen echte Palette-/Packformate geprüft und
+entfernt keine realen Blockunterschiede. Das ist kein PGO zugeschriebener Fehler.
+Die geordnete Seed13579-Hashfixture deckt diese Interleavings nicht ab. Steel
+kann benachbarte Feature-Bodies parallel ausführen, während der geprüfte
+Vanilla-Pfad sie sequenziell ausführt; das ist ein belegter möglicher Mechanismus,
+keine nachgewiesene Ursache der einzelnen Unterschiede. Keine Scheduleränderung
+oder weitergehende Paritätsbehauptung ohne geklärte Architektur.
+[Baselinebefund](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-NN-ow33-block-biome-control.json),
+[Quellgrenzen](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-NN-runtime-order-source-review/REVIEW.md).
 [PGO-Gates](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/high-impact-pgo-review/REPORT.md),
 [End-Training](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/pgo-end-mixed-training-preparation/manifest.json).
 
@@ -529,7 +571,9 @@ Die früheren26R2-/Simplex-/Corners-Prioritäten sind jetzt
 [historische Reserven](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/MICRO-TRIAL-QUEUE-before-high-impact-focus.md).
 26R2 ist vom Nutzer übernommen und hat weiterhin keinen eigenen gemessenen
 CPS-Gewinn. Simplex behält seine32Läufe und das offene OW16-Gegenkostengate;
-Cornersv2 hat sieben vorbereitete, null ausgeführte Tests. Die abgelehnte
+Cornersv2 besteht sieben neue plus neun bestehende frühe Tests und22.500Hashes;
+scoped natives ASM und16Full-CPS-Läufe liegen vor. V2bleibt wegen OW-
+Gegenkosten verworfen; endgültige native Gates wurden dafür nicht ausgeführt. Die abgelehnte
 24-Läufe-Anfrage bleibt eine Reserve und wird nicht automatisch nachgeholt.
 Die neue Nachtfreigabe gilt für die aktuell begründeten Versuche; während
 Zeitmessungen pausieren andere Builds und Analysen.
@@ -537,7 +581,12 @@ Der erneute [Corners-Abgleich](../worldgen-machine-audit-20261104/experiments/go
 bestätigt kleinere temporäre Puffer, keine entfernten Noise-Berechnungen.
 16 gleichzeitige OW-Fills modellieren rund667,5KiB weniger angeforderten
 Plane-Payload, keinen gemessenen Liveheap-/RSS-Gewinn. Zusätzliche sichere
-Checks und Stride-Arithmetik bleiben native Gegenkostengates; Speicherreserve.
+Checks und Stride-Arithmetik sind im begrenzten nativen ASM belegt; ihre
+erster Gesamtdurchsatzvergleich ist negativ für OW. Die Plane-Konstruktoren benötigen bereits im
+alten nativen Binary keinen16-KiB-Stackzero-/Copy-Zwischenpuffer; dies wird
+daher nicht als neuer Gewinn gezählt.
+[Maschinenvergleich](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/corners-native-candidate-machine-review/REPORT.md),
+[16native Läufe und Entscheidung](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/CORNERS-V2-NATIVE-CPS-RESULT-20261108.json).
 
 Weitere Bereiche bleiben abgedeckt: Terrain/Ore/Aquifer/Features und die
 Chunk-/Speicherpipeline werden parallel auf große vollständige Arbeitsmengen
@@ -574,7 +623,7 @@ beschreibt27/26/69 vor den jetzigen Messungen und bleibt historische Evidenz.
 stehen separat. Der sichere SearchContext-Versuch und der Unsafe-PoC nur gegen private
 Climate-Childslice-Checks bleiben unabhängige Reserven. Für Letzteren besteht
 der statische Soundnessreview einschließlich u32-Wrap; Runtime-/Value-/öffentliche
-Cachechecks bleiben, Kompilierung/ASM/Nutzen sind offen. PGO-Diagnose ist vorbereitet und ungelaufen;
+Cachechecks bleiben, Kompilierung/ASM/Nutzen sind offen. PGO ist gebaut, trainiert, nativ korrektheitsgeprüft und über24Full-Läufe gemessen;
 Der private Light-Fensterentwurf braucht weiterhin vollständige Herkunfts-/
 Feld-/Publikationsbeweise; ein allgemeiner Schedulerumbau ist nicht belegt.
 Weitere End-/Monument-Kandidaten brauchen eigene regionale Häufigkeiten. Bei Zeitgleichstand
