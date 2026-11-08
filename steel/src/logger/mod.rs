@@ -5,7 +5,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType, disable_raw_mode},
 };
 use std::{
-    io::Write,
+    io::{self, Write},
     sync::Arc,
     time::{self, Instant},
 };
@@ -26,13 +26,28 @@ mod selection;
 mod state;
 mod suggestions;
 
+#[cfg(all(test, unix))]
+mod terminal_dimensions_tests;
+
+// Unix size() may spawn tput when no terminal is available.
+fn terminal_dimensions() -> io::Result<(u16, u16)> {
+    #[cfg(unix)]
+    {
+        terminal::window_size().map(|size| (size.columns, size.rows))
+    }
+    #[cfg(not(unix))]
+    {
+        terminal::size()
+    }
+}
+
 /// Returns the terminal width, falling back to 80 columns if unavailable or it's <= 0.
 fn terminal_width() -> usize {
-    terminal::size().map_or(80, |(w, _)| if w == 0 { 80 } else { w as usize })
+    terminal_dimensions().map_or(80, |(w, _)| if w == 0 { 80 } else { w as usize })
 }
 /// Returns the terminal height, falling back to 30 rows if unavailable or 1 if it's <= 0.
 fn terminal_height() -> usize {
-    terminal::size().map_or(30, |(_, h)| if h == 0 { 30 } else { h as usize })
+    terminal_dimensions().map_or(30, |(_, h)| if h == 0 { 30 } else { h as usize })
 }
 
 pub(crate) use state::LogState;

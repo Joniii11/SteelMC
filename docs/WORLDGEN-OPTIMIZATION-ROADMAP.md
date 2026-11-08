@@ -1,6 +1,6 @@
 # Worldgen: Optimierungen, Belege und offene Versuche
 
-Stand: 2026-11-08, Minecraft26.3, HEAD`144bce43b7` mit69,26R2 und95.
+Stand: 2026-11-08, Minecraft26.3, Worldgen-Stand`144bce43b7` mit69,26R2 und95; Logger100 zusätzlich übernommen.
 Verlinkte Maschinen-/Profil-/PoC-Belege liegen im lokalen ignorierten
 Studienarchiv außerhalb von `target/`; sie sind keine mitcommitteten Dateien.
 Die zuletzt gebauten99-Vergleichsbinaries gehören zum Runtime-Stand`e78803f6dcb`.
@@ -9,9 +9,10 @@ Die zuletzt gebauten99-Vergleichsbinaries gehören zum Runtime-Stand`e78803f6dcb
 
 Der Nutzer hat die vollständige Untersuchung als fortlaufendes Goal gestartet.
 [Aktuelle Abdeckung](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/coverage-current.json)
-führt336 aktuelle handgeschriebene Dateien:310 aus dem bisherigen Inventar,
-21 zusätzliche Bootstrap-/Pregen-/Harness-Dateien und fünf mit95übernommene
-Dateien. Alle336 Dateien sind durch vollständige Quellreviews abgedeckt; aktuelle SHAs und sämtliche Zeilenbereiche
+führt339 aktuelle handgeschriebene Dateien:310 aus dem bisherigen Inventar,
+24 zusätzliche Bootstrap-/Pregen-/Logger-/Harness-Dateien und fünf mit95
+übernommene Dateien. Davon338Rust und ein Python-Testtreiber. Alle339 Dateien
+sind durch vollständige Quellreviews abgedeckt; aktuelle SHAs und sämtliche Zeilenbereiche
 sind im Index abgeglichen. Semantik-/Implementierungs-/Messgates der Kandidaten
 bleiben gesondert offen. Vollständiger Quellreview bedeutet keine validierte
 Optimierung und keine universelle Optimalität.
@@ -43,11 +44,11 @@ zuR1; fürR2 ist kein CPS-Gewinn gemessen. Der Commit-Titel ist kein Messbeleg.
 [69-Quellreceipt](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/retained69-committed-source-review.json).
 
 [Zusammengeführtes Kandidatenregister](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/candidates-current-index.json):
-53 historische Einträge und47 neue Einträge:45 mit vorbereitetem
+53 historische Einträge und48 neue Einträge:46 mit vorbereitetem
 isoliertem Runtimepatch, eine separate vorbereitete Allocatordiagnose und eine
 ausdrücklich unvorbereitete Hypothese. Revisionen
 wie26R2/87R2 erhöhen diese Eintragszahl nicht. Darunter sind
-Alternativen, Reserven und Vertragsgates; keine100 validierten Optimierungen.
+Alternativen, Reserven und Vertragsgates; keine101 validierten Optimierungen.
 Die Bereichskataloge enthalten Positionen, Beweise, Gegenkosten und kleinste
 Validierung. Offene Messungen bleiben offen; das Goal bleibt aktiv.
 Der Index führt jetzt den aktuellen Variantenstatus vor den historischen
@@ -449,49 +450,75 @@ die frühen Gates bestehen. Ein kontrollierter Buildzeitvergleich fehlt.
 Die Nachtfreigabe erlaubt die Ausführung. Erst passende frühe Korrektheitsgates,
 danach die erforderlichen nativen Gates für aussichtsreiche Kandidaten.
 
+## Logger100: Ressourcenoptimierung ohne CPS-Zusage
+
+100 verwendet auf Unix direkt die bestehende Live-Fensterabfrage. Zwei passende
+native End257/w8-Aufnahmen belegen2.824eindeutige tput-Prozesse im95-Stand und
+keine im Kandidaten. Alle318Warnpayloads inklusive Häufigkeit stimmen überein;
+beide Läufe speichern alle66.049Chunks als Full und stoppen regulär. Periodische
+Info-/Zeitmeldungen sind nicht bytegleich behauptet. Profilzeiten zählen nicht
+als CPS. Der Vergleich über16unprofilierte End-/Overworld-Läufe mit8/16Workern
+zeigt Gruppenmittel von etwa−0,5…+0,3%: kein belastbarer zusätzlicher CPS-Gewinn
+und kein statistischer Äquivalenzbeweis. Die Übernahme erfolgt für die vermiedene
+Prozessarbeit und entfernte tput-Abhängigkeit im Fehlerpfad, nicht für eine
+höhere CPS-Zahl oder ungemessene Heap-/RSS-Ersparnis.
+
+Normale native Logger-Libtests,15echte Kernel-Pipe-/PTY-/Controlling-TTY-Schritte,
+Zeroachsen/Live-Resize, ein negativer Leerprotokollcheck, Format und Clippy
+bestehen. Der erhaltene Repo-Testtreiber ist mit aktuellem nativem Testbinary
+am endgültigen Pfad ausgeführt. Ein Docstring zur Benutzung ersetzt lediglich
+Vorbereitungshistorie; die ausführbaren AST-Knoten bleiben gleich.
+
+Bewusste UI-Randänderung: Nach Unix-ioctl-Fehlern werden die bisherigen80×30-
+Defaults verwendet; ein möglicherweise erfolgreicher Terminfo-Fallback entfällt.
+Erfolgreiche Live-TTY-Abfragen und Nullachsenbehandlung bleiben gleich; andere
+Plattformen benutzen weiter `size()`. Windows ist hier nicht laufzeitgetestet.
+Worldgen-/RNG-/FP-Code ist unverändert; für100 wird kein eigener neuer22.500-
+Worldgen-Hashlauf behauptet. Die passende95-Quellbasis ist separat nativ gehasht.
+[Prozessnachweis](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/100-NATIVE-MATCHED-PROCESS-PROOF.json),
+[Warnparität](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/100-NATIVE-WARNING-PARITY.json),
+[CPS und Grenzen](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/100-NATIVE-CPS-RESOURCE-RESULT.json).
+
 ## Nächste höchstens drei Versuche – aktuelle Reihenfolge
 
-95ist abgeschlossen und übernommen. Die folgende Liste ersetzt alle früheren
-Reihenfolgen. Neue Timer bleiben an die aktuelle Aktivitätsfreigabe gebunden;
-beim nächsten Nutzerwechsel gilt wieder die zuletzt genannte Einschränkung.
+95 und100 sind abgeschlossen und übernommen. Die folgende Liste ersetzt
+alle früheren Reihenfolgen. Neue Timer bleiben an die aktuelle Aktivitätsfreigabe
+gebunden; eine spätere Nutzerpause überstimmt die derzeitige Nachtfreigabe.
 
-1. **Terminalabfragen ohne Unterprozesse (100).** Ursache:353Logeinträge
-   ×vier Größenabfragen ×zwei tput-Starts ergeben2.824durch eindeutige
-   Prozess-IDs bestätigte Unterprozesse im nativen End-Profil. Kleiner
-   privater Unix-Patch verwendet denselben Live-ioctl-Pfad direkt; Fehler
-   verwenden80×30. Windows bleibt bei `size()`. Bewusste UI-Randänderung:
-   Nach ioctl-Fehlern entfällt ein möglicherweise erfolgreicher Terminfo-
-   Fallback. Alle Warnungen bleiben erhalten. Runtime und echte PTY-/Pipe-
-   Tests sind source-peer-reviewed und formatgeprüft, noch nicht ausgeführt.
-   Nächste Gates: tatsächlicher Steel-Libtestbuild, Resize-/Null-/Pipe- und
-   ctty-Prüfung, native Prozessfreiheit/Warnparität, danach getrennte End-/
-   Overworld-CPS- und Shutdownkontrollen. Kein Gewinn aus Forkzahl abgeleitet.
-   [PoC und Ursachenbeleg](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/terminal-query-worldgen-hotspot/REPORT.md).
-2. **Licht: engeres privates kanonisches Arbeitsfenster prüfen.** Der neue
-   Entwurf unterscheidet ausschließlich intern fest gewählte Lightjobs von
-   öffentlichen/custom/queued Pfaden. Erst nach vollständigem Positions-,
-   Welt-, Höhen- und Section-Map-Nachweis wäre Light-vs-Light Radius2 statt4
-   denkbar; jeder gemischte/kurze/unklare Fall bleibt Wide4. Der aktuelle
-   Fünf-Dateien-Entwurf ist ausdrücklich **unvollständig**, nicht freigegeben,
-   gebaut oder getestet. Feld-/Provider-/Publikationsbeweis, Authorabschluss,
-   unabhängiger Peer und Nebenläufigkeitstests fehlen. Keine größere
-   Parallelität oder CPS-Zahl versprochen.99ist ein separater kleinerer Arm:
-   nur äußere Writer-CAS vermeiden, Gate4 behalten; historische native Tests
-   aufe788 bestehen, die gestoppte CPS-Serie bleibt vollständig ausgeschlossen.
-   [Unfertiger Checkpoint](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-canonical-window-source-trial/CHECKPOINT.json),
-   [99-Maschinenbeleg](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light99-candidate-machine-review/REPORT.md).
-3. **Kompakte Corner-Puffer V2 als Speicherarm prüfen.** Vollständige
-   FP-/Callback-/Refill-Invarianten und sieben Testquellen sind vorbereitet.
-   Quellenmodell pro temporärem NoiseChunk:OW81.920→39.200B,
-   Nether81.920→6.800B, End49.152→4.752B. Allokationsanzahl bleibt gleich;
-   weniger angeforderte Bytes sind weder gemessener Liveheap noch RSS.
-   Dynamische Strides/Bounds und Kopierarbeit können Durchsatz kosten.
-   Zuerst sieben echte Tests und aktuelle Hashes, dann native Speicherzugriffe
-   und gemessene Allokations-/Liveheap-/CPS-Gegenkosten. Noch kein kompilierter
-   oder übernommener Kandidat.
+1. **Kompakte Corner-Puffer V2 als Speicherarm prüfen.** Quellenmodell pro
+   temporärem NoiseChunk:OW81.920→39.200B, Nether81.920→6.800B,
+   End49.152→4.752B. Keine neue Noise-/Callback-Auswertung; Allokationsanzahl
+   bleibt gleich. Keine gemessene Liveheap-/RSS-Ersparnis. Neue NoiseChunks
+   entstehen je Terrainfill, ein Produktionspool ist bisher nicht vorhanden.
+   Sieben Tests sind vorbereitet, nicht ausgeführt. Zero-Material-Kanäle sind
+   von null aktiven Interpolatoren zu unterscheiden: Letztere können bereits
+   im alten Shared-Hit-Pfad an `chunks_exact(0)` scheitern. Gültige Proofindizes
+   müssen zur tatsächlichen Interpolatorzahl passen; bisheriges Padding ist
+   kein freier zusätzlicher Kanal. Quellgrenzen, echte Tests und Hashes vor
+   nativem Index-/Bounds-/Speicher-/CPS-Vergleich schließen.
    [Vorbereiteter Arm](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/night-corners-formatted-preparation/manifest.json).
+2. **PGO für das gesamte native Programm konkret vorbereiten.** Das bereits
+   source-geprüfte strikte N/G/U-Rollengate und der vorhandene Trainer sind
+   die Basis; keine parallele neue Diagnosepipeline. Reale Build-/Umwelt-/
+   Tool-/Quellidentitäten erfassen, Gate und Vergleichsintegration prüfen,
+   erst danach Instrumentierungs-/Use-Builds und Training. End129 ist im
+   Trainer vorbereitet, noch ohne beobachtete Abdeckung. Hashparität,
+   erfolgreich geladene Profile, uninstrumentierter Maschinenkode und
+   unabhängige Holdouts bleiben Pflicht. Keine PGO-Prozentzusage.
+   [Offene Gates](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/high-impact-pgo-review/REPORT.md).
+3. **Lichtfenster101: Vertragsentscheidung abwarten.** Der private Entwurf ist
+   `contract_hold / inactive_source_draft`. Welt-/Positions-/Höhen-/Outer-Map-
+   Prüfungen belegen keine begrenzten Weltzugriffe beliebiger öffentlicher
+   Shape-/Light-Callbacks; vorhandene Registryinitialisierung bewahrt keinen
+   abgefragten Vanilla-Herkunftsnachweis. Die konkrete Nutzerfrage zu einem
+   verbindlichen Providervertrag ist offen. Keine Aktivierung, Ausführung,
+   neue Foundation oder heuristische Fn-/Block-ID-Prüfung bis zur Klärung.
+   Drei vorbereitete Gate-Tests sind kein Stage-/Providerbeweis.99 bleibt
+   ein separater historisch nativ geprüfter Gate4-Arm; aktuelle CPS fehlen.
+   [Vertragsbefund](../worldgen-machine-audit-20261104/experiments/goal-audit-20261107/light-canonical-window-source-trial/REVIEW.md).
 
-PGO bleibt eine vorbereitete Reserve außerhalb der aktuellen Dreierliste.
+Die vorhandene PGO-Vorbereitung ist weiterhin ungelaufen; ihre bisherigen
+Quellenbelege bleiben erhalten.
 Trainer mit vorbereitetem End129-Fall, gepinnte Backend-Quellen und striktes
 N/G/U-Rollengate bleiben erhalten; Trainings-/Use-Builds, erfolgreiche
 Profilzuordnung, Hashes und unabhängige Holdouts sind weiterhin offen.
