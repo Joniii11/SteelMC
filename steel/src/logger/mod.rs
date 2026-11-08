@@ -26,9 +26,6 @@ mod selection;
 mod state;
 mod suggestions;
 
-#[cfg(all(test, unix))]
-mod terminal_dimensions_tests;
-
 // Unix size() may spawn tput when no terminal is available.
 fn terminal_dimensions() -> io::Result<(u16, u16)> {
     #[cfg(unix)]
