@@ -167,6 +167,8 @@ impl TranspileContext {
         let grid_side_lit = Literal::i32_unsuffixed(grid_side);
         let grid_total_lit = Literal::usize_unsuffixed(grid_total);
 
+        let (end_grid_helpers, batched_flat_names) = self.gen_end_grid_batch_helpers(input);
+
         let flat_names: Vec<&String> = self
             .topo_order
             .iter()
@@ -203,6 +205,45 @@ impl TranspileContext {
                 }
             })
             .collect();
+
+        // Only init_grid uses the leaf-substituting private helpers.
+        // Public scalar functions and every ensure fallback keep their original calls.
+        let grid_ensure_stmts: Vec<TokenStream> = flat_names
+            .iter()
+            .map(|name| {
+                let field = named_fn_field_ident(name);
+                let compute_fn = named_fn_ident(name);
+                if batched_flat_names.contains(name.as_str()) {
+                    let grid_fn = format_ident!("{}_grid_end_islands", compute_fn);
+                    quote! {
+                        let val = Self::#grid_fn(noises, &*self, x, z, end_islands_grid_values[idx]);
+                        self.#field = val;
+                    }
+                } else {
+                    quote! {
+                        let val = #compute_fn(noises, &*self, x, z);
+                        self.#field = val;
+                    }
+                }
+            })
+            .collect();
+
+        let end_grid_setup = if batched_flat_names.is_empty() {
+            TokenStream::new()
+        } else {
+            quote! {
+                let end_islands_grid_values = {
+                    use std::array::from_fn;
+                    noises.end_islands.sample_batch::<#grid_total_lit>(from_fn(|idx| {
+                        let rel_x = idx as i32 % Self::GRID_SIDE;
+                        let rel_z = idx as i32 / Self::GRID_SIDE;
+                        let x = ((self.grid_first_quart_x + rel_x) << 2) as f64;
+                        let z = ((self.grid_first_quart_z + rel_z) << 2) as f64;
+                        (x, z)
+                    }))
+                };
+            }
+        };
 
         // Grid load statements: copy from grid[idx] into active fields
         let grid_load_stmts: Vec<TokenStream> = flat_names
@@ -383,6 +424,8 @@ impl TranspileContext {
         let noises = &self.noises_ident;
         let cache = &self.cache_ident;
         quote! {
+            #end_grid_helpers
+
             /// Column-level cache for xz-only density function results.
             ///
             /// Supports two modes:
@@ -453,6 +496,8 @@ impl TranspileContext {
                     self.has_grid = true;
                     self.valid = false;
 
+                    #end_grid_setup
+
                     // Pre-compute all grid positions in topological order.
                     // For each position, write to active fields first (so
                     // dependent compute functions can read them), then copy
@@ -463,7 +508,7 @@ impl TranspileContext {
                             let z = ((self.grid_first_quart_z + rel_z) << 2) as f64;
                             let idx = (rel_z * Self::GRID_SIDE + rel_x) as usize;
 
-                            #(#ensure_stmts)*
+                            #(#grid_ensure_stmts)*
                             #(#grid_store_stmts)*
                             #(#router_ensure_stmts)*
                             #(#router_grid_store_stmts)*

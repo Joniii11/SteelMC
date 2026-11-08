@@ -41,6 +41,8 @@ pub(super) struct TranspileContext {
     pub(super) legacy_random_source: bool,
     /// Whether any density function uses `EndIslands`.
     pub(super) uses_end_islands: bool,
+    /// Only private, AST-checked init-grid evaluators consume a batch leaf value.
+    pub(super) end_grid_batch_mode: bool,
     /// When true, `BlendedNoise` emits the `blended_noise_value` parameter
     /// instead of calling `noises.blended_noise.compute(x, y, z)`.
     pub(super) fill_mode: bool,
@@ -92,6 +94,7 @@ impl TranspileContext {
             blended_noise_config: None,
             legacy_random_source: false,
             uses_end_islands: false,
+            end_grid_batch_mode: false,
             fill_mode: false,
             interpolated_param_mode: false,
             interpolated_param_counter: 0,

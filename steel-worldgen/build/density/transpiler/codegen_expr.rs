@@ -402,7 +402,9 @@ impl TranspileContext {
             DensityFunction::BlendOffset(_) => quote! { 0.0 },
             // EndIslands ignores y internally, so we can pass 0 in flat contexts
             DensityFunction::EndIslands => {
-                if is_flat {
+                if self.end_grid_batch_mode {
+                    quote! { end_islands_grid_value as f32 }
+                } else if is_flat {
                     quote! { noises.end_islands.sample(x, 0.0, z) as f32 }
                 } else {
                     quote! { noises.end_islands.sample(x, y, z) as f32 }

@@ -42,6 +42,7 @@ mod codegen_expr;
 mod codegen_functions;
 mod codegen_structs;
 mod context;
+mod end_grid_batch;
 mod fingerprint;
 mod graph;
 mod interpolation_channels;
