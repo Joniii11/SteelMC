@@ -1,4 +1,4 @@
-//! Conservative init-grid-only substitution of raw EndIslands leaves.
+//! Conservative init-grid-only substitution of raw `EndIslands` leaves.
 
 use std::collections::BTreeSet;
 
@@ -51,7 +51,7 @@ impl TranspileContext {
 
         for (name, df) in &input.registry {
             if !self.flat_cached.contains(name)
-                || !raw_end_islands_leaf_count(df).is_some_and(|count| count > 0)
+                || raw_end_islands_leaf_count(df).is_none_or(|count| count == 0)
             {
                 continue;
             }

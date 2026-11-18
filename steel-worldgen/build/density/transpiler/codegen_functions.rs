@@ -416,6 +416,8 @@ impl TranspileContext {
 
             /// Combine interpolated values for `final_density`.
             #[expect(unused_variables, reason = "generated function has a fixed signature; not all parameters are used in every dimension")]
+            #[expect(clippy::inline_always, reason = "expose the measured per-block combiner boundary to the caller")]
+            #[inline(always)]
             pub fn combine_interpolated(
                 noises: &#noises,
                 cache: &#cache,

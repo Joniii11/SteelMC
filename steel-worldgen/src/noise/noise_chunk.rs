@@ -269,6 +269,11 @@ impl<N: DimensionNoises> NoiseChunk<N> {
         clippy::too_many_lines,
         reason = "keeps the cell interpolation and block traversal together"
     )]
+    #[expect(
+        clippy::inline_always,
+        reason = "expose constructor layout constants across the existing fill boundary"
+    )]
+    #[inline(always)]
     pub fn fill<F>(
         &mut self,
         noises: &N,
