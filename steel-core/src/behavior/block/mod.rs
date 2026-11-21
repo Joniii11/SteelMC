@@ -9,12 +9,12 @@ use smallvec::SmallVec;
 use steel_registry::DyeColor;
 use steel_registry::block_entity_type::BlockEntityTypeRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
-use steel_registry::blocks::{BlockRef, BlockSpawnRule};
 use steel_registry::blocks::properties::{BlockStateProperties, Direction};
 use steel_registry::blocks::shapes::{
     BooleanOp, ShapeChannel, SupportType, VoxelShape, is_block_local_face_sturdy,
     is_shape_full_block, join_unoptimized_boxes,
 };
+use steel_registry::blocks::{BlockRef, BlockSpawnRule};
 use steel_registry::enchantment_effect::EnchantmentEffectComponent;
 use steel_registry::entity_type::EntityTypeRef;
 use steel_registry::fluid::{FluidRef, FluidState};
@@ -245,8 +245,6 @@ pub trait BlockBehavior: Send + Sync {
     }
 
     /// Whether this block accepts a mob spawning on or inside it.
-    /// Follows the block's extracted [`BlockSpawnRule`]; its default predicate is
-    /// full UP support and emission below [`MAX_MOB_SPAWN_LIGHT_EMISSION`].
     fn is_valid_spawn(
         &self,
         state: BlockStateId,
