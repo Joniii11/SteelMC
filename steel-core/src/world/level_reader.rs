@@ -11,7 +11,7 @@ use steel_registry::blocks::shapes::SupportType;
 use steel_registry::fluid::FluidRef;
 use steel_registry::game_events::GameEventRef;
 use steel_registry::sound_event::SoundEventRef;
-use steel_utils::{BlockPos, BlockStateId, types::UpdateFlags};
+use steel_utils::{BlockPos, BlockStateId, WorldAabb, types::UpdateFlags};
 
 use crate::block_entity::SharedBlockEntity;
 use crate::chunk::heightmap::HeightmapType;
@@ -120,6 +120,16 @@ pub trait LevelReader {
     /// from the light-curved brightness at a position.
     fn pathfinding_cost_from_light_levels(&self, pos: BlockPos) -> f32 {
         self.light_level_dependent_magic_value(pos) - 0.5
+    }
+
+    /// Returns whether any block overlapping `aabb` holds a fluid.
+    fn contains_any_liquid(&self, aabb: WorldAabb) -> bool {
+        (aabb.min_x().floor() as i32..aabb.max_x().ceil() as i32).any(|x| {
+            (aabb.min_y().floor() as i32..aabb.max_y().ceil() as i32).any(|y| {
+                (aabb.min_z().floor() as i32..aabb.max_z().ceil() as i32)
+                    .any(|z| self.get_block_state(BlockPos::new(x, y, z)).has_fluid())
+            })
+        })
     }
 }
 

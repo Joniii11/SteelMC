@@ -2,14 +2,13 @@ use std::sync::Arc;
 
 use steel_macros::block_behavior;
 use steel_registry::blocks::BlockRef;
-use steel_registry::entity_type::EntityTypeRef;
 use steel_registry::vanilla_damage_types;
 use steel_utils::{BlockPos, BlockStateId};
 
 use crate::{
     behavior::{BlockBehavior, BlockPlaceContext},
     entity::{Entity, damage::DamageSource},
-    world::{LevelReader, World},
+    world::World,
 };
 
 /// Behavior for magma blocks.
@@ -41,16 +40,6 @@ impl MagmaBlock {
 impl BlockBehavior for MagmaBlock {
     fn get_state_for_placement(&self, _context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
         Some(self.block.default_state())
-    }
-
-    fn is_valid_spawn(
-        &self,
-        _state: BlockStateId,
-        _world: &dyn LevelReader,
-        _pos: BlockPos,
-        entity_type: EntityTypeRef,
-    ) -> bool {
-        entity_type.fire_immune
     }
 
     fn step_on(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos, entity: &dyn Entity) {

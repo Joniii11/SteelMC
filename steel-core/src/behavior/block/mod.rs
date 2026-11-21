@@ -8,8 +8,8 @@ use glam::DVec3;
 use smallvec::SmallVec;
 use steel_registry::DyeColor;
 use steel_registry::block_entity_type::BlockEntityTypeRef;
-use steel_registry::blocks::BlockRef;
 use steel_registry::blocks::block_state_ext::BlockStateExt;
+use steel_registry::blocks::{BlockRef, BlockSpawnRule};
 use steel_registry::blocks::properties::{BlockStateProperties, Direction};
 use steel_registry::blocks::shapes::{
     BooleanOp, ShapeChannel, SupportType, VoxelShape, is_block_local_face_sturdy,
@@ -245,17 +245,23 @@ pub trait BlockBehavior: Send + Sync {
     }
 
     /// Whether this block accepts a mob spawning on or inside it.
-    /// Defaults to full UP support and emission below [`MAX_MOB_SPAWN_LIGHT_EMISSION`].
+    /// Follows the block's extracted [`BlockSpawnRule`]; its default predicate is
+    /// full UP support and emission below [`MAX_MOB_SPAWN_LIGHT_EMISSION`].
     fn is_valid_spawn(
         &self,
         state: BlockStateId,
         world: &dyn LevelReader,
         pos: BlockPos,
-        _entity_type: EntityTypeRef,
+        entity_type: EntityTypeRef,
     ) -> bool {
-        // TODO: extract the correct rules from block spawn rule
-        world.is_face_sturdy_for(state, pos, Direction::Up, SupportType::Full)
-            && state.get_light_emission() < MAX_MOB_SPAWN_LIGHT_EMISSION
+        match state.get_block().spawn_rule {
+            BlockSpawnRule::Default => {
+                world.is_face_sturdy_for(state, pos, Direction::Up, SupportType::Full)
+                    && state.get_light_emission() < MAX_MOB_SPAWN_LIGHT_EMISSION
+            }
+            BlockSpawnRule::Always => true,
+            BlockSpawnRule::Allowed(types) => types.contains(&entity_type),
+        }
     }
 
     /// Returns whether this block can be occupied by a forced respawn position
