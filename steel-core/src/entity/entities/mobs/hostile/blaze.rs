@@ -281,20 +281,11 @@ impl Entity for BlazeEntity {
     }
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
-        self.save_persistent_living_data(nbt);
-        self.save_mob(nbt);
-    }
-
-    fn save_additional_for_data_compare(&self, nbt: &mut NbtCompound) {
-        self.save_persistent_living_data(nbt);
-        self.save_command_living_fields(nbt);
+        nbt.insert("Health", self.get_health());
         self.save_mob(nbt);
     }
 
     fn load_additional(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
-        self.living_base.load_damage_state(nbt, self.tick_count());
-        self.attributes().lock().load_vanilla_nbt(nbt);
-        self.living_base.load_mob_effects(nbt);
         self.set_health(
             nbt.float_value("Health")
                 .unwrap_or_else(|| self.get_max_health()),
