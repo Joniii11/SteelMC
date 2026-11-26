@@ -9,13 +9,13 @@ const PART_COUNT: u32 = 2;
 
 /// A stand-in for a multipart mob, so the world plumbing can be tested without
 /// depending on any concrete boss.
-struct MultipartTestEntity {
+pub(in crate::entity) struct MultipartTestEntity {
     base: EntityBase,
     parts: Vec<Arc<dyn PartEntity>>,
 }
 
 impl MultipartTestEntity {
-    fn shared(position: DVec3, world: Weak<World>) -> SharedEntity {
+    pub(in crate::entity) fn shared(position: DVec3, world: Weak<World>) -> SharedEntity {
         let ids = reserve_entity_ids(PART_COUNT + 1);
         let parts = (0..PART_COUNT)
             .map(|index| {

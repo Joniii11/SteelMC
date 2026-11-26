@@ -7,6 +7,7 @@ mod fire_freeze;
 mod movement;
 mod persistence;
 mod relationships;
+mod spatial_observer;
 
 pub use fire_freeze::EntityFireFreezeState;
 pub use movement::{
@@ -17,6 +18,7 @@ pub use persistence::{EntityBaseLoad, EntityBaseSaveData};
 pub use relationships::PendingWorldChangeToken;
 use relationships::{EntityLifecycleState, EntityRelationshipState};
 
+use spatial_observer::SpatialQueryObserver;
 use std::sync::{Arc, Weak};
 
 use glam::DVec3;
@@ -400,6 +402,7 @@ pub struct EntityBase {
     world: SyncMutex<Weak<World>>,
     /// Current vanilla movement state.
     state: SyncMutex<EntityBaseState>,
+    spatial_observer: Option<Box<SyncMutex<SpatialQueryObserver>>>,
     /// Shared vanilla save data outside the movement snapshot.
     save_data: SyncMutex<EntityBaseSaveData>,
     /// Per-tick movement segments used by vanilla block-contact effects.
@@ -467,6 +470,7 @@ impl EntityBase {
             uuid,
             world: SyncMutex::new(world),
             state: SyncMutex::new(state),
+            spatial_observer: None,
             save_data: SyncMutex::new(EntityBaseSaveData::new()),
             movement_trace: SyncMutex::new(EntityMovementTrace::default()),
             lifecycle: SyncMutex::new(EntityLifecycleState::new()),
@@ -717,14 +721,12 @@ impl EntityBase {
     /// Reads the push inputs under one lock, or `None` while riding so the caller
     /// falls back to the regular push callbacks.
     pub(crate) fn unmounted_push_state(&self) -> Option<EntityPushState> {
-        let mut relationships = self.relationships.lock();
-
-        if relationships.vehicle().is_some() {
-            return None;
-        }
-
-        let is_vehicle = relationships.first_passenger().is_some();
-        drop(relationships);
+        let is_vehicle = self.with_passenger_list(|relationships| {
+            if relationships.vehicle().is_some() {
+                return None;
+            }
+            Some(relationships.first_passenger().is_some())
+        })?;
 
         let state = self.state.lock();
 
@@ -844,12 +846,12 @@ impl EntityBase {
 
     /// Gets this entity's direct passengers, pruning stale weak references.
     pub fn passengers(&self) -> Vec<SharedEntity> {
-        self.relationships.lock().passengers()
+        self.with_passenger_list(EntityRelationshipState::passengers)
     }
 
     /// Gets this entity's first direct passenger, if present.
     pub fn first_passenger(&self) -> Option<SharedEntity> {
-        self.relationships.lock().first_passenger()
+        self.with_passenger_list(EntityRelationshipState::first_passenger)
     }
 
     /// Returns true when this entity has at least one direct passenger.
@@ -859,7 +861,7 @@ impl EntityBase {
 
     /// Returns true when the entity ID is a direct passenger.
     pub fn has_passenger_id(&self, passenger_id: i32) -> bool {
-        self.relationships.lock().has_passenger_id(passenger_id)
+        self.with_passenger_list(|relationships| relationships.has_passenger_id(passenger_id))
     }
 
     /// Returns the vanilla boarding cooldown in ticks.
@@ -869,7 +871,7 @@ impl EntityBase {
 
     /// Removes a direct passenger by entity ID.
     pub(crate) fn remove_passenger_id(&self, passenger_id: i32) -> bool {
-        self.relationships.lock().remove_passenger_id(passenger_id)
+        self.with_passenger_list(|relationships| relationships.remove_passenger_id(passenger_id))
     }
 
     /// Stops riding the current vehicle, if any.
@@ -896,15 +898,16 @@ impl EntityBase {
 
         passenger.base().relationships.lock().vehicle = Some(Arc::downgrade(vehicle));
         let passenger_ref = Arc::downgrade(passenger);
-        let mut vehicle_relationships = vehicle.base().relationships.lock();
-        let first_passenger_is_player = vehicle_relationships
-            .first_passenger()
-            .is_some_and(|first| first.entity_type() == &vanilla_entities::PLAYER);
-        if passenger.entity_type() == &vanilla_entities::PLAYER && !first_passenger_is_player {
-            vehicle_relationships.passengers.insert(0, passenger_ref);
-        } else {
-            vehicle_relationships.passengers.push(passenger_ref);
-        }
+        vehicle.base().with_passenger_list(|relationships| {
+            let first_passenger_is_player = relationships
+                .first_passenger()
+                .is_some_and(|first| first.entity_type() == &vanilla_entities::PLAYER);
+            if passenger.entity_type() == &vanilla_entities::PLAYER && !first_passenger_is_player {
+                relationships.passengers.insert(0, passenger_ref);
+            } else {
+                relationships.passengers.push(passenger_ref);
+            }
+        });
     }
 
     /// Sets the vanilla boarding cooldown in ticks.
@@ -1065,12 +1068,11 @@ impl EntityBase {
     }
 
     fn eject_passenger_relationships(&self) {
-        let passengers = {
-            let mut relationships = self.relationships.lock();
+        let passengers = self.with_passenger_list(|relationships| {
             let passengers = relationships.passengers();
             relationships.passengers.clear();
             passengers
-        };
+        });
 
         for passenger in passengers {
             if passenger.base().clear_vehicle_if(self.id) {
@@ -1159,6 +1161,11 @@ impl EntityBase {
         {
             let mut state = self.state.lock();
             let old = state.position;
+            if let Some(observer) = &self.spatial_observer
+                && (old.x.to_bits() != pos.x.to_bits() || old.z.to_bits() != pos.z.to_bits())
+            {
+                observer.lock().invalidate();
+            }
             state.position = pos;
             state.bounding_box = EntityBaseState::make_bounding_box(pos, state.dimensions);
             if BlockPos::containing(old.x, old.y, old.z)

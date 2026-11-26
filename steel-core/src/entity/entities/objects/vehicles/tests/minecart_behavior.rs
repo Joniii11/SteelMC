@@ -8,6 +8,9 @@ use crate::entity::entities::objects::vehicles::MinecartEntity;
 use crate::entity::entities::objects::vehicles::test_support::{assert_vec_close, test_world};
 use crate::entity::{Entity, EntityEventSource};
 
+#[path = "minecart_stack.rs"]
+mod stack;
+
 fn run_flat_track_case(
     key: &'static str,
     powered: bool,

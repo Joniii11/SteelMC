@@ -104,7 +104,7 @@ impl RetainedSpatialCells {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct EntitySpatialCellBounds {
     minimum: EntitySpatialCell,
     maximum: EntitySpatialCell,
@@ -518,6 +518,7 @@ struct ManagerState {
     accessible_order: IndexedOrderedEntityIds,
     by_section: BTreeMap<PackedSectionPos, OrderedEntityIds>,
     by_spatial_cell: FxHashMap<EntitySpatialCell, SpatialCellEntities>,
+    coincident_cart_query: Option<minecart_contacts::CoincidentCartQuery>,
     by_hard_collision_cell: FxHashMap<EntitySpatialCell, SpatialCellEntities>,
     by_chunk: FxHashMap<ChunkPos, FxHashSet<i32>>,
     unloading_by_chunk: FxHashMap<ChunkPos, Vec<EntityEntry>>,
@@ -2249,6 +2250,7 @@ impl WorldEntityManager {
         hard_collision_relevant: bool,
         retained: Option<EntitySpatialCellBounds>,
     ) {
+        state.coincident_cart_query = None;
         Self::insert_into_spatial_cells(
             state,
             entity_slot,
@@ -2274,6 +2276,7 @@ impl WorldEntityManager {
         hard_collision_relevant: bool,
         retained: Option<EntitySpatialCellBounds>,
     ) {
+        state.coincident_cart_query = None;
         Self::remove_from_spatial_cells(
             state,
             cells,
@@ -2432,6 +2435,7 @@ impl Default for WorldEntityManager {
 }
 
 mod entries;
+mod minecart_contacts;
 mod spatial_query;
 
 #[cfg(feature = "benchmark-support")]

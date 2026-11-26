@@ -3,34 +3,12 @@ use std::io::Cursor;
 use simdnbt::borrow::read_compound;
 use steel_registry::vanilla_game_rules::ENTITY_DROPS;
 use steel_registry::{vanilla_damage_types, vanilla_entities};
-use steel_utils::types::UpdateFlags;
 use steel_utils::{ChunkPos, WorldAabb};
 
 use super::*;
-use crate::entity::entities::objects::vehicles::test_support::test_world;
-use crate::entity::next_entity_id;
-
-const CART_BLOCK_POS: BlockPos = BlockPos::new(8, 64, 8);
-
-fn spawned_tnt_minecart(world: &Arc<World>) -> Arc<TntMinecartEntity> {
-    let cart = Arc::new(TntMinecartEntity::new(
-        &vanilla_entities::TNT_MINECART,
-        next_entity_id(),
-        CART_BLOCK_POS.get_bottom_center(),
-        Arc::downgrade(world),
-    ));
-    world
-        .try_add_entity(Arc::clone(&cart).into_shared_entity())
-        .expect("test TNT minecart should enter the loaded chunk");
-    cart
-}
-
-fn set_block(world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
-    let flags = UpdateFlags::UPDATE_NONE
-        | UpdateFlags::UPDATE_KNOWN_SHAPE
-        | UpdateFlags::UPDATE_SKIP_ON_PLACE;
-    assert!(world.set_block(pos, state, flags));
-}
+use crate::entity::entities::objects::vehicles::test_support::{
+    CART_BLOCK_POS, set_block, spawned_tnt_minecart, test_world,
+};
 
 fn dropped_items(world: &World, position: DVec3) -> usize {
     world

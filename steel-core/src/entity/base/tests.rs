@@ -4,6 +4,7 @@ use super::{
     EntityMovementFlags, EntityMovementProgress, EntityPhysicsStateInput, EntityPistonMovement,
     EntityVerticalMovementStateUpdate, MAX_ENTITY_TAGS,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Weak};
 
 use glam::DVec3;
@@ -44,16 +45,6 @@ fn assert_f64_close(left: f64, right: f64) {
         (left - right).abs() < 1.0e-6,
         "expected {left:?} to equal {right:?}"
     );
-}
-
-fn link_vehicle_and_passenger(vehicle: &SharedEntity, passenger: &SharedEntity) {
-    passenger.base().relationships.lock().vehicle = Some(Arc::downgrade(vehicle));
-    vehicle
-        .base()
-        .relationships
-        .lock()
-        .passengers
-        .push(Arc::downgrade(passenger));
 }
 
 struct FallDamageTestEntity {
@@ -135,14 +126,24 @@ impl EntityLevelCallback for CountingCallback {
     }
 }
 
-struct CommitRejectingCallback;
+struct CommitRejectingCallback {
+    base: Weak<EntityBase>,
+    before_move: Arc<AtomicBool>,
+    before_rollback: Arc<AtomicBool>,
+}
 
 impl EntityLevelCallback for CommitRejectingCallback {
     fn validate_move(&self, _old_pos: DVec3, _new_pos: DVec3) -> Result<(), EntityMoveError> {
         Ok(())
     }
 
-    fn on_move_committed(&self, _old_pos: DVec3, _new_pos: DVec3) -> Result<(), EntityMoveError> {
+    fn on_move_committed(&self, _old_pos: DVec3, new_pos: DVec3) -> Result<(), EntityMoveError> {
+        let base = self.base.upgrade().expect("test retains the entity base");
+        assert!(!self.before_move.load(Ordering::Acquire));
+        assert_eq!(
+            base.observe_minecart_contacts(&self.before_rollback),
+            Some([new_pos.x.to_bits(), new_pos.z.to_bits()])
+        );
         Err(EntityMoveError::NotLive { entity_id: 1 })
     }
 
@@ -393,13 +394,24 @@ fn killed_player_can_reserve_respawn_transition() {
 
 #[test]
 fn try_set_position_rolls_back_when_commit_fails() {
-    let base = EntityBase::new(
-        1,
-        DVec3::new(1.0, 2.0, 3.0),
-        EntityDimensions::new(0.25, 0.25, 0.125),
-        Weak::<World>::new(),
+    let base = Arc::new(
+        EntityBase::new(
+            1,
+            DVec3::new(1.0, 2.0, 3.0),
+            EntityDimensions::new(0.25, 0.25, 0.125),
+            Weak::<World>::new(),
+        )
+        .with_spatial_query_observer(),
     );
-    base.set_level_callback(Arc::new(CommitRejectingCallback));
+    let before_move = Arc::new(AtomicBool::new(true));
+    let before_rollback = Arc::new(AtomicBool::new(true));
+    base.observe_minecart_contacts(&before_move)
+        .expect("empty cart");
+    base.set_level_callback(Arc::new(CommitRejectingCallback {
+        base: Arc::downgrade(&base),
+        before_move,
+        before_rollback: Arc::clone(&before_rollback),
+    }));
 
     let result = base.try_set_position(DVec3::new(4.0, 5.0, 6.0));
 
@@ -408,6 +420,54 @@ fn try_set_position_rolls_back_when_commit_fails() {
         Err(EntityMoveError::NotLive { entity_id: 1 })
     ));
     assert_vec3_close(base.position(), DVec3::new(1.0, 2.0, 3.0));
+    assert!(!before_rollback.load(Ordering::Acquire));
+}
+
+#[test]
+fn horizontal_position_observer_survives_vertical_motion_and_duplicate_subscription() {
+    let base = EntityBase::new(
+        1,
+        DVec3::ZERO,
+        EntityDimensions::new(0.25, 0.25, 0.125),
+        Weak::new(),
+    )
+    .with_spatial_query_observer();
+    let first = Arc::new(AtomicBool::new(true));
+    let second = Arc::new(AtomicBool::new(true));
+    base.observe_minecart_contacts(&first).expect("empty cart");
+    base.set_position_local(DVec3::Y);
+    base.observe_minecart_contacts(&first).expect("empty cart");
+    assert!(first.load(Ordering::Acquire));
+    base.observe_minecart_contacts(&second).expect("empty cart");
+    assert!(!first.load(Ordering::Acquire));
+    base.set_position_local(DVec3::X);
+    assert!(!second.load(Ordering::Acquire));
+}
+
+#[test]
+fn pruning_the_last_expired_passenger_invalidates_an_occupied_cart_observation() {
+    use crate::entity::entities::MinecartEntity;
+
+    let vehicle: SharedEntity = Arc::new(MinecartEntity::new(
+        &vanilla_entities::MINECART,
+        1,
+        DVec3::ZERO,
+        Weak::new(),
+    ));
+    let passenger = TestEntity::shared(2, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
+    EntityBase::restore_passenger_relationship(&vehicle, &passenger);
+    let occupied = Arc::new(AtomicBool::new(true));
+    assert!(
+        vehicle
+            .base()
+            .observe_minecart_contacts(&occupied)
+            .is_none()
+    );
+    drop(passenger);
+    assert!(vehicle.first_passenger().is_none());
+    assert!(!occupied.load(Ordering::Acquire));
+    let empty = Arc::new(AtomicBool::new(true));
+    assert!(vehicle.base().observe_minecart_contacts(&empty).is_some());
 }
 
 #[test]
@@ -706,7 +766,7 @@ fn relationship_state_tracks_direct_vehicle_and_passengers() {
     let vehicle = TestEntity::shared(1, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
     let passenger = TestEntity::shared(2, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
 
-    link_vehicle_and_passenger(&vehicle, &passenger);
+    EntityBase::restore_passenger_relationship(&vehicle, &passenger);
 
     assert!(passenger.is_passenger());
     assert_eq!(passenger.vehicle().map(|entity| entity.id()), Some(1));
@@ -731,8 +791,8 @@ fn relationship_queries_follow_indirect_vehicle_chain() {
     let middle = TestEntity::shared(2, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
     let passenger = TestEntity::shared(3, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
 
-    link_vehicle_and_passenger(&root, &middle);
-    link_vehicle_and_passenger(&middle, &passenger);
+    EntityBase::restore_passenger_relationship(&root, &middle);
+    EntityBase::restore_passenger_relationship(&middle, &passenger);
 
     assert_eq!(passenger.root_vehicle_id(), 1);
     assert_eq!(middle.root_vehicle_id(), 1);
@@ -747,7 +807,7 @@ fn removal_cleans_up_relationship_state() {
     let vehicle = TestEntity::shared(1, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
     let passenger = TestEntity::shared(2, DVec3::ZERO, Weak::new(), &vanilla_entities::ITEM);
 
-    link_vehicle_and_passenger(&vehicle, &passenger);
+    EntityBase::restore_passenger_relationship(&vehicle, &passenger);
 
     vehicle.set_removed(RemovalReason::UnloadedToChunk);
 
@@ -764,7 +824,7 @@ fn base_fall_damage_propagates_to_passengers() {
     let passenger = FallDamageTestEntity::new(2, Uuid::new_v4());
     let passenger_entity: SharedEntity = Arc::<FallDamageTestEntity>::clone(&passenger);
 
-    link_vehicle_and_passenger(&vehicle, &passenger_entity);
+    EntityBase::restore_passenger_relationship(&vehicle, &passenger_entity);
 
     assert!(!vehicle.cause_fall_damage(
         8.0,

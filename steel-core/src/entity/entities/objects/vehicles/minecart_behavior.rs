@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use glam::DVec3;
 use glam::Vec3Swizzles;
@@ -11,7 +12,7 @@ use steel_registry::blocks::properties::{
 use steel_registry::vanilla_block_tags::BlockTag;
 use steel_registry::vanilla_blocks;
 use steel_registry::vanilla_entities;
-use steel_utils::{BlockPos, Direction};
+use steel_utils::{BlockPos, Direction, WorldAabb};
 
 use super::abstract_minecart::{AbstractMinecart, rail_exits};
 use crate::behavior::blocks::BaseRailBlock;
@@ -384,7 +385,7 @@ impl MinecartBehavior {
                     entity.push_entity(minecart.as_entity_event_source());
                 }
             }
-        } else {
+        } else if !Self::can_skip_contacts(minecart, &world, &hitbox) {
             let entities =
                 world.get_entities_in_aabb_matching(&hitbox, |entity| entity.id() != minecart.id());
 
@@ -399,6 +400,30 @@ impl MinecartBehavior {
         }
 
         false
+    }
+
+    fn can_skip_contacts(
+        minecart: &dyn AbstractMinecart,
+        world: &World,
+        hitbox: &WorldAabb,
+    ) -> bool {
+        #[cfg(test)]
+        if !stack_measurement::ENABLED.get() {
+            return false;
+        }
+        let Some(proof) = world
+            .entity_manager()
+            .coincident_minecarts(hitbox, minecart.as_entity_event_source())
+        else {
+            return false;
+        };
+        // The manager and the multipart registry are read in separate scopes.
+        let skip = !world.has_registered_entity_parts() && proof.load(Ordering::Acquire);
+        #[cfg(test)]
+        if skip {
+            stack_measurement::record_skip();
+        }
+        skip
     }
 
     fn update_rotation_from_movement(minecart: &dyn AbstractMinecart) {
@@ -486,6 +511,38 @@ impl MinecartBehavior {
             projected.y += 0.5;
         }
         Some(projected)
+    }
+}
+
+#[cfg(test)]
+pub(super) use stack_measurement::measure_cart_stack_skips;
+
+#[cfg(test)]
+mod stack_measurement {
+    use std::cell::Cell;
+
+    thread_local! {
+        pub(super) static ENABLED: Cell<bool> = const { Cell::new(true) };
+        static SKIPS: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn record_skip() {
+        SKIPS.update(|count| count.map(|count| count + 1));
+    }
+
+    pub(in super::super) fn measure_cart_stack_skips<R>(
+        enabled: bool,
+        f: impl FnOnce() -> R,
+    ) -> (R, usize) {
+        struct Restore(bool, Option<usize>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                ENABLED.set(self.0);
+                SKIPS.set(self.1);
+            }
+        }
+        let _restore = Restore(ENABLED.replace(enabled), SKIPS.replace(Some(0)));
+        (f(), SKIPS.get().unwrap_or_default())
     }
 }
 

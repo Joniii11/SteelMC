@@ -20,3 +20,7 @@ pub use vehicle_entity::VehicleEntity;
 #[cfg(test)]
 #[path = "tests/support.rs"]
 mod test_support;
+
+#[cfg(test)]
+#[path = "tests/minecart_benchmark.rs"]
+mod minecart_benchmark;

@@ -657,6 +657,11 @@ impl World {
         entities
     }
 
+    /// Parts are queried separately from the manager's spatial index.
+    pub(crate) fn has_registered_entity_parts(&self) -> bool {
+        !self.entity_parts.lock().is_empty()
+    }
+
     /// Visits the parts intersecting `aabb` and matching `predicate`, skipping `except_id`
     /// and its parts. Each part's own box is tested, as in vanilla's predicate overload.
     fn visit_parts_in_aabb(

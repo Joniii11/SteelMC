@@ -1269,7 +1269,7 @@ mod fall_and_fluids;
 mod ids;
 mod living_state;
 mod movement;
-mod multipart;
+pub(super) mod multipart;
 mod portals;
 mod riding_and_leashes;
 mod travel;

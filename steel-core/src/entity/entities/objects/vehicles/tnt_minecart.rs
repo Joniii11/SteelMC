@@ -107,7 +107,8 @@ impl TntMinecartEntity {
     #[must_use]
     pub fn new(entity_type: EntityTypeRef, id: i32, position: DVec3, world: Weak<World>) -> Self {
         Self {
-            base: EntityBase::new(id, position, entity_type.dimensions, world),
+            base: EntityBase::new(id, position, entity_type.dimensions, world)
+                .with_spatial_query_observer(),
             entity_type,
             entity_data: SyncMutex::new(TntMinecartEntityData::new()),
             minecart_base: AbstractMinecartBase::new(),
@@ -119,7 +120,7 @@ impl TntMinecartEntity {
     #[must_use]
     pub fn from_saved(entity_type: EntityTypeRef, load: EntityBaseLoad) -> Self {
         Self {
-            base: EntityBase::from_load(load, entity_type.dimensions),
+            base: EntityBase::from_load(load, entity_type.dimensions).with_spatial_query_observer(),
             entity_type,
             entity_data: SyncMutex::new(TntMinecartEntityData::new()),
             minecart_base: AbstractMinecartBase::new(),

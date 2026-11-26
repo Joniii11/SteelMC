@@ -1,7 +1,93 @@
 use super::*;
+use crate::entity::entities::TntMinecartEntity;
 
 fn ids(entities: &[SharedEntity]) -> Vec<i32> {
     entities.iter().map(|entity| entity.id()).collect()
+}
+
+fn tnt_cart(id: i32, position: DVec3) -> Arc<TntMinecartEntity> {
+    Arc::new(TntMinecartEntity::new(
+        &vanilla_entities::TNT_MINECART,
+        id,
+        position,
+        Weak::new(),
+    ))
+}
+
+fn coincident_tnt_stack() -> (WorldEntityManager, [Arc<TntMinecartEntity>; 2]) {
+    let manager = WorldEntityManager::new();
+    load_chunk(&manager, ChunkPos::new(0, 0));
+    let position = DVec3::new(8.0, 64.0, 8.0);
+    let carts = [tnt_cart(1, position), tnt_cart(2, position)];
+    for live in &carts {
+        manager
+            .add_live_entity(
+                Arc::<TntMinecartEntity>::clone(live),
+                EntityOwnership::ManagerOwned,
+            )
+            .expect("register native TNT minecart");
+    }
+    (manager, carts)
+}
+
+#[test]
+fn tnt_contact_proof_tracks_live_position_and_concrete_source_identity() {
+    let (manager, [source, neighbor]) = coincident_tnt_stack();
+    let position = source.position();
+    let hitbox = source.bounding_box();
+    let proof = manager
+        .coincident_minecarts(&hitbox, source.as_ref())
+        .expect("coincident carts");
+    let duplicate_id = tnt_cart(source.id(), position);
+    assert!(
+        manager
+            .coincident_minecarts(&hitbox, duplicate_id.as_ref())
+            .is_none()
+    );
+
+    // Even exactly identical indexed boxes cannot establish horizontal position equality.
+    neighbor
+        .base()
+        .set_position_local(position + 0.25 * DVec3::X);
+    neighbor.base().set_bounding_box(hitbox);
+    assert!(!proof.load(Ordering::Acquire));
+    assert!(
+        manager
+            .coincident_minecarts(&hitbox, source.as_ref())
+            .is_none()
+    );
+    neighbor.base().set_position_local(position);
+    let restored = manager
+        .coincident_minecarts(&hitbox, source.as_ref())
+        .expect("restacked");
+    manager
+        .remove_live_entity(neighbor.id(), RemovalReason::Discarded)
+        .expect("remove cart");
+    assert!(!restored.load(Ordering::Acquire));
+}
+
+#[test]
+fn restored_distant_passenger_revokes_tnt_contact_proof() {
+    let (manager, [source, neighbor]) = coincident_tnt_stack();
+    let hitbox = source.bounding_box();
+    let proof = manager
+        .coincident_minecarts(&hitbox, source.as_ref())
+        .expect("coincident carts");
+    let vehicle: SharedEntity = neighbor;
+    let passenger = entity(3, 3, source.position() + DVec3::X * 16.0);
+    EntityBase::restore_passenger_relationship(&vehicle, &passenger);
+    assert!(!proof.load(Ordering::Acquire));
+    assert!(
+        manager
+            .coincident_minecarts(&hitbox, source.as_ref())
+            .is_none()
+    );
+    passenger.base().stop_riding();
+    assert!(
+        manager
+            .coincident_minecarts(&hitbox, source.as_ref())
+            .is_some()
+    );
 }
 
 #[test]
